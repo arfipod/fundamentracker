@@ -3,14 +3,37 @@ name: FundamenTracker Automation
 on:
   schedule:
     - cron: "*/15 * * * *"
+
   workflow_dispatch:
     inputs:
       mode:
-        description: "Choose Run Mode"
+        description: "Run Mode"
         required: true
         default: "scan"
         type: choice
-        options: [scan, test]
+        options:
+          - scan
+          - test
+          - cli
+
+      action:
+        description: "add/remove (only for cli)"
+        required: false
+        type: choice
+        options:
+          - add
+          - remove
+
+      ticker:
+        description: "Ticker (only for cli)"
+        required: false
+        type: string
+
+      value:
+        description: "PE trigger (only for cli add)"
+        required: false
+        type: string
+
 
 jobs:
   fundamentracker:
@@ -19,14 +42,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.9"
 
       - name: Install dependencies
-        run: |
-          pip install yfinance requests
+        run: pip install yfinance requests
 
       - name: Run Bot
         env:
@@ -35,9 +56,17 @@ jobs:
           JSONBIN_ID: ${{ secrets.JSONBIN_ID }}
           JSONBIN_KEY: ${{ secrets.JSONBIN_KEY }}
         run: |
-          MODE="${{ github.event.inputs.mode || 'scan' }}"
+          MODE="${{ github.event.inputs.mode }}"
+
           if [ "$MODE" = "test" ]; then
             python src/main.py --test
+
+          elif [ "$MODE" = "cli" ]; then
+            python src/main.py --cli \
+              --action "${{ github.event.inputs.action }}" \
+              --ticker "${{ github.event.inputs.ticker }}" \
+              --value "${{ github.event.inputs.value }}"
+
           else
             python src/main.py
           fi
