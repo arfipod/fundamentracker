@@ -22,11 +22,11 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
 
       # ✅ Download previous state (if exists)
       - name: Download previous state
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6.0.0
         with:
           name: fundamentracker-state
           path: data
@@ -37,7 +37,7 @@ jobs:
         run: mkdir -p data
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: "3.9"
 
@@ -61,7 +61,7 @@ jobs:
 
       # ✅ Upload updated state as artifact
       - name: Upload updated state
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: fundamentracker-state
           path: data/state.json
