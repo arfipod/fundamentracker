@@ -1,47 +1,71 @@
 # 📈 FundamenTracker
 
-**FundamenTracker** is an automated fundamental analysis engine designed to monitor global stock portfolios. It extracts real-time financial data, calculates advanced valuation multiples (including manual ROIC), and sends instant alerts via Telegram when specific value thresholds are hit.
+FundamenTracker is a lightweight automation bot that tracks a watchlist of stocks and sends Telegram alerts when each stock's `trailingPE` drops below a configured trigger.
 
-## 🚀 Core Features
+The app is designed to run on a schedule (for example, GitHub Actions cron), and persists state in JSONBin.
 
-* **Global Market Coverage:** Built-in support for US, European, Asian, and Australian markets, with automatic currency handling (including the London GBp/GBP anomaly).
-* **Deep Valuation Metrics:** Real-time tracking of P/E, P/FCF, EV/EBITDA, P/S, and P/B ratios.
-* **Profitability Scanner:** Monitors ROA, ROE, and all major margins (Gross, Operating, Net).
-* **Manual ROIC Calculation:** A custom engine that calculates Return on Invested Capital (NOPAT / Invested Capital) directly from financial statements to ensure 100% data reliability.
-* **Smart Ticker Search:** Integrated utility to find exact Yahoo Finance symbols using an internal autocomplete API.
+## What it does
 
-## 🧠 Financial Insights & Lessons Learned
+- Receives Telegram bot commands to manage a watchlist.
+- Supports CLI actions for CI workflows (`add`/`remove`).
+- Reads market fundamentals from Yahoo Finance (`yfinance`).
+- Sends a Telegram alert only when crossing below the trigger (prevents repeated spam).
 
-During development, several critical financial "gotchas" were identified and solved:
-* **London Exchange Pricing:** UK stocks (like `AUTO.L`) trade in pence (GBp) while financials are in pounds. The system automatically adjusts the price by 100 to keep P/E ratios accurate.
-* **Banking & Insurance Ratios:** Traditional metrics like EV/EBITDA and Gross Margins are often `NaN` for financial institutions because their debt is part of their operations.
-* **Negative Equity:** High-quality companies with massive buybacks (e.g., VeriSign) can show negative P/B ratios.
-* **P/FCF Alerts:** Negative Free Cash Flow multiples indicate a company is currently "burning" cash or investing heavily in CAPEX.
+## Project structure
 
-## ☁️ Cloud Automation Architecture
+- `src/main.py` — entrypoint/orchestration (CLI mode, Telegram mode, scan mode).
+- `src/telegram_service.py` — Telegram API helpers + command parsing.
+- `src/watchlist.py` — add/remove/list utilities and PE trigger validation.
+- `src/scanner.py` — P/E scan + alert transition logic.
+- `src/jsonbin.py` — load/save state from JSONBin.
+- `src/state.py` — default state and state-shape guard.
 
-While free-tier cloud platforms like PythonAnywhere lack the necessary scheduling and internet access for this project, FundamenTracker utilizes **GitHub Actions** for 100% free, 24/7 automation.
+## Required environment variables
 
-* **Scheduler:** Runs every 15 minutes via GitHub cron jobs.
-* **Security:** All API tokens and Chat IDs are stored in **GitHub Secrets** to prevent exposure in public repositories.
-* **Alerting:** Integrated Telegram Bot API for instant valuation notifications.
+| Variable | Required | Description |
+|---|---|---|
+| `TELEGRAM_TOKEN` | Yes | Telegram bot token from @BotFather |
+| `TELEGRAM_CHAT_ID` | Yes | Chat ID where messages are sent |
+| `JSONBIN_ID` | Yes | JSONBin document id |
+| `JSONBIN_KEY` | Yes | JSONBin master key |
 
-## 🛠️ Setup Instructions
+## State schema
 
-### 1. Configure the Telegram Bot
-* Search for `@BotFather` on Telegram and use `/newbot` to get your **API Token**.
-* Message `@userinfobot` to get your unique **Chat ID**.
+```json
+{
+  "watchlist": {
+    "AAPL": {
+      "name": "Apple Inc.",
+      "pe_trigger": 20.0,
+      "last_pe_alert": null
+    }
+  },
+  "last_update_id": 0
+}
+```
 
-### 2. Set Up GitHub Secrets
-Go to your repository **Settings > Secrets and variables > Actions** and add:
-* `TELEGRAM_TOKEN`: Your bot's API token.
-* `TELEGRAM_CHAT_ID`: Your personal numeric chat ID.
+## Telegram commands
 
-### 3. Deploy
-1.  Push the `.github/workflows/main.yml` file to your repo.
-2.  Push your `src/main.py` script containing the watchlist and alert logic.
-3.  The system will now run automatically every 15 minutes.
+- `/add TICKER PE`
+- `/remove TICKER`
+- `/list`
+- `/state`
+- `/resetstate`
+- `/help`
 
-## 📚 Documentation
+## CLI usage
 
-For detailed technical information on the internal logic, data processing, and architecture, please refer to the [Code Documentation](CODE_DOCUMENTATION.md).
+```bash
+python src/main.py --cli --action add --ticker AAPL --value 20
+python src/main.py --cli --action remove --ticker AAPL
+```
+
+## Automation idea (GitHub Actions)
+
+Run periodically with cron and inject the four required environment variables as secrets.
+
+## Notes
+
+- Alerting uses `trailingPE` and `currentPrice` from `yfinance`.
+- If a ticker has no `trailingPE`, it is skipped in that run.
+- Exceptions per ticker are logged and do not stop scanning of remaining tickers.
