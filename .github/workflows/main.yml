@@ -17,12 +17,13 @@ on:
           - cli
 
       action:
-        description: "add/remove (only for cli)"
+        description: "add/remove/alerts (only for cli)"
         required: false
         type: choice
         options:
           - add
           - remove
+          - alerts
 
       ticker:
         description: "Ticker (only for cli)"
