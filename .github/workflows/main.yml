@@ -39,7 +39,7 @@ jobs:
         # If mode is test, adds --test; otherwise runs normal scan
         run: |
           if [ "${{ github.event.inputs.mode }}" == "test" ]; then
-            python main.py --test
+            python src/main.py --test
           else
             python main.py
           fi
