@@ -46,6 +46,7 @@ def handle_cli_mode(args, state):
 
         symbol, _ = add_ticker(state, args.ticker, trigger)
         save_state(state)
+        send_message(requests, TELEGRAM_API, CHAT_ID, f"✅ Added {symbol} with P/E < {trigger}")
         print(f"✅ Added {symbol} with PE < {trigger}")
         sys.exit(0)
 
@@ -57,6 +58,7 @@ def handle_cli_mode(args, state):
         removed, symbol = remove_ticker(state, args.ticker)
         if removed:
             save_state(state)
+            send_message(requests, TELEGRAM_API, CHAT_ID, f"🗑 Removed {symbol}")
             print(f"🗑 Removed {symbol}")
         else:
             print("Ticker not found.")
