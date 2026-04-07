@@ -39,5 +39,9 @@ Go to your repository **Settings > Secrets and variables > Actions** and add:
 
 ### 3. Deploy
 1.  Push the `.github/workflows/main.yml` file to your repo.
-2.  Push your `main.py` script containing the watchlist and alert logic.
+2.  Push your `src/main.py` script containing the watchlist and alert logic.
 3.  The system will now run automatically every 15 minutes.
+
+## 📚 Documentation
+
+For detailed technical information on the internal logic, data processing, and architecture, please refer to the [Code Documentation](CODE_DOCUMENTATION.md).

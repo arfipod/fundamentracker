@@ -38,12 +38,12 @@ To solve the issue of missing ROIC data in standard APIs, the engine performs a 
 
 ## 3. Module Breakdown
 
-### `main.py`
+### `src/main.py`
 The primary entry point. It iterates through the `watchlist` dictionary.
 * **`send_telegram_alert(message)`:** Encapsulates the `requests.post` logic. It uses `parse_mode="Markdown"` to allow bolding and emojis in alerts.
 * **Error Handling:** Every ticker is wrapped in a `try-except` block. If one ticker fails (e.g., 404 error), the rest of the portfolio continues to be processed.
 
-### `workflow.yml`
+### `.github/workflows/main.yml`
 Defines the cloud environment.
 * **Cron Job:** Set to `*/15 * * * *` (standard crontab syntax for every 15 minutes).
 * **Environment Injection:** Maps GitHub Secrets directly to Python OS environment variables using the `env:` block.
