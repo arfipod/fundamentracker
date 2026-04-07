@@ -1,68 +1,68 @@
-# 📖 Code Documentation: FundamenTracker Engine
+# Code Documentation — FundamenTracker
 
-This document provides technical details on the internal logic, data processing, and automation architecture of the FundamenTracker system.
+## 1) Runtime overview
 
----
+`src/main.py` is the only entrypoint and supports 3 execution paths:
 
-## 1. System Architecture
+1. `--test` path: sends a Telegram connectivity message and exits.
+2. `--cli` path: handles one-off add/remove actions, persists to JSONBin, exits.
+3. default path: processes Telegram updates, scans watchlist fundamentals, persists state.
 
-The system is designed as a **serverless observer**. Due to the limitations of free-tier cloud hosting platforms like PythonAnywhere (which lack scheduled tasks for free accounts), the system uses **GitHub Actions** as the primary execution engine.
-
-* **Trigger:** GitHub Cron Schedule (Every 15 minutes).
-* **Environment:** Ubuntu Linux Virtual Machine (Ephemeral).
-* **Data Source:** Yahoo Finance API (via `yfinance`).
-* **Output:** Telegram Bot API (JSON POST requests).
-
----
-
-## 2. Data Processing Logic
-
-### 2.1 The "London Penny" Adjustment (GBp vs GBP)
-A core feature of the engine is the automatic currency normalization for the London Stock Exchange.
-* **Problem:** UK stocks (e.g., `AUTO.L`) have prices quoted in **Pence (GBp)** but earnings (EPS) reported in **Pounds (GBP)**.
-* **Logic:**
-    ```python
-    if currency == 'GBp':
-        calculation_price = current_price / 100
-    ```
-This ensures valuation ratios like P/E are not inflated by a factor of 100.
-
-### 2.2 Manual ROIC Calculation
-To solve the issue of missing ROIC data in standard APIs, the engine performs a "Full-Statement Drilldown":
-1.  **NOPAT Extraction:** `EBIT * (1 - Effective Tax Rate)`.
-2.  **Invested Capital Extraction:** `Total Debt + Shareholders' Equity - Excess Cash`.
-3.  **Result:** `ROIC = NOPAT / Invested Capital`.
-*Note: For financial institutions (Banks/Insurance), this metric is often bypassed as their balance sheet structure makes ROIC non-comparable.*
-
----
-
-## 3. Module Breakdown
+## 2) Module responsibilities
 
 ### `src/main.py`
-The primary entry point. It iterates through the `watchlist` dictionary.
-* **`send_telegram_alert(message)`:** Encapsulates the `requests.post` logic. It uses `parse_mode="Markdown"` to allow bolding and emojis in alerts.
-* **Error Handling:** Every ticker is wrapped in a `try-except` block. If one ticker fails (e.g., 404 error), the rest of the portfolio continues to be processed.
+- Parses arguments.
+- Loads and validates persisted state.
+- Delegates Telegram command processing.
+- Delegates fundamental scanning.
+- Persists resulting state.
 
-### `.github/workflows/main.yml`
-Defines the cloud environment.
-* **Cron Job:** Set to `*/15 * * * *` (standard crontab syntax for every 15 minutes).
-* **Environment Injection:** Maps GitHub Secrets directly to Python OS environment variables using the `env:` block.
+### `src/state.py`
+- `default_state()` returns the canonical empty state object.
+- `ensure_state_shape(state)` guards against malformed external payloads.
 
----
+### `src/jsonbin.py`
+- Reads/writes the state record from JSONBin REST API.
+- Falls back to `default_state()` on read failures.
 
-## 4. Environment Variables
+### `src/watchlist.py`
+- `parse_trigger(value)` validates positive numeric threshold.
+- `add_ticker` and `remove_ticker` mutate watchlist entries.
+- `format_watchlist_message` renders the current watchlist for Telegram.
 
-The code requires the following secrets to be configured in the repository settings:
+### `src/telegram_service.py`
+- `send_message` and `get_updates` wrap Telegram HTTP calls.
+- `process_telegram_commands` parses bot commands and mutates state.
+- Supports unknown-command response with inline help text.
 
-| Variable | Description | Source |
-| :--- | :--- | :--- |
-| `TELEGRAM_TOKEN` | The unique API key for the bot. | Telegram @BotFather |
-| `TELEGRAM_CHAT_ID` | Your numeric personal ID. | Telegram @userinfobot |
+### `src/scanner.py`
+- Iterates current watchlist.
+- Retrieves `trailingPE` and `currentPrice` from `yfinance`.
+- Sends alert only when crossing below trigger.
+- Resets `last_pe_alert` when PE returns above/equal trigger.
 
----
+## 3) Alert transition logic
 
-## 5. Troubleshooting & Limitations
+For each ticker:
 
-* **API Rate Limiting:** Yahoo Finance may occasionally throttle requests if the watchlist becomes excessively large (e.g., >200 tickers).
-* **Cron Precision:** GitHub Actions cron jobs can be delayed by 1-5 minutes during peak server load.
-* **Data Latency:** While the script runs every 15 minutes, the underlying data provided by Yahoo Finance may have a standard 15-minute delay depending on the exchange.
+- If `pe < trigger` and `last_pe_alert` is `None` (or `>= trigger`) → send alert and set `last_pe_alert = pe`.
+- If `pe >= trigger` and `last_pe_alert` is not `None` → clear `last_pe_alert`.
+
+This is a simple edge-trigger model that avoids duplicate alerts while PE stays under threshold.
+
+## 4) Data dependencies
+
+- **Yahoo Finance (`yfinance`)**: source for `shortName`, `trailingPE`, and `currentPrice`.
+- **JSONBin**: persistence of bot state between runs.
+- **Telegram Bot API**: input (commands) and output (alerts).
+
+## 5) Operational behavior
+
+- If watchlist is empty after command processing, program exits early after saving state.
+- Network/API failures are handled defensively; failures for one ticker do not stop the full run.
+
+## 6) Extension points
+
+- Add new Telegram commands in `process_telegram_commands`.
+- Add new scanner conditions in `run_fundamental_scan`.
+- Add schema fields in `default_state` and preserve via `ensure_state_shape`.
