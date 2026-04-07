@@ -2,13 +2,13 @@ name: FundamenTracker Automation
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Choose Run Mode'
+        description: "Choose Run Mode"
         required: true
-        default: 'scan'
+        default: "scan"
         type: choice
         options:
           - scan
@@ -20,12 +20,20 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      # ✅ Load previous state.json (if exists)
+      - name: Download previous state
+        uses: actions/download-artifact@v4
+        with:
+          name: fundamentracker-state
+          path: data
+        continue-on-error: true
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: "3.9"
 
       - name: Install dependencies
         run: |
@@ -40,9 +48,14 @@ jobs:
           MODE="${{ github.event.inputs.mode || 'scan' }}"
 
           if [ "$MODE" = "test" ]; then
-            echo "Running TEST mode"
             python src/main.py --test
           else
-            echo "Running SCAN mode"
             python src/main.py
           fi
+
+      # ✅ Upload updated state
+      - name: Upload updated state
+        uses: actions/upload-artifact@v4
+        with:
+          name: fundamentracker-state
+          path: data/state.json
