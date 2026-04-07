@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import requests
 import numpy as np
+import sys  # Added to handle command-line arguments
 
 # Securely load credentials from Environment Variables
 TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -16,6 +17,14 @@ def send_telegram_alert(message):
         response.raise_for_status()
     except Exception as e:
         print(f"Failed to send Telegram message: {e}")
+
+# If you run: python main.py --test
+if len(sys.argv) > 1 and sys.argv[1] == "--test":
+    print("Running connection test...")
+    test_msg = "🚀 *FundamenTracker Test*: Your GitHub Action is connected successfully!"
+    send_telegram_alert(test_msg)
+    print("Test message sent. Exiting.")
+    sys.exit(0)  # Stop execution here during a test
 
 # Your watchlist (You can expand this as needed)
 watchlist = [
