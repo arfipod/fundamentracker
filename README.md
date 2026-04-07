@@ -64,6 +64,35 @@ python src/main.py --cli --action remove --ticker AAPL
 
 Run periodically with cron and inject the four required environment variables as secrets.
 
+The `cron` syntax is
+
+```# ┌───────────── minute (0 - 59)
+# │ ┌───────────── hour (0 - 23)
+# │ │ ┌───────────── day of month (1 - 31)
+# │ │ │ ┌───────────── month (1 - 12)
+# │ │ │ │ ┌───────────── day of week (0 - 6) (Sunday to Saturday; 7 is also Sunday on some systems)
+# │ │ │ │ │ │
+# │ │ │ │ │ │
+# * * * * *  command to execute
+```
+
+For instance, to run at the top of every hour:
+
+```yaml
+on:
+  schedule:
+    - cron: "0 * * * *"
+``` 
+
+or to run every 15 minutes:
+
+```yaml
+on:
+  schedule:
+    - cron: "* */15 * * *"
+``` 
+
+
 ## Notes
 
 - Alerting uses `trailingPE` and `currentPrice` from `yfinance`.
