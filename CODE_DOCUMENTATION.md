@@ -27,8 +27,11 @@
 
 ### `src/watchlist.py`
 - `parse_trigger(value)` validates positive numeric threshold.
+- `fetch_company_name(ticker)` retrieves the company short name from yfinance.
+- `fetch_current_pe(ticker)` retrieves the current trailing PE from yfinance; returns `None` on failure.
 - `add_ticker` and `remove_ticker` mutate watchlist entries.
-- `format_watchlist_message` renders the current watchlist for Telegram.
+- `format_watchlist_message` renders the current watchlist with current PE values for Telegram.
+- `format_alerts_message` renders alert configuration with current PE values and trigger status for Telegram.
 
 ### `src/telegram_service.py`
 - `send_message` and `get_updates` wrap Telegram HTTP calls.
@@ -61,7 +64,13 @@ This is a simple edge-trigger model that avoids duplicate alerts while PE stays 
 - If watchlist is empty after command processing, program exits early after saving state.
 - Network/API failures are handled defensively; failures for one ticker do not stop the full run.
 
-## 6) Extension points
+## 6) Display features
+
+- `/list` and `/alerts` commands now show real-time current PE values alongside the configured trigger thresholds.
+- Current PE values are fetched live from yfinance when the user requests them, not cached in state.
+- If current PE fetch fails, the line is displayed without the current value.
+
+## 7) Extension points
 
 - Add new Telegram commands in `process_telegram_commands`.
 - Add new scanner conditions in `run_fundamental_scan`.

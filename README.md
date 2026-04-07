@@ -46,12 +46,13 @@ The app is designed to run on a schedule (for example, GitHub Actions cron), and
 
 ## Telegram commands
 
-- `/add TICKER PE`
-- `/remove TICKER`
-- `/list`
-- `/state`
-- `/resetstate`
-- `/help`
+- `/add TICKER PE` — Adds a ticker to the watchlist with a PE trigger threshold.
+- `/remove TICKER` — Removes a ticker from the watchlist.
+- `/list` — Lists all watched tickers with their PE trigger and current PE value.
+- `/alerts` — Lists alert configuration with PE triggers, current PE values, and trigger status.
+- `/state` — Shows the full raw state object.
+- `/resetstate` — Clears the watchlist and resets the state.
+- `/help` — Shows available commands.
 
 ## CLI usage
 
@@ -98,3 +99,4 @@ on:
 - Alerting uses `trailingPE` and `currentPrice` from `yfinance`.
 - If a ticker has no `trailingPE`, it is skipped in that run.
 - Exceptions per ticker are logged and do not stop scanning of remaining tickers.
+- `/list` and `/alerts` commands now display the current PE value for each ticker alongside the configured trigger threshold.
