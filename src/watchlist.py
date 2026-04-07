@@ -62,22 +62,19 @@ def format_alerts_message(state: dict) -> str:
     if not state["watchlist"]:
         return "🔕 No alerts configured."
 
-    triggered = [
-        (ticker, details)
-        for ticker, details in state["watchlist"].items()
-        if details["last_pe_alert"] is not None
-    ]
-
     message = "🚨 *Alert Configuration:*\n"
     for ticker, details in state["watchlist"].items():
-        status = "🔔 TRIGGERED" if details["last_pe_alert"] is not None else "⏳ waiting"
         current_pe = fetch_current_pe(ticker)
         
-        # Mostrar PE actual si está disponible
+        # Determine status based on current PE vs trigger
+        is_triggered = current_pe is not None and current_pe < details["pe_trigger"]
+        status = "🔔 TRIGGERED" if is_triggered else "⏳ waiting"
+        
+        # Show PE actual si está disponible
         pe_display = f" (Current: {current_pe:.2f})" if current_pe is not None else ""
         
-        if details["last_pe_alert"] is not None:
-            message += f"- *{details['name']}* ({ticker}) → PE<{details['pe_trigger']}{pe_display} [{status}: {details['last_pe_alert']:.2f}]\n"
+        if is_triggered:
+            message += f"- *{details['name']}* ({ticker}) → PE<{details['pe_trigger']}{pe_display} [{status}]\n"
         else:
             message += f"- *{details['name']}* ({ticker}) → PE<{details['pe_trigger']}{pe_display} [{status}]\n"
     return message
