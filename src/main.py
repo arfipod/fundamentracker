@@ -28,6 +28,7 @@ def load_state():
         with open(STATE_FILE, "r") as f:
             return json.load(f)
     except:
+        # Corrupted or unreadable state → reset
         return {"watchlist": {}, "last_update_id": 0}
 
 
@@ -52,6 +53,7 @@ def send_message(text):
 
 
 def get_updates(last_update_id):
+    # ✅ FIXED bug: last_header_id → last_update_id
     url = f"{TELEGRAM_API}/getUpdates?offset={last_update_id + 1}"
     try:
         r = requests.get(url)
@@ -110,7 +112,7 @@ def process_telegram_commands(state):
         # ---------------- COMMAND: /list ----------------
         elif parts[0].lower() == "/list":
             if not state["watchlist"]:
-                send_message("📭 *Watchlist is empty.*")
+                send_message("📭 *Watchlist is empty*")
             else:
                 msg = "📌 *Current watchlist:*\n\n"
                 for t, d in state["watchlist"].items():
@@ -131,12 +133,12 @@ def process_telegram_commands(state):
         # ---------------- HELP ----------------
         elif parts[0].lower() == "/help":
             send_message(
-                "🛠 *Commands:*\n"
-                "/add TICKER PE → Add a company\n"
+                "🛠 *Available Commands:*\n"
+                "/add TICKER PE → Add a new company\n"
                 "/remove TICKER → Remove a company\n"
-                "/list → Show watchlist\n"
+                "/list → Show all companies\n"
                 "/state → Show internal state\n"
-                "/resetstate → Reset persistent state\n"
+                "/resetstate → Reset internal state\n"
                 "/help → Show this message"
             )
 
@@ -158,13 +160,13 @@ if len(sys.argv) > 1 and sys.argv[1] == "--test":
 
 state = process_telegram_commands(state)
 
-# If watchlist empty → nothing to scan
+# Nothing to monitor?
 if not state["watchlist"]:
     save_state(state)
     sys.exit(0)
 
 # -------------------------------
-# 15-MIN FUNDAMENTAL SCAN
+# 15-MINUTE FUNDAMENTAL SCAN
 # -------------------------------
 
 for ticker, info in state["watchlist"].items():
@@ -183,12 +185,12 @@ for ticker, info in state["watchlist"].items():
         if pe < trigger and (last_alert is None or last_alert >= trigger):
             send_message(
                 f"🚨 *FUNDAMENTAL ALERT*\n\n"
-                f"*{info['name']}* ({ticker}) has dropped to P/E *{pe:.2f}*\n"
+                f"*{info['name']}* ({ticker}) dropped to P/E *{pe:.2f}*\n"
                 f"Current Price: ${price}"
             )
             state["watchlist"][ticker]["last_pe_alert"] = pe
 
-        # Reset if back above threshold
+        # Reset alert flag if P/E returns above threshold
         if pe >= trigger and last_alert is not None:
             state["watchlist"][ticker]["last_pe_alert"] = None
 

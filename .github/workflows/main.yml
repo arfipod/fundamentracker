@@ -30,7 +30,7 @@ jobs:
           path: data
         continue-on-error: true
 
-      # ✅ Ensure folder exists for first run
+      # ✅ Ensure folder exists even if no artifact found
       - name: Ensure data folder exists
         run: mkdir -p data
 
@@ -57,7 +57,7 @@ jobs:
             python src/main.py
           fi
 
-      # ✅ Upload updated state
+      # ✅ Upload updated state as artifact
       - name: Upload updated state
         uses: actions/upload-artifact@v4
         with:
