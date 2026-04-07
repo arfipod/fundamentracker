@@ -1,4 +1,4 @@
-name: FundamenTracker Automation
+name: fundamentracker Automation
 
 on:
   schedule:
@@ -34,6 +34,10 @@ on:
         required: false
         type: string
 
+  # ✅ Añadido para activación desde Pipedream → Telegram
+  repository_dispatch:
+    types: [telegram_command]
+
 
 jobs:
   fundamentracker:
@@ -56,16 +60,44 @@ jobs:
           JSONBIN_ID: ${{ secrets.JSONBIN_ID }}
           JSONBIN_KEY: ${{ secrets.JSONBIN_KEY }}
         run: |
-          MODE="${{ github.event.inputs.mode }}"
+          echo "Evento recibido: ${{ github.event_name }}"
+
+          # ✅ Si viene desde Telegram vía Pipedream
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "Modo: Telegram /dispatch"
+
+            MODE="cli"
+
+            # Quitar "/" del comando enviado (/add → add)
+            ACTION=$(echo "${{ github.event.client_payload.command }}" | sed 's/\///')
+
+            TICKER="${{ github.event.client_payload.ticker }}"
+            VALUE="${{ github.event.client_payload.value }}"
+
+          else
+            echo "Modo normal (cron o manual)"
+
+            MODE="${{ github.event.inputs.mode }}"
+            ACTION="${{ github.event.inputs.action }}"
+            TICKER="${{ github.event.inputs.ticker }}"
+            VALUE="${{ github.event.inputs.value }}"
+          fi
+
+          echo "---- DEBUG ----"
+          echo "MODE=$MODE"
+          echo "ACTION=$ACTION"
+          echo "TICKER=$TICKER"
+          echo "VALUE=$VALUE"
+          echo "----------------"
 
           if [ "$MODE" = "test" ]; then
             python src/main.py --test
 
           elif [ "$MODE" = "cli" ]; then
             python src/main.py --cli \
-              --action "${{ github.event.inputs.action }}" \
-              --ticker "${{ github.event.inputs.ticker }}" \
-              --value "${{ github.event.inputs.value }}"
+              --action "$ACTION" \
+              --ticker "$TICKER" \
+              --value "$VALUE"
 
           else
             python src/main.py
