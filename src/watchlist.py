@@ -70,7 +70,7 @@ def format_alerts_message(state: dict) -> str:
         is_triggered = current_pe is not None and current_pe < details["pe_trigger"]
         status = "🔔 TRIGGERED" if is_triggered else "⏳ waiting"
         
-        # Show PE actual si está disponible
+        # Show current PE if available
         pe_display = f" (Current: {current_pe:.2f})" if current_pe is not None else ""
         
         if is_triggered:
