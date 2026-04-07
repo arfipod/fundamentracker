@@ -2,14 +2,13 @@ name: FundamenTracker Automation
 
 on:
   schedule:
-    # Runs every 15 minutes (only runs the default scan)
-    - cron: '*/15 * * * *'
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Choose Run Mode'
+        description: "Choose Run Mode"
         required: true
-        default: 'scan'
+        default: "scan"
         type: choice
         options:
           - scan
@@ -18,14 +17,29 @@ on:
 jobs:
   fundamentracker:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      # ✅ Download previous state (if exists)
+      - name: Download previous state
+        uses: actions/download-artifact@v4
+        with:
+          name: fundamentracker-state
+          path: data
+        continue-on-error: true
+
+      # ✅ Ensure folder exists even if no artifact found
+      - name: Ensure data folder exists
+        run: mkdir -p data
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: "3.9"
 
       - name: Install dependencies
         run: |
@@ -36,10 +50,18 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        # If mode is test, adds --test; otherwise runs normal scan
         run: |
-          if [ "${{ github.event.inputs.mode }}" == "test" ]; then
+          MODE="${{ github.event.inputs.mode || 'scan' }}"
+
+          if [ "$MODE" = "test" ]; then
             python src/main.py --test
           else
             python src/main.py
           fi
+
+      # ✅ Upload updated state as artifact
+      - name: Upload updated state
+        uses: actions/upload-artifact@v4
+        with:
+          name: fundamentracker-state
+          path: data/state.json
