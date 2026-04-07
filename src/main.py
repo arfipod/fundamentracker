@@ -75,13 +75,13 @@ def process_telegram_commands(state):
         text = msg.get("text", "")
         parts = text.strip().split()
 
-        # ---------------- COMMAND: ADD ----------------
+        # ---------------- COMMAND: /add ----------------
         if parts[0].lower() == "/add" and len(parts) == 3:
             ticker = parts[1].upper()
             try:
                 trigger = float(parts[2])
             except:
-                send_message("❌ Formato incorrecto. Uso: `/add TICKER PE`")
+                send_message("❌ Wrong format. Use: `/add TICKER PE`")
                 continue
 
             try:
@@ -96,35 +96,48 @@ def process_telegram_commands(state):
                 "last_pe_alert": None
             }
 
-            send_message(f"✅ Añadido *{name}* ({ticker}) con trigger PE < {trigger}")
+            send_message(f"✅ Added *{name}* ({ticker}) with P/E trigger < {trigger}")
 
-        # ---------------- COMMAND: REMOVE ----------------
+        # ---------------- COMMAND: /remove ----------------
         elif parts[0].lower() == "/remove" and len(parts) == 2:
             ticker = parts[1].upper()
             if ticker in state["watchlist"]:
                 del state["watchlist"][ticker]
-                send_message(f"🗑 Eliminado {ticker}")
+                send_message(f"🗑 Removed {ticker}")
             else:
-                send_message("❌ Ese ticker no estaba en la lista.")
+                send_message("❌ Ticker not found in watchlist.")
 
-        # ---------------- COMMAND: LIST ----------------
+        # ---------------- COMMAND: /list ----------------
         elif parts[0].lower() == "/list":
             if not state["watchlist"]:
-                send_message("📭 *Watchlist vacía*")
+                send_message("📭 *Watchlist is empty.*")
             else:
-                msg = "📌 *Watchlist actual:*\n\n"
+                msg = "📌 *Current watchlist:*\n\n"
                 for t, d in state["watchlist"].items():
-                    msg += f"- *{d['name']}* ({t}) → PE<{d['pe_trigger']}\n"
+                    msg += f"- *{d['name']}* ({t}) → P/E<{d['pe_trigger']}\n"
                 send_message(msg)
+
+        # ---------------- COMMAND: /state ----------------
+        elif parts[0].lower() == "/state":
+            pretty = json.dumps(state, indent=2)
+            send_message(f"📊 *Current State:*\n```\n{pretty}\n```")
+
+        # ---------------- COMMAND: /resetstate ----------------
+        elif parts[0].lower() == "/resetstate":
+            state["watchlist"] = {}
+            state["last_update_id"] = 0
+            send_message("♻️ *State reset.* Watchlist cleared and counters set to zero.")
 
         # ---------------- HELP ----------------
         elif parts[0].lower() == "/help":
             send_message(
-                "🛠 *Comandos disponibles:*\n"
-                "/add TICKER PE → Añade empresa\n"
-                "/remove TICKER → Elimina empresa\n"
-                "/list → Lista empresas\n"
-                "/help → Ayuda"
+                "🛠 *Commands:*\n"
+                "/add TICKER PE → Add a company\n"
+                "/remove TICKER → Remove a company\n"
+                "/list → Show watchlist\n"
+                "/state → Show internal state\n"
+                "/resetstate → Reset persistent state\n"
+                "/help → Show this message"
             )
 
     return state
@@ -135,7 +148,7 @@ def process_telegram_commands(state):
 # -------------------------------
 
 if len(sys.argv) > 1 and sys.argv[1] == "--test":
-    send_message("✅ *Test OK:* GitHub Actions conectado correctamente.")
+    send_message("✅ *Test OK:* GitHub Actions is connected correctly.")
     sys.exit(0)
 
 
@@ -145,13 +158,13 @@ if len(sys.argv) > 1 and sys.argv[1] == "--test":
 
 state = process_telegram_commands(state)
 
-# If watchlist empty → nothing to do
+# If watchlist empty → nothing to scan
 if not state["watchlist"]:
     save_state(state)
     sys.exit(0)
 
 # -------------------------------
-# 15 MIN SCAN
+# 15-MIN FUNDAMENTAL SCAN
 # -------------------------------
 
 for ticker, info in state["watchlist"].items():
@@ -169,18 +182,18 @@ for ticker, info in state["watchlist"].items():
         # NEW alert?
         if pe < trigger and (last_alert is None or last_alert >= trigger):
             send_message(
-                f"🚨 *ALERTA FUNDAMENTAL*\n\n"
-                f"*{info['name']}* ({ticker}) ha bajado a P/E *{pe:.2f}*\n"
-                f"Precio actual: ${price}"
+                f"🚨 *FUNDAMENTAL ALERT*\n\n"
+                f"*{info['name']}* ({ticker}) has dropped to P/E *{pe:.2f}*\n"
+                f"Current Price: ${price}"
             )
             state["watchlist"][ticker]["last_pe_alert"] = pe
 
-        # Reset if normalized
+        # Reset if back above threshold
         if pe >= trigger and last_alert is not None:
             state["watchlist"][ticker]["last_pe_alert"] = None
 
     except Exception as e:
-        print(f"❌ Error con {ticker}: {e}")
+        print(f"❌ Error with {ticker}: {e}")
 
 # -------------------------------
 # SAVE STATE

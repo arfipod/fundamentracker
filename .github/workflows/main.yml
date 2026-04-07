@@ -22,7 +22,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ✅ Load previous state if exists
+      # ✅ Download previous state (if exists)
       - name: Download previous state
         uses: actions/download-artifact@v4
         with:
@@ -30,7 +30,7 @@ jobs:
           path: data
         continue-on-error: true
 
-      # ✅ Ensure folder exists even if no artifact was downloaded
+      # ✅ Ensure folder exists for first run
       - name: Ensure data folder exists
         run: mkdir -p data
 
