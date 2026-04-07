@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 
-from watchlist import add_ticker, format_watchlist_message, parse_trigger, remove_ticker
+from watchlist import add_ticker, format_alerts_message, format_watchlist_message, parse_trigger, remove_ticker
 
 HELP_TEXT = (
     "🛠 Commands:\n"
     "/add TICKER PE\n"
     "/remove TICKER\n"
     "/list\n"
+    "/alerts\n"
     "/state\n"
     "/resetstate\n"
     "/help"
@@ -66,6 +67,9 @@ def process_telegram_commands(state: dict, requests_client, api_base: str, chat_
 
         elif parts[0] == "/list":
             send_message(requests_client, api_base, chat_id, format_watchlist_message(state))
+
+        elif parts[0] == "/alerts":
+            send_message(requests_client, api_base, chat_id, format_alerts_message(state))
 
         elif parts[0] == "/state":
             send_message(

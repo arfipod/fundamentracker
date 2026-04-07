@@ -10,7 +10,7 @@ from jsonbin import load_state, save_state
 from scanner import run_fundamental_scan
 from state import ensure_state_shape
 from telegram_service import process_telegram_commands, send_message
-from watchlist import add_ticker, parse_trigger, remove_ticker
+from watchlist import add_ticker, format_alerts_message, parse_trigger, remove_ticker
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -64,7 +64,13 @@ def handle_cli_mode(args, state):
             print("Ticker not found.")
         sys.exit(0)
 
-    print("Valid actions: add, remove")
+    if args.action == "alerts":
+        message = format_alerts_message(state)
+        send_message(requests, TELEGRAM_API, CHAT_ID, message)
+        print(message)
+        sys.exit(0)
+
+    print("Valid actions: add, remove, alerts")
     sys.exit(1)
 
 
