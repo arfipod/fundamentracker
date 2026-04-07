@@ -1,0 +1,45 @@
+name: FundamenTracker Automation
+
+on:
+  schedule:
+    # Runs every 15 minutes (only runs the default scan)
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Choose Run Mode'
+        required: true
+        default: 'scan'
+        type: choice
+        options:
+          - scan
+          - test
+
+jobs:
+  fundamentracker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yfinance pandas numpy requests
+
+      - name: Execute Script
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        # If mode is test, adds --test; otherwise runs normal scan
+        run: |
+          if [ "${{ github.event.inputs.mode }}" == "test" ]; then
+            python src/main.py --test
+          else
+            python src/main.py
+          fi
