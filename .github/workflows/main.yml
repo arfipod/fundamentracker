@@ -61,6 +61,7 @@ jobs:
 
       # ✅ Upload updated state as artifact
       - name: Upload updated state
+        if: ${{ github.event.inputs.mode != 'test' }}
         uses: actions/upload-artifact@v6.0.0
         with:
           name: fundamentracker-state
