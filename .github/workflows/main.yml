@@ -41,5 +41,5 @@ jobs:
           if [ "${{ github.event.inputs.mode }}" == "test" ]; then
             python src/main.py --test
           else
-            python main.py
+            python src/main.py
           fi
