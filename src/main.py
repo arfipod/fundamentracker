@@ -3,73 +3,105 @@ import sys
 import json
 import requests
 import yfinance as yf
+from jsonbin import load_state, save_state
 
 # -------------------------------
-# CONFIG
+# TELEGRAM CONFIG
 # -------------------------------
-
-STATE_FILE = "data/state.json"
-os.makedirs("data", exist_ok=True)
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-
 TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}"
-
-# -------------------------------
-# STATE HANDLING
-# -------------------------------
-
-def load_state():
-    if not os.path.exists(STATE_FILE):
-        return {"watchlist": {}, "last_update_id": 0}
-
-    try:
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
-    except:
-        # Corrupted or unreadable state → reset
-        return {"watchlist": {}, "last_update_id": 0}
-
-
-def save_state(state):
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f, indent=4)
-
-
-state = load_state()
 
 # -------------------------------
 # TELEGRAM HELPERS
 # -------------------------------
 
 def send_message(text):
-    url = f"{TELEGRAM_API}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}
     try:
-        requests.post(url, json=payload)
-    except Exception as e:
-        print(f"Error sending Telegram message: {e}")
-
+        requests.post(
+            f"{TELEGRAM_API}/sendMessage",
+            json={"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}
+        )
+    except:
+        print("Failed to send Telegram message")
 
 def get_updates(last_update_id):
-    # ✅ FIXED bug: last_header_id → last_update_id
-    url = f"{TELEGRAM_API}/getUpdates?offset={last_update_id + 1}"
     try:
-        r = requests.get(url)
+        r = requests.get(f"{TELEGRAM_API}/getUpdates?offset={last_update_id + 1}")
         return r.json().get("result", [])
     except:
         return []
 
+# -------------------------------
+# CLI ARGUMENTS (for GitHub Actions)
+# -------------------------------
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--cli", action="store_true")
+parser.add_argument("--action")
+parser.add_argument("--ticker")
+parser.add_argument("--value")
+parser.add_argument("--test", action="store_true")
+args = parser.parse_args()
 
 # -------------------------------
-# COMMAND PARSER
+# TEST MODE
+# -------------------------------
+
+if args.test:
+    send_message("✅ Test OK: GitHub Actions connected correctly.")
+    sys.exit(0)
+
+# -------------------------------
+# LOAD STATE FROM JSONBIN
+# -------------------------------
+
+state = load_state()
+
+if "watchlist" not in state:
+    state = {"watchlist": {}, "last_update_id": 0}
+
+# -------------------------------
+# CLI MODE (ADD/REMOVE FROM GITHUB ACTIONS)
+# -------------------------------
+
+if args.cli:
+
+    if args.action == "add":
+        ticker = args.ticker.upper()
+        trigger = float(args.value)
+
+        info = yf.Ticker(ticker).info
+        name = info.get("shortName", ticker)
+
+        state["watchlist"][ticker] = {
+            "name": name,
+            "pe_trigger": trigger,
+            "last_pe_alert": None
+        }
+
+        save_state(state)
+        print(f"✅ Added {ticker} with PE < {trigger}")
+        sys.exit(0)
+
+    if args.action == "remove":
+        ticker = args.ticker.upper()
+        if ticker in state["watchlist"]:
+            del state["watchlist"][ticker]
+            save_state(state)
+            print(f"🗑 Removed {ticker}")
+        else:
+            print("Ticker not found.")
+        sys.exit(0)
+
+# -------------------------------
+# TELEGRAM COMMANDS
 # -------------------------------
 
 def process_telegram_commands(state):
     updates = get_updates(state["last_update_id"])
-    if not updates:
-        return state
 
     for update in updates:
         state["last_update_id"] = update["update_id"]
@@ -77,96 +109,70 @@ def process_telegram_commands(state):
         text = msg.get("text", "")
         parts = text.strip().split()
 
-        # ---------------- COMMAND: /add ----------------
-        if parts[0].lower() == "/add" and len(parts) == 3:
+        # /add TICKER PE
+        if parts[0] == "/add" and len(parts) == 3:
             ticker = parts[1].upper()
-            try:
-                trigger = float(parts[2])
-            except:
-                send_message("❌ Wrong format. Use: `/add TICKER PE`")
-                continue
-
-            try:
-                info = yf.Ticker(ticker).info
-                name = info.get("shortName", ticker)
-            except:
-                name = ticker
+            trigger = float(parts[2])
+            info = yf.Ticker(ticker).info
+            name = info.get("shortName", ticker)
 
             state["watchlist"][ticker] = {
                 "name": name,
                 "pe_trigger": trigger,
                 "last_pe_alert": None
             }
+            send_message(f"✅ Added {name} ({ticker}) with P/E < {trigger}")
 
-            send_message(f"✅ Added *{name}* ({ticker}) with P/E trigger < {trigger}")
-
-        # ---------------- COMMAND: /remove ----------------
-        elif parts[0].lower() == "/remove" and len(parts) == 2:
+        elif parts[0] == "/remove" and len(parts) == 2:
             ticker = parts[1].upper()
             if ticker in state["watchlist"]:
                 del state["watchlist"][ticker]
                 send_message(f"🗑 Removed {ticker}")
             else:
-                send_message("❌ Ticker not found in watchlist.")
+                send_message("❌ Ticker not found.")
 
-        # ---------------- COMMAND: /list ----------------
-        elif parts[0].lower() == "/list":
+        elif parts[0] == "/list":
             if not state["watchlist"]:
-                send_message("📭 *Watchlist is empty*")
+                send_message("📭 Watchlist empty.")
             else:
-                msg = "📌 *Current watchlist:*\n\n"
+                msg = "📌 *Watchlist:*\n"
                 for t, d in state["watchlist"].items():
-                    msg += f"- *{d['name']}* ({t}) → P/E<{d['pe_trigger']}\n"
+                    msg += f"- *{d['name']}* ({t}) → PE<{d['pe_trigger']}\n"
                 send_message(msg)
 
-        # ---------------- COMMAND: /state ----------------
-        elif parts[0].lower() == "/state":
-            pretty = json.dumps(state, indent=2)
-            send_message(f"📊 *Current State:*\n```\n{pretty}\n```")
+        elif parts[0] == "/state":
+            send_message(f"📊 *State:*\n```\n{json.dumps(state, indent=2)}\n```")
 
-        # ---------------- COMMAND: /resetstate ----------------
-        elif parts[0].lower() == "/resetstate":
+        elif parts[0] == "/resetstate":
             state["watchlist"] = {}
             state["last_update_id"] = 0
-            send_message("♻️ *State reset.* Watchlist cleared and counters set to zero.")
+            send_message("♻️ State reset.")
 
-        # ---------------- HELP ----------------
-        elif parts[0].lower() == "/help":
+        elif parts[0] == "/help":
             send_message(
-                "🛠 *Available Commands:*\n"
-                "/add TICKER PE → Add a new company\n"
-                "/remove TICKER → Remove a company\n"
-                "/list → Show all companies\n"
-                "/state → Show internal state\n"
-                "/resetstate → Reset internal state\n"
-                "/help → Show this message"
+                "🛠 Commands:\n"
+                "/add TICKER PE\n"
+                "/remove TICKER\n"
+                "/list\n"
+                "/state\n"
+                "/resetstate\n"
+                "/help"
             )
 
     return state
 
-
-# -------------------------------
-# TEST MODE
-# -------------------------------
-
-if len(sys.argv) > 1 and sys.argv[1] == "--test":
-    send_message("✅ *Test OK:* GitHub Actions is connected correctly.")
-    sys.exit(0)
-
-
-# -------------------------------
-# PROCESS TELEGRAM COMMANDS
-# -------------------------------
-
 state = process_telegram_commands(state)
 
-# Nothing to monitor?
+# -------------------------------
+# NO WATCHLIST → EXIT
+# -------------------------------
+
 if not state["watchlist"]:
     save_state(state)
     sys.exit(0)
 
 # -------------------------------
-# 15-MINUTE FUNDAMENTAL SCAN
+# FUNDAMENTAL SCAN
 # -------------------------------
 
 for ticker, info in state["watchlist"].items():
@@ -179,25 +185,20 @@ for ticker, info in state["watchlist"].items():
             continue
 
         trigger = info["pe_trigger"]
-        last_alert = info["last_pe_alert"]
+        last = info["last_pe_alert"]
 
-        # NEW alert?
-        if pe < trigger and (last_alert is None or last_alert >= trigger):
+        if pe < trigger and (last is None or last >= trigger):
             send_message(
-                f"🚨 *FUNDAMENTAL ALERT*\n\n"
-                f"*{info['name']}* ({ticker}) dropped to P/E *{pe:.2f}*\n"
-                f"Current Price: ${price}"
+                f"🚨 *FUNDAMENTAL ALERT*\n"
+                f"{info['name']} ({ticker}) P/E = {pe:.2f}\n"
+                f"Price: ${price}"
             )
             state["watchlist"][ticker]["last_pe_alert"] = pe
 
-        # Reset alert flag if P/E returns above threshold
-        if pe >= trigger and last_alert is not None:
+        if pe >= trigger and last is not None:
             state["watchlist"][ticker]["last_pe_alert"] = None
 
     except Exception as e:
-        print(f"❌ Error with {ticker}: {e}")
+        print("Error with", ticker, e)
 
-# -------------------------------
-# SAVE STATE
-# -------------------------------
 save_state(state)
