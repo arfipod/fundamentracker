@@ -22,13 +22,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ✅ Load previous state.json (if exists)
+      # ✅ Load previous state if exists
       - name: Download previous state
         uses: actions/download-artifact@v4
         with:
           name: fundamentracker-state
           path: data
         continue-on-error: true
+
+      # ✅ Ensure folder exists even if no artifact was downloaded
+      - name: Ensure data folder exists
+        run: mkdir -p data
 
       - name: Set up Python
         uses: actions/setup-python@v4
