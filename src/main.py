@@ -23,6 +23,8 @@ def parse_args():
     parser.add_argument("--action")
     parser.add_argument("--ticker")
     parser.add_argument("--value")
+    parser.add_argument("--metric", default="pe")
+    parser.add_argument("--operator", default="<")
     parser.add_argument("--test", action="store_true")
     return parser.parse_args()
 
@@ -33,9 +35,11 @@ def run_test_mode():
 
 
 def handle_cli_mode(args, state):
+    from config import METRICS_MAP, OPERATORS_MAP
+    
     if args.action == "add":
         if not args.ticker or args.value is None:
-            print("Usage: --cli --action add --ticker TICKER --value PE_TRIGGER")
+            print("Usage: --cli --action add --ticker TICKER --value TARGET [--metric METRIC] [--operator OP]")
             sys.exit(1)
 
         try:
@@ -44,10 +48,14 @@ def handle_cli_mode(args, state):
             print(error)
             sys.exit(1)
 
-        symbol, _ = add_ticker(state, args.ticker, trigger)
+        if args.metric not in METRICS_MAP or args.operator not in OPERATORS_MAP:
+            print(f"Invalid metric or operator. Supported metrics: {list(METRICS_MAP.keys())}, Supported operators: {list(OPERATORS_MAP.keys())}")
+            sys.exit(1)
+
+        symbol, _ = add_ticker(state, args.ticker, args.metric, args.operator, trigger)
         save_state(state)
-        send_message(requests, TELEGRAM_API, CHAT_ID, f"✅ Added {symbol} with P/E < {trigger}")
-        print(f"✅ Added {symbol} with PE < {trigger}")
+        send_message(requests, TELEGRAM_API, CHAT_ID, f"✅ Added {symbol} with {args.metric} {args.operator} {trigger}")
+        print(f"✅ Added {symbol} with {args.metric} {args.operator} {trigger}")
         sys.exit(0)
 
     if args.action == "remove":

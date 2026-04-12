@@ -2,17 +2,21 @@ from __future__ import annotations
 
 import json
 
+from config import METRICS_MAP, OPERATORS_MAP
 from watchlist import add_ticker, format_alerts_message, format_watchlist_message, parse_trigger, remove_ticker
 
 HELP_TEXT = (
     "🛠 Commands:\n"
-    "/add TICKER PE\n"
+    "/add TICKER VALUE (defaults to pe < VALUE)\n"
+    "/add TICKER METRIC OP VALUE\n"
     "/remove TICKER\n"
     "/list\n"
     "/alerts\n"
     "/state\n"
     "/resetstate\n"
-    "/help"
+    "/help\n\n"
+    f"Supported metrics: {', '.join(METRICS_MAP.keys())}\n"
+    f"Supported operators: {', '.join(OPERATORS_MAP.keys())}"
 )
 
 
@@ -45,18 +49,34 @@ def process_telegram_commands(state: dict, requests_client, api_base: str, chat_
         if not parts:
             continue
 
-        if parts[0] == "/add" and len(parts) == 3:
+        if parts[0] == "/add" and len(parts) >= 3:
             try:
-                trigger = parse_trigger(parts[2])
-                symbol, name = add_ticker(state, parts[1], trigger)
+                trigger = parse_trigger(parts[-1])
+                ticker = parts[1]
+                
+                if len(parts) == 3:
+                    metric = "pe"
+                    op = "<"
+                elif len(parts) == 5:
+                    metric = parts[2]
+                    op = parts[3]
+                else:
+                    send_message(requests_client, api_base, chat_id, "❌ Usage: /add TICKER METRIC OP VALUE (or /add TICKER PE_VALUE)")
+                    continue
+
+                if metric not in METRICS_MAP or op not in OPERATORS_MAP:
+                    send_message(requests_client, api_base, chat_id, f"❌ Invalid metric or operator.")
+                    continue
+
+                symbol, name = add_ticker(state, ticker, metric, op, trigger)
                 send_message(
                     requests_client,
                     api_base,
                     chat_id,
-                    f"✅ Added {name} ({symbol}) with P/E < {trigger}",
+                    f"✅ Added {name} ({symbol}) with {metric} {op} {trigger}",
                 )
             except ValueError:
-                send_message(requests_client, api_base, chat_id, "❌ Invalid PE value. Use a positive number.")
+                send_message(requests_client, api_base, chat_id, "❌ Invalid value. Use a valid number.")
 
         elif parts[0] == "/remove" and len(parts) == 2:
             removed, symbol = remove_ticker(state, parts[1])
