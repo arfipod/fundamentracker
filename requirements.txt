@@ -25,3 +25,4 @@ typing_extensions==4.15.0
 urllib3==2.6.3
 websockets==16.0
 yfinance==1.2.1
+python-dotenv==1.2.2
