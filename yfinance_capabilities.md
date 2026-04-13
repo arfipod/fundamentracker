@@ -1,6 +1,6 @@
 # yfinance usage in FundamenTracker
 
-This project currently uses a narrow, stable subset of `yfinance` data from `yf.Ticker(...).info`.
+This project uses `yfinance` via `yf.Ticker(...).info` for ticker metadata and alert metric evaluation.
 
 ## Fields currently used
 
@@ -9,47 +9,39 @@ This project currently uses a narrow, stable subset of `yfinance` data from `yf.
   - Used when adding a ticker to store a human-readable company name.
   - Fetched in `fetch_company_name()`.
 
-### 2) Display fields
-- `trailingPE`
-  - Displayed in `/list` and `/alerts` commands for real-time reference.
-  - Fetched on-demand in `fetch_current_pe()`.
+### 2) Alert metrics (via `METRICS_MAP`)
+- `trailingPE` (`pe`)
+- `forwardPE` (`fpe`)
+- `priceToBook` (`pb`)
+- `enterpriseToEbitda` (`evebitda`)
+- `returnOnEquity` (`roe`)
+- `currentPrice` (`price`)
 
-### 3) Scanner fields
-- `trailingPE`
-  - Primary signal for alerting during scans.
-  - If `None`, the ticker is skipped for that run.
-- `currentPrice`
-  - Included in Telegram alert payload for context.
+These are used for:
+- `/list` and `/alerts` views (on-demand fetch per alert metric)
+- scheduled scanner evaluation for trigger conditions
 
 ## Runtime pattern
 
 ```python
 import yfinance as yf
 
-# Company metadata (used when adding ticker)
 info = yf.Ticker("AAPL").info
 name = info.get("shortName", "AAPL")
-
-# Display current PE (used in /list and /alerts commands)
-current_pe = info.get("trailingPE")
-
-# Scanner data (used during scans)
-pe = info.get("trailingPE")
-price = info.get("currentPrice")
+trailing_pe = info.get("trailingPE")
+current_price = info.get("currentPrice")
 ```
 
 ## Practical notes
 
-- `info` is best-effort and may be incomplete for some symbols.
-- `trailingPE` can be missing for negative-earnings companies or sparse datasets.
+- `info` is best-effort and may be incomplete for some symbols/markets.
+- Any configured metric can be missing (`None`); the app skips evaluation for that alert in that run.
 - Exchange suffixes matter (`.L`, `.PA`, `.TO`, etc.).
+- Values are fetched live; there is no local quote cache.
 
-## Potential future expansion
+## Extension guidance
 
-If needed, additional fields can be integrated into scanner rules without changing storage shape:
-- `forwardPE`
-- `priceToBook`
-- `enterpriseToEbitda`
-- `returnOnEquity`
-
-These are not yet part of current alert logic.
+To add a new alert metric:
+1. Add a key mapping in `src/config.py` (`METRICS_MAP`).
+2. No state schema change is required; existing `alerts[]` entries are generic.
+3. The metric becomes available automatically in `/help`, `/add`, `/list`, `/alerts`, and scanner evaluation.

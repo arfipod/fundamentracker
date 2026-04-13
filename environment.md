@@ -1,55 +1,87 @@
 # Python Environment Management Guide
 
-This guide explains how to set up, manage, and maintain the Python virtual environment for this repository on Linux (Xubuntu/Ubuntu).
+This guide explains how to set up and use a local Python virtual environment for FundamenTracker.
 
----
+## 1) Create a virtual environment
 
-## 1. Initial Setup
-To create a virtual environment inside the project folder, run:
 ```bash
 python3 -m venv .venv
 ```
-*Note: Using `.venv` as a name keeps the folder hidden in Linux.*
 
-## 2. Activating the Environment
-Before working on the project, you must activate the environment so the terminal uses the local Python interpreter and packages.
+## 2) Activate the environment
 
 ```bash
 source .venv/bin/activate
 ```
-Once activated, you will see `(.venv)` at the beginning of your command prompt.
 
-## 3. Installing Dependencies
-You can install packages individually:
+Or use the helper script (must be sourced, not executed):
+
 ```bash
-pip install <package_name>
+source activate_env.sh
 ```
-Or install everything required for this project at once:
+
+## 3) Install dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
-## 4. Freezing Dependencies (requirements.txt)
-If you install new libraries and want to save the changes so others can use them, "freeze" the current state:
+## 4) Configure environment variables
+
+Set these before running the app:
+
+- `JSONBIN_ID`
+- `JSONBIN_KEY`
+- `TELEGRAM_TOKEN`
+- `TELEGRAM_CHAT_ID`
+
+You can export them in your shell or place them in a `.env` file.
+
+> Note: `client.py` explicitly loads `.env` using `python-dotenv`. `src/main.py` reads variables directly from the process environment.
+
+## 5) Run the project
+
+### Bot/scan entrypoint
+
 ```bash
-pip freeze > requirements.txt
+python src/main.py
 ```
 
-## 5. Renaming the Environment
-Virtual environments contain hardcoded paths, so **you cannot simply rename the folder**. To "rename" it:
-1. **Deactivate** the current one: `deactivate`
-2. **Delete** the old folder: `rm -rf .old_venv_name`
-3. **Create** a new one with the desired name: `python3 -m venv .new_name`
-4. **Reinstall** dependencies: `source .new_name/bin/activate && pip install -r requirements.txt`
+### One-off CLI actions
 
-## 6. Deactivating and Cleaning Up
-To stop using the environment and return to the system Python:
+```bash
+python src/main.py --cli --action add --ticker AAPL --metric pe --operator "<" --value 20
+python src/main.py --cli --action remove --ticker AAPL
+python src/main.py --cli --action alerts
+```
+
+### Telegram connectivity test
+
+```bash
+python src/main.py --test
+```
+
+### Optional local menu client
+
+```bash
+python client.py
+```
+
+## 6) Run tests
+
+```bash
+pytest
+```
+
+`pytest.ini` already sets `pythonpath = src`.
+
+## 7) Deactivate
+
 ```bash
 deactivate
 ```
 
----
+## Quick Git hygiene
 
-## Quick Tips for Git
-- **Never commit your environment folder**: Ensure your `.gitignore` file contains the name of your environment folder (e.g., `.venv/`).
-- **Always update requirements**: Run `pip freeze > requirements.txt` before every `git commit` if you added new tools.
+- Do not commit `.venv/`.
+- Update `requirements.txt` when dependencies change.
