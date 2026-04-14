@@ -1,81 +1,74 @@
-# Python Environment Management Guide
+# Environment Setup Guide
 
-This guide explains how to set up and use a local Python virtual environment for FundamenTracker.
+This guide explains how to run FundamenTracker with the **recommended Docker Compose workflow**, plus an optional local Python-only setup for development without Docker.
 
-## 1) Create a virtual environment
+## 1) Recommended approach: Docker Compose
+
+### Create `.env` in the repository root
+
+Create a `.env` file at the root of the project with the following values:
+
+```env
+JSONBIN_ID=your_jsonbin_document_id
+JSONBIN_KEY=your_jsonbin_master_key
+TELEGRAM_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_telegram_chat_id
+```
+
+- `JSONBIN_ID` and `JSONBIN_KEY` are required for persistence.
+- `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` are required only if you want Telegram notifications.
+
+### Build and run all services
+
+```bash
+docker-compose up --build
+```
+
+Services exposed by default:
+
+- Backend API: `http://localhost:8000`
+- Frontend UI: `http://localhost:5173`
+
+### Stop services
+
+```bash
+docker-compose down
+```
+
+## 2) Optional: Local development without Docker
+
+Use this only when you explicitly need to run backend code directly on your host environment.
+
+### Create and activate a virtual environment
 
 ```bash
 python3 -m venv .venv
-```
-
-## 2) Activate the environment
-
-```bash
 source .venv/bin/activate
 ```
 
-Or use the helper script (must be sourced, not executed):
-
-```bash
-source activate_env.sh
-```
-
-## 3) Install dependencies
+### Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 4) Configure environment variables
+### Provide environment variables
 
-Set these before running the app:
+Use the same `.env` keys shown above, or export them directly in your shell.
 
-- `JSONBIN_ID`
-- `JSONBIN_KEY`
-- `TELEGRAM_TOKEN`
-- `TELEGRAM_CHAT_ID`
-
-You can export them in your shell or place them in a `.env` file.
-
-> Note: `client.py` explicitly loads `.env` using `python-dotenv`. `src/main.py` reads variables directly from the process environment.
-
-## 5) Run the project
-
-### Bot/scan entrypoint
+### Run backend locally
 
 ```bash
 python src/main.py
 ```
 
-### One-off CLI actions
-
-```bash
-python src/main.py --cli --action add --ticker AAPL --metric pe --operator "<" --value 20
-python src/main.py --cli --action remove --ticker AAPL
-python src/main.py --cli --action alerts
-```
-
-### Telegram connectivity test
-
-```bash
-python src/main.py --test
-```
-
-### Optional local menu client
-
-```bash
-python client.py
-```
-
-## 6) Run tests
+### Run tests
 
 ```bash
 pytest
 ```
 
-`pytest.ini` already sets `pythonpath = src`.
-
-## 7) Deactivate
+### Deactivate environment
 
 ```bash
 deactivate
@@ -84,4 +77,5 @@ deactivate
 ## Quick Git hygiene
 
 - Do not commit `.venv/`.
-- Update `requirements.txt` when dependencies change.
+- Keep `.env` private and never commit secrets.
+- Update `requirements.txt` when Python dependencies change.

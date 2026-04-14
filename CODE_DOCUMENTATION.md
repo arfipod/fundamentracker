@@ -2,19 +2,27 @@
 
 ## 1) Runtime overview
 
-`src/main.py` is the entrypoint and supports 3 execution paths:
+FundamenTracker now runs primarily as a **full-stack application**:
 
-1. `--test` path: sends a Telegram connectivity message and exits.
-2. `--cli` path: handles one-off actions (`add`, `remove`, `alerts`), persists to JSONBin, exits.
-3. default path: processes Telegram updates, scans watchlist fundamentals, persists state.
+1. `src/api.py` exposes the core functionality as a REST API using FastAPI.
+2. The React frontend consumes those API endpoints as the main user client.
+3. The API layer loads, validates, mutates, scans, and persists watchlist state.
+
+`src/main.py` remains available as a **secondary/legacy entrypoint** for local CLI-style testing and compatibility workflows.
 
 ## 2) Module responsibilities
 
+### `src/api.py`
+- Defines FastAPI routes for watchlist retrieval, alert creation/removal, and manual scans.
+- Validates request payloads and input constraints (metrics/operators).
+- Integrates with scanning and persistence flows.
+- Serves as the primary backend interface for the React frontend.
+
 ### `src/main.py`
+- Legacy CLI/test entrypoint.
 - Parses CLI arguments.
 - Loads and validates persisted state.
-- Delegates Telegram command processing.
-- Delegates fundamental scanning.
+- Delegates Telegram command processing and scan execution.
 - Persists resulting state.
 
 ### `src/config.py`
@@ -48,9 +56,9 @@
 - Sends alert only when condition transitions from false to true.
 - Resets `is_triggered` when condition becomes false.
 
-### `client.py`
-- Optional local interactive menu client for manual inspection and state edits.
-- Uses `.env` loading (`python-dotenv`) and the same core modules under `src/`.
+### `frontend/`
+- React + Vite web client.
+- Primary UX layer for interacting with watchlist and backend operations.
 
 ## 3) Alert transition logic
 
@@ -86,18 +94,19 @@ This edge-trigger model avoids duplicate notifications while conditions remain t
 ## 5) Data dependencies
 
 - **Yahoo Finance (`yfinance`)**: source for `shortName` and configured metric fields.
-- **JSONBin**: state persistence between runs.
-- **Telegram Bot API**: command input and alert output.
+- **JSONBin**: state persistence across runs.
+- **Telegram Bot API**: optional command input and alert output.
 
 ## 6) Operational behavior
 
 - All update and scan paths are best-effort and exception-tolerant.
 - Per-ticker scan failures are logged and do not stop remaining tickers.
-- If watchlist is empty after command processing, the app saves state and exits.
+- If watchlist is empty after command processing, the app can persist state and exit early.
 
 ## 7) Extension points
 
 - Add new metrics in `src/config.py` (`METRICS_MAP`).
 - Add new operators in `src/config.py` (`OPERATORS_MAP`).
+- Add new REST endpoints in `src/api.py`.
 - Add new Telegram commands in `process_telegram_commands`.
 - Extend alert payload formatting in `run_fundamental_scan`.
