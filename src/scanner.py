@@ -3,12 +3,10 @@ import yfinance as yf
 from config import METRICS_MAP, OPERATORS_MAP
 
 
-from watchlist import get_yf_session
-
 def run_fundamental_scan(state, send_message_func):
     for ticker, details in list(state["watchlist"].items()):
         try:
-            ticker_info = yf.Ticker(ticker, session=get_yf_session()).info
+            ticker_info = yf.Ticker(ticker).info
             price = ticker_info.get("currentPrice", "N/A")
             
             for alert in details.get("alerts", []):

@@ -3,17 +3,10 @@ from __future__ import annotations
 import yfinance as yf
 
 from config import METRICS_MAP, OPERATORS_MAP
-
-
 import requests
 
-def get_yf_session():
-    session = requests.Session()
-    session.headers.update({'User-Agent': 'Mozilla/5.0'})
-    return session
-
 def fetch_company_name(ticker: str) -> str:
-    info = yf.Ticker(ticker, session=get_yf_session()).info
+    info = yf.Ticker(ticker).info
     return info.get("shortName", ticker)
 
 
@@ -22,7 +15,7 @@ def fetch_metric(ticker: str, metric_name: str) -> float | None:
         if metric_name not in METRICS_MAP:
             return None
         yf_key = METRICS_MAP[metric_name]
-        ticker_info = yf.Ticker(ticker, session=get_yf_session()).info
+        ticker_info = yf.Ticker(ticker).info
         return ticker_info.get(yf_key)
     except Exception:
         return None

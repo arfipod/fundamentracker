@@ -41,6 +41,33 @@ TELEGRAM_CHAT_ID=your_telegram_chat_id
 
 > Telegram variables are optional if you only want API/UI functionality without Telegram notifications.
 
+## Install Docker on Ubuntu
+
+If you are running Ubuntu, install Docker and Docker Compose with:
+
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg lsb-release
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo usermod -aG docker $USER
+
+# And after this, to use docker-compose
+
+sudo ln -s /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+
+# An to install vercel
+
+npm install -g vercel
+```
+
+Then log out and back in for Docker group permissions to take effect.
+
 ## Run with Docker Compose (recommended)
 
 ```bash
@@ -51,6 +78,26 @@ After startup:
 
 - API: `http://localhost:8000`
 - Frontend: `http://localhost:5173`
+
+## Using `start_tunnel.sh`
+
+If you need a temporary public tunnel for the local API and want to update the frontend deployment automatically, use `start_tunnel.sh`.
+
+This script:
+
+- starts the `api` and `cloudflared` containers in the background
+- waits for Cloudflare Tunnel to generate a public `trycloudflare.com` URL
+- updates the `VITE_API_URL` environment variable in Vercel
+
+Run it with:
+
+```bash
+./start_tunnel.sh
+```
+
+Use this when you want to expose your local API publicly during development or testing, especially if your frontend is deployed on Vercel and needs to call the local backend.
+
+> Note: `start_tunnel.sh` requires the `vercel` CLI to be installed and authenticated, and assumes your Vercel project uses `VITE_API_URL` for the API base URL.
 
 ## State schema
 
