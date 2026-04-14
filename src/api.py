@@ -92,3 +92,17 @@ def scan_watchlist():
     save_state(state)
 
     return {"message": "Scan completed", "watchlist_size": len(state.get("watchlist", {}))}
+
+
+@app.get("/search")
+def search_ticker(q: str):
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    try:
+        res = requests.get(f"https://query2.finance.yahoo.com/v1/finance/search?q={q}&quotesCount=5", headers=headers)
+        if res.ok:
+            data = res.json()
+            quotes = data.get("quotes", [])
+            return [{"symbol": quote.get("symbol"), "name": quote.get("shortname", quote.get("longname", ""))} for quote in quotes if "symbol" in quote and quote.get("quoteType") in ["EQUITY", "ETF", "CURRENCY", "CRYPTOCURRENCY"]]
+    except Exception:
+        pass
+    return []
