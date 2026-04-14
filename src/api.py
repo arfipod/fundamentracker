@@ -31,6 +31,14 @@ app.add_middleware(
 
 state = ensure_state_shape(load_state())
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Adding this to allow vercel
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 class AddAlertRequest(BaseModel):
     ticker: str

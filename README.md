@@ -44,7 +44,7 @@ TELEGRAM_CHAT_ID=your_telegram_chat_id
 ## Run with Docker Compose (recommended)
 
 ```bash
-docker-compose up --build
+sudo docker-compose up --build
 ```
 
 After startup:

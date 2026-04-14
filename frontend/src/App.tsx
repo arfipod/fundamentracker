@@ -74,7 +74,7 @@ function App() {
     try {
       setLoading(true);
       const response = await fetch(`${API_URL}/watchlist`);
-      if (!response.ok) throw new Error('Error al cargar la watchlist');
+      if (!response.ok) throw new Error('Error loading the watchlist');
       const result = await response.json();
       setWatchlist(result);
       setError(null);
@@ -82,7 +82,7 @@ function App() {
       if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError('Error desconocido');
+        setError('Unknown error');
       }
     } finally {
       setLoading(false);
@@ -110,7 +110,7 @@ function App() {
           value: parseFloat(targetValue),
         }),
       });
-      if (!response.ok) throw new Error('Error al añadir la alerta');
+      if (!response.ok) throw new Error('Error adding the alert');
       
       // Clear form
       setTicker('');
@@ -126,8 +126,8 @@ function App() {
   const handleScan = async () => {
     try {
       const response = await fetch(`${API_URL}/scan`, { method: 'POST' });
-      if (!response.ok) throw new Error('Error al escanear');
-      alert('Escaneo finalizado');
+      if (!response.ok) throw new Error('Error scanning');
+      alert('Scan finished');
       await fetchWatchlist();
     } catch (err: unknown) {
        if (err instanceof Error) {
@@ -141,7 +141,7 @@ function App() {
       const response = await fetch(`${API_URL}/remove/${tickerToDelete}`, {
         method: 'DELETE',
       });
-      if (!response.ok) throw new Error('Error al eliminar el ticker');
+      if (!response.ok) throw new Error('Error removing the ticker');
       await fetchWatchlist();
     } catch (err: unknown) {
        if (err instanceof Error) {
@@ -155,20 +155,20 @@ function App() {
       <header className="header">
         <h1>FundamenTracker Dashboard</h1>
         <button className="btn-primary" onClick={handleScan}>
-          Forzar Escaneo (Scan)
+          Force Scan
         </button>
       </header>
 
       {error && <div className="error-message">{error}</div>}
 
       <section className="form-section">
-        <h2>Añadir Alerta</h2>
+        <h2>Add Alert</h2>
         <form onSubmit={handleAddAlert} className="alert-form">
           <div className="form-group autocomplete-wrapper" ref={dropdownRef}>
             <label>Ticker</label>
             <input 
               type="text" 
-              placeholder="Ej. AAPL" 
+              placeholder="e.g. AAPL" 
               value={ticker} 
               onChange={e => {
                 setTicker(e.target.value.toUpperCase());
@@ -191,7 +191,7 @@ function App() {
             )}
           </div>
           <div className="form-group">
-            <label>Métrica</label>
+            <label>Metric</label>
             <select value={metric} onChange={e => setMetric(e.target.value)}>
               <option value="pe">PE</option>
               <option value="fpe">FPE</option>
@@ -202,7 +202,7 @@ function App() {
             </select>
           </div>
           <div className="form-group">
-            <label>Operador</label>
+            <label>Operator</label>
             <select value={operator} onChange={e => setOperator(e.target.value)}>
               <option value="<">&lt;</option>
               <option value=">">&gt;</option>
@@ -217,20 +217,20 @@ function App() {
             <input 
               type="number" 
               step="any"
-              placeholder="Ej. 15.5" 
+              placeholder="e.g. 15.5" 
               value={targetValue} 
               onChange={e => setTargetValue(e.target.value)} 
               required
             />
           </div>
-          <button type="submit" className="btn-success">Añadir Alerta</button>
+          <button type="submit" className="btn-success">Add Alert</button>
         </form>
       </section>
 
       <section className="watchlist-section">
         <h2>Watchlist</h2>
         {loading ? (
-          <div className="loading">Cargando datos...</div>
+          <div className="loading">Loading data...</div>
         ) : (
           <div className="grid-container">
             {watchlist && Object.entries(watchlist).length > 0 ? (
@@ -245,7 +245,7 @@ function App() {
                       type="button"
                       className="btn-danger" 
                       onClick={() => handleDelete(symbol)}
-                      title="Eliminar Ticker"
+                      title="Delete Ticker"
                     >
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M3 6h18"></path>
@@ -257,7 +257,7 @@ function App() {
                     </button>
                   </div>
                   <div className="card-body">
-                    <h4>Alertas Configuradas:</h4>
+                    <h4>Configured Alerts:</h4>
                     {data.alerts && data.alerts.length > 0 ? (
                       <ul className="alerts-list">
                         {data.alerts.map((alert, idx) => (
@@ -269,13 +269,13 @@ function App() {
                         ))}
                       </ul>
                     ) : (
-                      <p className="no-alerts">Sin alertas</p>
+                      <p className="no-alerts">No alerts</p>
                     )}
                   </div>
                 </div>
               ))
             ) : (
-              <p className="empty-message">No hay tickers en la watchlist.</p>
+              <p className="empty-message">No tickers in the watchlist.</p>
             )}
           </div>
         )}
