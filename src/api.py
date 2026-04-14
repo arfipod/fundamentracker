@@ -6,6 +6,7 @@ from pathlib import Path
 
 import requests
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 SRC_DIR = Path(__file__).resolve().parent
@@ -20,6 +21,14 @@ from telegram_service import send_message
 from watchlist import add_ticker, remove_ticker
 
 app = FastAPI(title="FundamenTracker API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 state = ensure_state_shape(load_state())
 
 
