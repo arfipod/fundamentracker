@@ -21,76 +21,13 @@ def fetch_metric(ticker: str, metric_name: str) -> float | None:
         return None
 
 
-def parse_trigger(value: str) -> float:
-    trigger = float(value)
-    # Removing > 0 constraint as some metrics can be negative
-    return trigger
-
-
-def add_ticker(state: dict, ticker: str, metric: str, operator: str, target: float) -> tuple[str, str]:
-    symbol = ticker.upper()
-
-    if symbol not in state["watchlist"]:
-        name = fetch_company_name(symbol)
-        state["watchlist"][symbol] = {
-            "name": name,
-            "alerts": [],
-        }
-    else:
-        name = state["watchlist"][symbol]["name"]
-
-    state["watchlist"][symbol]["alerts"].append({
-        "metric": metric,
-        "operator": operator,
-        "target": target,
-        "is_triggered": False,
-    })
-
-    return symbol, name
-
-
-def remove_ticker(state: dict, ticker: str) -> tuple[bool, str]:
-    symbol = ticker.upper()
-
-    if symbol in state["watchlist"]:
-        del state["watchlist"][symbol]
-        return True, symbol
-
-    return False, symbol
-
-
-def remove_alert(state: dict, ticker: str, metric: str) -> bool:
-    symbol = ticker.upper()
-    if symbol in state["watchlist"]:
-        alerts = state["watchlist"][symbol]["alerts"]
-        initial_len = len(alerts)
-        state["watchlist"][symbol]["alerts"] = [a for a in alerts if a["metric"] != metric]
-        
-        # If no alerts remain, remove the ticker entirely
-        if len(state["watchlist"][symbol]["alerts"]) == 0:
-            del state["watchlist"][symbol]
-            return True
-            
-        return len(state["watchlist"].get(symbol, {}).get("alerts", [])) < initial_len
-    return False
-
-
-def update_alert_target(state: dict, ticker: str, metric: str, target: float) -> bool:
-    symbol = ticker.upper()
-    if symbol in state["watchlist"]:
-        for alert in state["watchlist"][symbol]["alerts"]:
-            if alert["metric"] == metric:
-                alert["target"] = target
-                return True
-    return False
-
-
-def format_watchlist_message(state: dict) -> str:
-    if not state["watchlist"]:
+def format_watchlist_message(db) -> str:
+    watchlist = db.get_watchlist()
+    if not watchlist:
         return "📭 Watchlist empty."
 
     message = "📌 *Watchlist:*\n"
-    for ticker, details in state["watchlist"].items():
+    for ticker, details in list(watchlist.items()):
         message += f"- *{details['name']}* ({ticker})\n"
         for alert in details.get("alerts", []):
             current_val = fetch_metric(ticker, alert["metric"])
@@ -99,12 +36,13 @@ def format_watchlist_message(state: dict) -> str:
     return message
 
 
-def format_alerts_message(state: dict) -> str:
-    if not state["watchlist"]:
+def format_alerts_message(db) -> str:
+    watchlist = db.get_watchlist()
+    if not watchlist:
         return "🔕 No alerts configured."
 
     message = "🚨 *Alert Configuration:*\n"
-    for ticker, details in state["watchlist"].items():
+    for ticker, details in list(watchlist.items()):
         message += f"- *{details['name']}* ({ticker})\n"
         for alert in details.get("alerts", []):
             current_val = fetch_metric(ticker, alert["metric"])
@@ -113,11 +51,23 @@ def format_alerts_message(state: dict) -> str:
             is_triggered = False
             if current_val is not None and alert["operator"] in OPERATORS_MAP:
                 op_func = OPERATORS_MAP[alert["operator"]]
-                is_triggered = op_func(current_val, alert["target"])
                 
-            status = "🔔 TRIGGERED" if is_triggered else "⏳ waiting"
+                # Check absolute vs relative logic
+                if alert.get("alert_type") == "relative" and alert.get("reference_value") is not None:
+                    # Target is percentage e.g. 5 means 5%
+                    diff = ((current_val / alert["reference_value"]) - 1) * 100
+                    is_triggered = op_func(diff, alert["target"])
+                else:
+                    is_triggered = op_func(current_val, alert["target"])
+                
+            status = "🔔 TRIGGERED" if alert.get("is_triggered", False) else "⏳ waiting"
+            if not alert.get("is_active", True):
+                 status = "🔇 MUTED"
             val_display = f" (Current: {current_val:.2f})" if current_val is not None else ""
             
-            message += f"  ↳ {alert['metric']} {alert['operator']} {alert['target']}{val_display} [{status}]\n"
+            ref_info = f" [Ref: {alert['reference_value']:.2f}]" if alert.get("alert_type") == "relative" else ""
+            type_symbol = "%" if alert.get("alert_type") == "relative" else ""
+            
+            message += f"  ↳ {alert['metric']} {alert['operator']} {alert['target']}{type_symbol} {ref_info}{val_display} [{status}]\n"
             
     return message

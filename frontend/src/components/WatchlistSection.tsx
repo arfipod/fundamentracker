@@ -9,6 +9,7 @@ interface Props {
   onAddInline: (ticker: string, metric: string, operator: string, val: number) => void;
   onUpdateAlert: (ticker: string, metric: string, val: number) => void;
   onDeleteAlert: (ticker: string, metric: string) => void;
+  onToggleAlert: (alertId: string, isActive: boolean) => void;
 }
 
 export function WatchlistSection({
@@ -17,7 +18,8 @@ export function WatchlistSection({
   onDeleteTicker,
   onAddInline,
   onUpdateAlert,
-  onDeleteAlert
+  onDeleteAlert,
+  onToggleAlert
 }: Props) {
   return (
     <section className="watchlist-section">
@@ -36,6 +38,7 @@ export function WatchlistSection({
                 onAddInline={onAddInline}
                 onUpdateAlert={onUpdateAlert}
                 onDeleteAlert={onDeleteAlert}
+                onToggleAlert={onToggleAlert}
               />
             ))
           ) : (

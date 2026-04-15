@@ -1,50 +1,60 @@
-from cache import get_tickers_info_batch
+from config import OPERATORS_MAP
+try:
+    from watchlist import fetch_metric
+except Exception:
+    pass
 
-from config import METRICS_MAP, OPERATORS_MAP
+from db import client as db
 
-
-def run_fundamental_scan(state, send_message_func):
-    tickers = list(state["watchlist"].keys())
-    if not tickers:
-        return state
-        
-    batch_info = get_tickers_info_batch(tickers)
+def run_fundamental_scan(send_alert_func):
+    """
+    1) Fetches watchlist from db
+    2) Performs logic for each alert
+    3) Triggers log & updates if condition met
+    """
+    watchlist = db.get_watchlist()
     
-    for ticker, details in list(state["watchlist"].items()):
-        try:
-            ticker_info = batch_info.get(ticker.upper(), {})
-            price = ticker_info.get("currentPrice", "N/A")
+    symbols = list(watchlist.keys())
+    if not symbols:
+        return
+        
+    for ticker, details in list(watchlist.items()):
+        
+        for alert in details.get("alerts", []):
+            if not alert.get("is_active", True):
+                # Always update the status as False if not active to avoid ghost states? Or just leave it. 
+                # Better left as is.
+                continue
+                
+            current_val = fetch_metric(ticker, alert["metric"])
+            if current_val is None:
+                continue
+                
+            op_func = OPERATORS_MAP.get(alert["operator"])
+            if not op_func:
+                continue
+                
+            is_triggered = False
             
-            for alert in details.get("alerts", []):
-                metric = alert["metric"]
-                op_str = alert["operator"]
-                target = alert["target"]
+            # Relative vs Absolute logic
+            if alert.get("alert_type") == "relative" and alert.get("reference_value") is not None:
+                diff = ((current_val / alert["reference_value"]) - 1) * 100
+                is_triggered = op_func(diff, alert["target"])
+            else:
+                is_triggered = op_func(current_val, alert["target"])
                 
-                if metric not in METRICS_MAP or op_str not in OPERATORS_MAP:
-                    continue
-                    
-                val = ticker_info.get(METRICS_MAP[metric])
-                alert["current_value"] = val
-                if val is None:
-                    continue
-                    
-                op_func = OPERATORS_MAP[op_str]
-                is_triggered = op_func(val, target)
-                was_triggered = alert.get("is_triggered", False)
+            # Update DB with new value and trigger state
+            db.update_alert_status(alert["id"], is_triggered, current_val)
+            
+            # If crossed from untriggered to triggered
+            if is_triggered and not alert.get("is_triggered", False):
+                # Triggered! Log to history
+                db.log_alert_history(alert["id"], current_val, alert["target"])
                 
-                if is_triggered and not was_triggered:
-                    send_message_func(
-                        "🚨 *FUNDAMENTAL ALERT*\n"
-                        f"{details['name']} ({ticker}) {metric} = {val:.2f}\n"
-                        f"Condition: {metric} {op_str} {target}\n"
-                        f"Price: ${price}"
-                    )
-                    alert["is_triggered"] = True
-                elif not is_triggered and was_triggered:
-                    alert["is_triggered"] = False
-
-        except Exception as error:
-            print("Error with", ticker, error)
-
-    return state
-
+                # Format message
+                if alert.get("alert_type") == "relative":
+                    msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} changed by {alert['operator']} {alert['target']}% (Current: {current_val:.2f}, Ref: {alert['reference_value']:.2f})"
+                else:    
+                    msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} {alert['operator']} {alert['target']} (Current: {current_val:.2f})"
+                    
+                send_alert_func(msg)

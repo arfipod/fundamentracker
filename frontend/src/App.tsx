@@ -15,7 +15,8 @@ function App() {
     handleAddAlertInline,
     handleUpdateTarget,
     handleDeleteAlert,
-    handleDelete
+    handleDelete,
+    handleToggleAlert
   } = useWatchlist();
 
   const {
@@ -75,6 +76,7 @@ function App() {
         onAddInline={handleInlineAdd}
         onUpdateAlert={handleUpdateTarget}
         onDeleteAlert={handleDeleteAlert}
+        onToggleAlert={handleToggleAlert}
       />
     </div>
   );

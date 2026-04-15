@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Watchlist } from '../types/watchlist';
+import type { Watchlist } from '../types/watchlist';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -46,6 +46,7 @@ export function useWatchlist() {
           metric: metricToAdd,
           operator: operatorToAdd,
           value: targetValueToAdd,
+          alert_type: "absolute" // By default inline adds are absolute
         }),
       });
       if (!response.ok) throw new Error('Error adding the alert');
@@ -109,6 +110,22 @@ export function useWatchlist() {
     }
   };
 
+  const handleToggleAlert = async (alertId: string, isActive: boolean) => {
+    try {
+      const response = await fetch(`${API_URL}/alerts/${alertId}/toggle`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: isActive }),
+      });
+      if (!response.ok) throw new Error('Error toggling alert');
+      await fetchWatchlist();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      }
+    }
+  };
+
   return {
     watchlist,
     loading,
@@ -118,6 +135,7 @@ export function useWatchlist() {
     handleAddAlertInline,
     handleUpdateTarget,
     handleDeleteAlert,
-    handleDelete
+    handleDelete,
+    handleToggleAlert
   };
 }

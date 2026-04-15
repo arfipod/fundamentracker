@@ -9,9 +9,10 @@ interface Props {
   onAddInline: (ticker: string, metric: string, operator: string, val: number) => void;
   onUpdateAlert: (ticker: string, metric: string, val: number) => void;
   onDeleteAlert: (ticker: string, metric: string) => void;
+  onToggleAlert: (alertId: string, isActive: boolean) => void;
 }
 
-export function TickerCard({ symbol, data, onDeleteTicker, onAddInline, onUpdateAlert, onDeleteAlert }: Props) {
+export function TickerCard({ symbol, data, onDeleteTicker, onAddInline, onUpdateAlert, onDeleteAlert, onToggleAlert }: Props) {
   const [addingMetric, setAddingMetric] = useState(false);
 
   const handleAddSubmit = () => {
@@ -88,6 +89,7 @@ export function TickerCard({ symbol, data, onDeleteTicker, onAddInline, onUpdate
                 alert={alert}
                 onUpdate={onUpdateAlert}
                 onDelete={onDeleteAlert}
+                onToggle={onToggleAlert}
               />
             ))}
           </ul>

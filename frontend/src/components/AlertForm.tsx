@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface Props {
-  onAdd: (ticker: string, metric: string, operator: string, targetValue: number) => Promise<boolean>;
+  onAdd: (ticker: string, metric: string, operator: string, targetValue: number, alertType: string) => Promise<boolean>;
 }
 
 export function AlertForm({ onAdd }: Props) {
@@ -11,6 +11,7 @@ export function AlertForm({ onAdd }: Props) {
   const [metric, setMetric] = useState('pe');
   const [operator, setOperator] = useState('<');
   const [targetValue, setTargetValue] = useState('');
+  const [alertType, setAlertType] = useState('absolute');
 
   const [searchResults, setSearchResults] = useState<{symbol: string, name: string}[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -55,7 +56,7 @@ export function AlertForm({ onAdd }: Props) {
     e.preventDefault();
     if (!ticker || !targetValue) return;
 
-    const success = await onAdd(ticker, metric, operator, parseFloat(targetValue));
+    const success = await onAdd(ticker, metric, operator, parseFloat(targetValue), alertType);
     if (success) {
       setTicker('');
       setTargetValue('');
@@ -115,11 +116,18 @@ export function AlertForm({ onAdd }: Props) {
           </select>
         </div>
         <div className="form-group">
-          <label>Target</label>
+          <label>Type</label>
+          <select value={alertType} onChange={e => setAlertType(e.target.value)}>
+            <option value="absolute">Absolute Value</option>
+            <option value="relative">Change (%)</option>
+          </select>
+        </div>
+        <div className="form-group">
+          <label>{alertType === 'relative' ? 'Target (%)' : 'Target'}</label>
           <input 
             type="number" 
             step="any"
-            placeholder="e.g. 15.5" 
+            placeholder={alertType === 'relative' ? "e.g. 5" : "e.g. 15.5"} 
             value={targetValue} 
             onChange={e => setTargetValue(e.target.value)} 
             required
