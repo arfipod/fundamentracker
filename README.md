@@ -79,6 +79,17 @@ After startup:
 - API: `http://localhost:8000`
 - Frontend: `http://localhost:5173`
 
+
+## Vercel + Mini PC + Cloudflare Tunnel (production flow)
+
+If your frontend is hosted on Vercel and your backend API runs on your mini PC, follow this sequence:
+
+1. `./start_tunnel.sh` (starts API + tunnel and updates Vercel `VITE_API_URL`)
+2. `vercel --prod` (rebuild frontend with the new env var)
+3. Open your Vercel URL and verify API connectivity
+
+For a full step-by-step guide (initial setup, reboot flow, troubleshooting), see **`DEPLOYMENT_SEQUENCE.md`**.
+
 ## Using `start_tunnel.sh`
 
 If you need a temporary public tunnel for the local API and want to update the frontend deployment automatically, use `start_tunnel.sh`.

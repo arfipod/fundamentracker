@@ -79,3 +79,19 @@ deactivate
 - Do not commit `.venv/`.
 - Keep `.env` private and never commit secrets.
 - Update `requirements.txt` when Python dependencies change.
+
+
+## 3) Production flow: Vercel frontend + mini PC API tunnel
+
+When your backend runs on your mini PC and frontend is deployed on Vercel, use this order:
+
+```bash
+./start_tunnel.sh
+vercel --prod
+```
+
+Why this order matters:
+- `start_tunnel.sh` creates a fresh `trycloudflare.com` URL and updates Vercel `VITE_API_URL`.
+- `vercel --prod` rebuilds the frontend so it uses the updated variable.
+
+For the complete operational checklist, see `DEPLOYMENT_SEQUENCE.md`.
