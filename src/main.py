@@ -6,7 +6,7 @@ import sys
 
 import requests
 
-from jsonbin import load_state, save_state
+from supabase_db import load_state, save_state
 from scanner import run_fundamental_scan
 from state import ensure_state_shape
 from telegram_service import process_telegram_commands, send_message

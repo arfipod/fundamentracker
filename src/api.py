@@ -14,7 +14,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.append(str(SRC_DIR))
 
 from config import METRICS_MAP, OPERATORS_MAP
-from jsonbin import load_state, save_state
+from supabase_db import load_state, save_state
 from scanner import run_fundamental_scan
 from state import ensure_state_shape
 from telegram_service import send_message
