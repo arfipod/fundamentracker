@@ -42,6 +42,6 @@ current_price = info.get("currentPrice")
 ## Extension guidance
 
 To add a new alert metric:
-1. Add a key mapping in `src/config.py` (`METRICS_MAP`).
+1. Add a key mapping in `api/config.py` (`METRICS_MAP`).
 2. No state schema change is required; existing `alerts[]` entries are generic.
 3. The metric becomes available automatically in `/help`, `/add`, `/list`, `/alerts`, and scanner evaluation.

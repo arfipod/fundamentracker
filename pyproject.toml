@@ -1,2 +1,2 @@
 [tool.pyright]
-extraPaths = ["src"]
+extraPaths = ["api"]

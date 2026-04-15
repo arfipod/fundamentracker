@@ -17,14 +17,13 @@ FundamenTracker is a full-stack stock fundamentals tracking application.
 
 ## Project structure
 
-- `src/api.py` — FastAPI REST API (watchlist management and scan endpoints).
-- `src/main.py` — legacy/secondary Python entrypoint for CLI and local testing.
-- `src/config.py` — supported metric and operator mappings.
-- `src/telegram_service.py` — Telegram API helpers and command parsing.
-- `src/watchlist.py` — watchlist mutation utilities and metric parsing.
-- `src/scanner.py` — scan and alert transition logic.
-- `src/supabase_db.py` — state load/save integration with Supabase.
-- `src/state.py` — default state and state-shape guards.
+- `api/api.py` — FastAPI REST API (watchlist management and scan endpoints).
+- `api/db/client.py` — REST client for managing relational state in Supabase.
+- `api/config.py` — supported metric and operator mappings.
+- `api/telegram_service.py` — Telegram API helpers and command parsing.
+- `api/watchlist.py` — watchlist mutation utilities and metric parsing.
+- `api/scanner.py` — scan and alert transition logic.
+- `api/state.py` — legacy/removed components depending on Supabase implementation.
 - `frontend/` — React + Vite application.
 - `docker-compose.yml` — multi-service orchestration for API + frontend.
 

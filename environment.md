@@ -59,7 +59,7 @@ Use the same `.env` keys shown above, or export them directly in your shell.
 ### Run backend locally
 
 ```bash
-python src/main.py
+python api/main.py
 ```
 
 ### Run tests

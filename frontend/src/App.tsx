@@ -78,6 +78,10 @@ function App() {
         onDeleteAlert={handleDeleteAlert}
         onToggleAlert={handleToggleAlert}
       />
+
+      <footer className="footer">
+        Made with 💙 by arrf
+      </footer>
     </div>
   );
 }

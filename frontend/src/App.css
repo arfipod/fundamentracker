@@ -411,3 +411,14 @@ body {
   font-weight: 600;
   margin-right: 4px;
 }
+
+.footer {
+  margin-top: 4rem;
+  padding: 2rem 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-top: 1px solid var(--border-color);
+  letter-spacing: 0.05em;
+}

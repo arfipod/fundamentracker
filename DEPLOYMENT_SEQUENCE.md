@@ -42,13 +42,13 @@ vercel link
 Create `.env` at the repository root:
 
 ```env
-JSONBIN_ID=your_jsonbin_document_id
-JSONBIN_KEY=your_jsonbin_master_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_anon_or_service_key
 TELEGRAM_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_telegram_chat_id
 ```
 
-`JSONBIN_ID` and `JSONBIN_KEY` are required for persistence.
+`SUPABASE_URL` and `SUPABASE_KEY` are required for persistence.
 
 ---
 
@@ -148,7 +148,7 @@ Check:
 
 ### Problem: API container fails to boot
 
-- Ensure `.env` exists and has valid JSONBin credentials.
+- Ensure `.env` exists and has valid Supabase credentials.
 - Check logs: `docker-compose logs -f api`
 
 ---
