@@ -19,7 +19,7 @@ from config import METRICS_MAP, OPERATORS_MAP
 from supabase_db import load_state, save_state
 from scanner import run_fundamental_scan
 from state import ensure_state_shape
-from telegram_service import send_message
+from telegram_service import send_message, process_telegram_commands
 from watchlist import add_ticker, remove_ticker, update_alert_target, remove_alert
 
 app = FastAPI(title="FundamenTracker API")
@@ -78,6 +78,26 @@ def perform_scan(state_dict):
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(run_periodic_scan())
+    asyncio.create_task(run_telegram_polling())
+
+async def run_telegram_polling():
+    token = os.getenv("TELEGRAM_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
+        
+    telegram_api = f"https://api.telegram.org/bot{token}"
+    
+    while True:
+        try:
+            global state
+            # Process incoming messages
+            state = process_telegram_commands(state, requests, telegram_api, chat_id)
+            save_state(state)
+        except Exception as e:
+            print(f"Telegram polling error: {e}")
+        
+        await asyncio.sleep(5)
 
 async def run_periodic_scan():
     while True:

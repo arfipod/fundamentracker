@@ -1,12 +1,18 @@
-import yfinance as yf
+from cache import get_tickers_info_batch
 
 from config import METRICS_MAP, OPERATORS_MAP
 
 
 def run_fundamental_scan(state, send_message_func):
+    tickers = list(state["watchlist"].keys())
+    if not tickers:
+        return state
+        
+    batch_info = get_tickers_info_batch(tickers)
+    
     for ticker, details in list(state["watchlist"].items()):
         try:
-            ticker_info = yf.Ticker(ticker).info
+            ticker_info = batch_info.get(ticker.upper(), {})
             price = ticker_info.get("currentPrice", "N/A")
             
             for alert in details.get("alerts", []):
