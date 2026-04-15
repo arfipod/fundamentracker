@@ -61,6 +61,7 @@ class ScanSettingsRequest(BaseModel):
 
 def perform_scan(state_dict):
     import time
+    print("\n--- Executing Fundamental Scan ---", flush=True)
     token = os.getenv("TELEGRAM_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     telegram_api = f"https://api.telegram.org/bot{token}" if token else ""
@@ -116,7 +117,7 @@ async def run_periodic_scan():
         except Exception as e:
             print(f"Error in background scan: {e}")
             
-        await asyncio.sleep(60)
+        await asyncio.sleep(5)
 
 
 @app.get("/watchlist")
@@ -186,6 +187,11 @@ def scan_watchlist():
 @app.get("/scan-settings")
 def get_scan_settings():
     return state.get("scan_settings", {"interval_seconds": 0, "last_scan_time": 0})
+
+@app.get("/server-time")
+def get_server_time():
+    import time
+    return {"server_time": time.time()}
 
 @app.put("/scan-settings")
 def update_scan_settings(payload: ScanSettingsRequest):

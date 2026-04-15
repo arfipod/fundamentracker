@@ -27,6 +27,10 @@ function App() {
   const [scanInterval, setScanInterval] = useState<number>(0);
   const [lastScanTime, setLastScanTime] = useState<number>(0);
   const [isScanning, setIsScanning] = useState(false);
+  
+  // Server time tracking
+  const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
+  const [currentServerTime, setCurrentServerTime] = useState<number>(0);
 
   // Form states
   const [ticker, setTicker] = useState('');
@@ -128,6 +132,13 @@ function App() {
         setScanInterval(data.interval_seconds || 0);
         setLastScanTime(data.last_scan_time || 0);
       }
+      
+      const timeRes = await fetch(`${API_URL}/server-time`);
+      if (timeRes.ok) {
+        const timeData = await timeRes.json();
+        const offset = timeData.server_time - (Date.now() / 1000);
+        setServerTimeOffset(offset);
+      }
     } catch (err) {
       console.error("Error loading scan settings", err);
     }
@@ -150,6 +161,13 @@ function App() {
     fetchWatchlist();
     fetchScanSettings();
   }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentServerTime((Date.now() / 1000) + serverTimeOffset);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [serverTimeOffset]);
 
   const handleAddAlert = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -333,12 +351,19 @@ function App() {
                 Force Scan
               </button>
             </div>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Last scan: {lastScanTime ? new Date(lastScanTime * 1000).toLocaleString() : 'Nunca'}
-            </span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Next scan: {nextScanTime ? new Date(nextScanTime * 1000).toLocaleString() : 'Manual'}
-            </span>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '4px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Server time: {new Date(currentServerTime * 1000).toLocaleTimeString()}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '2px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Last scan: {lastScanTime ? new Date(lastScanTime * 1000).toLocaleTimeString() : 'Nunca'}
+              </span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Next scan: {nextScanTime ? new Date(nextScanTime * 1000).toLocaleTimeString() : 'Manual'}
+              </span>
+            </div>
           </div>
         </div>
       </header>
