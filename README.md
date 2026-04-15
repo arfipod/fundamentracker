@@ -12,7 +12,7 @@ FundamenTracker is a full-stack stock fundamentals tracking application.
 - Manages a stock watchlist with configurable fundamental alerts.
 - Fetches market fundamentals from Yahoo Finance (`yfinance`).
 - Triggers alerts only on condition transitions (prevents duplicate spam while a condition remains true).
-- Persists state in JSONBin.
+- Persists state in Supabase.
 - Sends optional Telegram notifications when scan conditions are met.
 
 ## Project structure
@@ -23,7 +23,7 @@ FundamenTracker is a full-stack stock fundamentals tracking application.
 - `src/telegram_service.py` — Telegram API helpers and command parsing.
 - `src/watchlist.py` — watchlist mutation utilities and metric parsing.
 - `src/scanner.py` — scan and alert transition logic.
-- `src/jsonbin.py` — state load/save integration with JSONBin.
+- `src/supabase_db.py` — state load/save integration with Supabase.
 - `src/state.py` — default state and state-shape guards.
 - `frontend/` — React + Vite application.
 - `docker-compose.yml` — multi-service orchestration for API + frontend.
@@ -33,8 +33,8 @@ FundamenTracker is a full-stack stock fundamentals tracking application.
 Create a `.env` file in the repository root:
 
 ```env
-JSONBIN_ID=your_jsonbin_document_id
-JSONBIN_KEY=your_jsonbin_master_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_anon_or_service_key
 TELEGRAM_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_telegram_chat_id
 ```

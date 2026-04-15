@@ -9,13 +9,13 @@ This guide explains how to run FundamenTracker with the **recommended Docker Com
 Create a `.env` file at the root of the project with the following values:
 
 ```env
-JSONBIN_ID=your_jsonbin_document_id
-JSONBIN_KEY=your_jsonbin_master_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_anon_or_service_key
 TELEGRAM_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_telegram_chat_id
 ```
 
-- `JSONBIN_ID` and `JSONBIN_KEY` are required for persistence.
+- `SUPABASE_URL` and `SUPABASE_KEY` are required for persistence.
 - `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` are required only if you want Telegram notifications.
 
 ### Build and run all services
