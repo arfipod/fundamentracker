@@ -26,6 +26,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [scanInterval, setScanInterval] = useState<number>(0);
   const [lastScanTime, setLastScanTime] = useState<number>(0);
+  const [isScanning, setIsScanning] = useState(false);
 
   // Form states
   const [ticker, setTicker] = useState('');
@@ -47,6 +48,8 @@ function App() {
 
   // Inline Metric Add
   const [addingMetricFor, setAddingMetricFor] = useState<string | null>(null);
+
+  const nextScanTime = (scanInterval > 0 && lastScanTime > 0) ? lastScanTime + scanInterval : 0;
 
   useEffect(() => {
     setLocalInterval({
@@ -266,15 +269,17 @@ function App() {
 
   const handleScan = async () => {
     try {
+      setIsScanning(true);
       const response = await fetch(`${API_URL}/scan`, { method: 'POST' });
       if (!response.ok) throw new Error('Error scanning');
-      alert('Scan finished');
       await fetchWatchlist();
       await fetchScanSettings();
     } catch (err: unknown) {
        if (err instanceof Error) {
         setError(err.message);
       }
+    } finally {
+      setIsScanning(false);
     }
   };
 
@@ -322,11 +327,17 @@ function App() {
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
-            <button className="btn-primary" onClick={handleScan}>
-              Force Scan
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {isScanning && <span style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 'bold' }}>Scanning...</span>}
+              <button className="btn-primary" onClick={handleScan} disabled={isScanning}>
+                Force Scan
+              </button>
+            </div>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Último scan: {lastScanTime ? new Date(lastScanTime * 1000).toLocaleString() : 'Nunca'}
+              Last scan: {lastScanTime ? new Date(lastScanTime * 1000).toLocaleString() : 'Nunca'}
+            </span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Next scan: {nextScanTime ? new Date(nextScanTime * 1000).toLocaleString() : 'Manual'}
             </span>
           </div>
         </div>
