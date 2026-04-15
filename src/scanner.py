@@ -18,6 +18,7 @@ def run_fundamental_scan(state, send_message_func):
                     continue
                     
                 val = ticker_info.get(METRICS_MAP[metric])
+                alert["current_value"] = val
                 if val is None:
                     continue
                     

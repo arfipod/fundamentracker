@@ -65,7 +65,13 @@ def remove_alert(state: dict, ticker: str, metric: str) -> bool:
         alerts = state["watchlist"][symbol]["alerts"]
         initial_len = len(alerts)
         state["watchlist"][symbol]["alerts"] = [a for a in alerts if a["metric"] != metric]
-        return len(state["watchlist"][symbol]["alerts"]) < initial_len
+        
+        # If no alerts remain, remove the ticker entirely
+        if len(state["watchlist"][symbol]["alerts"]) == 0:
+            del state["watchlist"][symbol]
+            return True
+            
+        return len(state["watchlist"].get(symbol, {}).get("alerts", [])) < initial_len
     return False
 
 

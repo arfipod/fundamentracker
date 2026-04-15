@@ -6,6 +6,7 @@ interface Alert {
   operator: string;
   target: number;
   is_triggered?: boolean;
+  current_value?: number | null;
 }
 
 interface TickerData {
@@ -39,6 +40,24 @@ function App() {
   // Inline editing state
   const [editingAlert, setEditingAlert] = useState<{ticker: string, metric: string} | null>(null);
   const [editingValue, setEditingValue] = useState<string>('');
+  
+  // Stopwatch interval state
+  const [localInterval, setLocalInterval] = useState({ d: 0, h: 0, m: 0 });
+
+  useEffect(() => {
+    setLocalInterval({
+      d: Math.floor(scanInterval / 86400),
+      h: Math.floor((scanInterval % 86400) / 3600),
+      m: Math.floor((scanInterval % 3600) / 60)
+    });
+  }, [scanInterval]);
+
+  const handleApplyInterval = () => {
+    const total = (localInterval.d * 86400) + (localInterval.h * 3600) + (localInterval.m * 60);
+    if (total !== scanInterval) {
+      handleUpdateInterval(total);
+    }
+  };
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -238,28 +257,29 @@ function App() {
       <header className="header">
         <h1>FundamenTracker Dashboard</h1>
         <div className="header-actions" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <div className="scan-interval-selector" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Auto-Scan:</label>
-            <select 
-              value={scanInterval} 
-              onChange={(e) => handleUpdateInterval(Number(e.target.value))}
-              style={{
-                padding: '0.4rem 0.6rem',
-                borderRadius: '6px',
-                border: '1px solid var(--border-color)',
-                backgroundColor: 'var(--input-bg)',
-                color: 'var(--text-main)',
-                fontSize: '0.9rem',
-                cursor: 'pointer'
-              }}
-            >
-              <option value={0}>Manual</option>
-              <option value={60}>Cada 1 Minuto</option>
-              <option value={300}>Cada 5 Minutos</option>
-              <option value={3600}>Cada Hora</option>
-              <option value={43200}>Cada 12 Horas</option>
-              <option value={86400}>Cada Día</option>
-            </select>
+          <div className="scan-interval-selector" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem', backgroundColor: 'var(--panel-bg)', padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+            <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, marginRight: '0.5rem' }}>Auto-Scan:</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <input 
+                type="number" min="0" className="stopwatch-input" value={localInterval.d}
+                onChange={e => setLocalInterval({...localInterval, d: Number(e.target.value)})}
+                onBlur={handleApplyInterval}
+              /><span className="stopwatch-label">d</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <input 
+                type="number" min="0" max="23" className="stopwatch-input" value={localInterval.h}
+                onChange={e => setLocalInterval({...localInterval, h: Number(e.target.value)})}
+                onBlur={handleApplyInterval}
+              /><span className="stopwatch-label">h</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <input 
+                type="number" min="0" max="59" className="stopwatch-input" value={localInterval.m}
+                onChange={e => setLocalInterval({...localInterval, m: Number(e.target.value)})}
+                onBlur={handleApplyInterval}
+              /><span className="stopwatch-label">m</span>
+            </div>
           </div>
           <button className="btn-primary" onClick={handleScan}>
             Force Scan
@@ -373,32 +393,30 @@ function App() {
                             <span className="metric">{alert.metric.toUpperCase()}</span>
                             <span className="operator">{alert.operator}</span>
                             {editingAlert?.ticker === symbol && editingAlert?.metric === alert.metric ? (
-                              <input
-                                type="number"
-                                step="0.01"
-                                className="target-edit-input"
-                                autoFocus
-                                value={editingValue}
-                                onChange={(e) => setEditingValue(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    const val = parseFloat(parseFloat(editingValue).toFixed(2));
-                                    if (!isNaN(val)) handleUpdateTarget(symbol, alert.metric, val);
-                                  } else if (e.key === 'Escape') {
-                                    setEditingAlert(null);
-                                  }
-                                }}
-                                onBlur={() => {
-                                  if (editingValue.trim() === '') {
-                                    setEditingAlert(null);
-                                    return;
-                                  }
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className="target-edit-input"
+                                  autoFocus
+                                  value={editingValue}
+                                  onChange={(e) => setEditingValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      const val = parseFloat(parseFloat(editingValue).toFixed(2));
+                                      if (!isNaN(val)) handleUpdateTarget(symbol, alert.metric, val);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingAlert(null);
+                                    }
+                                  }}
+                                  style={{ width: '80px', padding: '2px 4px', fontSize: 'inherit' }}
+                                />
+                                <button type="button" className="btn-success" style={{ padding: '2px 6px', fontSize: '0.8rem', minWidth: 'auto', height: 'auto' }} onClick={() => {
                                   const val = parseFloat(parseFloat(editingValue).toFixed(2));
                                   if (!isNaN(val)) handleUpdateTarget(symbol, alert.metric, val);
-                                  else setEditingAlert(null);
-                                }}
-                                style={{ width: '80px', padding: '2px 4px', fontSize: 'inherit' }}
-                              />
+                                }}>✓</button>
+                                <button type="button" className="btn-danger" style={{ padding: '2px 6px', fontSize: '0.8rem', minWidth: 'auto', height: 'auto', display: 'inline-flex', alignItems: 'center' }} onClick={() => setEditingAlert(null)}>✕</button>
+                              </div>
                             ) : (
                               <span 
                                 className="target"
@@ -410,6 +428,11 @@ function App() {
                                 }}
                               >
                                 {alert.target}
+                              </span>
+                            )}
+                            {alert.current_value !== undefined && alert.current_value !== null && (
+                              <span className="current-val" style={{ marginLeft: '6px', fontSize: '0.85em', color: '#94a3b8' }}>
+                                (Actual: {alert.current_value.toFixed(2)})
                               </span>
                             )}
                             <button
