@@ -15,7 +15,7 @@ HEADERS = {
 
 def load_state():
     if not SUPABASE_URL or not SUPABASE_KEY:
-        print("Faltan credenciales de Supabase. Usando estado por defecto.")
+        print("Supabase credentials are missing. Using default state.")
         return default_state()
 
     try:
@@ -26,7 +26,7 @@ def load_state():
                 return data[0]["state"]
         return default_state()
     except Exception as error:
-        print("Error al cargar el estado desde Supabase:", error)
+        print("Error loading state from Supabase:", error)
         return default_state()
 
 def save_state(state):
@@ -41,4 +41,4 @@ def save_state(state):
         response = requests.post(BASE_URL, headers=headers, json=payload)
         response.raise_for_status()
     except Exception as error:
-        print("Error al guardar el estado en Supabase:", error)
+        print("Error saving state to Supabase:", error)
