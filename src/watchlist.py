@@ -59,6 +59,26 @@ def remove_ticker(state: dict, ticker: str) -> tuple[bool, str]:
     return False, symbol
 
 
+def remove_alert(state: dict, ticker: str, metric: str) -> bool:
+    symbol = ticker.upper()
+    if symbol in state["watchlist"]:
+        alerts = state["watchlist"][symbol]["alerts"]
+        initial_len = len(alerts)
+        state["watchlist"][symbol]["alerts"] = [a for a in alerts if a["metric"] != metric]
+        return len(state["watchlist"][symbol]["alerts"]) < initial_len
+    return False
+
+
+def update_alert_target(state: dict, ticker: str, metric: str, target: float) -> bool:
+    symbol = ticker.upper()
+    if symbol in state["watchlist"]:
+        for alert in state["watchlist"][symbol]["alerts"]:
+            if alert["metric"] == metric:
+                alert["target"] = target
+                return True
+    return False
+
+
 def format_watchlist_message(state: dict) -> str:
     if not state["watchlist"]:
         return "📭 Watchlist empty."

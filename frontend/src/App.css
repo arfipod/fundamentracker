@@ -368,3 +368,24 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #475569; 
 }
+
+.btn-delete-alert {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  position: absolute;
+  right: 0.5rem;
+}
+
+.btn-delete-alert:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  transform: scale(1.1);
+}
