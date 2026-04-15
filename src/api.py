@@ -24,8 +24,8 @@ from telegram_service import send_message, process_telegram_commands
 app = FastAPI(title="FundamenTracker API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "*"],
-    allow_credentials=True,
+    allow_origins=["http://localhost:5173", "https://fundamentracker.vercel.app", "*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
