@@ -75,10 +75,14 @@ def perform_scan(state_dict):
     state_dict["scan_settings"]["last_scan_time"] = time.time()
     save_state(state_dict)
 
+background_tasks = set()
+
 @app.on_event("startup")
 async def startup_event():
-    asyncio.create_task(run_periodic_scan())
-    asyncio.create_task(run_telegram_polling())
+    task1 = asyncio.create_task(run_periodic_scan())
+    background_tasks.add(task1)
+    task2 = asyncio.create_task(run_telegram_polling())
+    background_tasks.add(task2)
 
 async def run_telegram_polling():
     token = os.getenv("TELEGRAM_TOKEN")
