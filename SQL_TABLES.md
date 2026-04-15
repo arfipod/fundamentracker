@@ -1,3 +1,4 @@
+Add this to supabase SQL to create tables
 ```sql
 CREATE TABLE tickers (
   symbol VARCHAR PRIMARY KEY,
@@ -13,7 +14,7 @@ CREATE TABLE alerts (
   target_value NUMERIC NOT NULL,
   is_active BOOLEAN DEFAULT TRUE,
   is_triggered BOOLEAN DEFAULT FALSE,
-  reference_value NUMERIC, -- Guardará el precio 'ancla' en alarmas dinámicas
+  reference_value NUMERIC, -- It will save the anchor price in dynamic alerts
   alert_type VARCHAR DEFAULT 'absolute', -- 'absolute' o 'relative'
   current_value NUMERIC,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -32,6 +33,6 @@ CREATE TABLE scan_settings (
   interval_seconds INT DEFAULT 0,
   last_scan_time INT DEFAULT 0
 );
--- Inserta la fila predeterminada de configuración
+-- Insert the default scan settings
 INSERT INTO scan_settings (id, interval_seconds, last_scan_time) VALUES (1, 0, 0);
 ```
