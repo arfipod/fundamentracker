@@ -59,6 +59,22 @@ class ScanSettingsRequest(BaseModel):
     interval_seconds: int
 
 
+def perform_scan(state_dict):
+    import time
+    token = os.getenv("TELEGRAM_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    telegram_api = f"https://api.telegram.org/bot{token}" if token else ""
+    def send_telegram_alert(text: str) -> None:
+        if not token or not chat_id:
+            return
+        send_message(requests, telegram_api, chat_id, text)
+        
+    run_fundamental_scan(state_dict, send_telegram_alert)
+    if "scan_settings" not in state_dict:
+        state_dict["scan_settings"] = {"interval_seconds": 0, "last_scan_time": 0}
+    state_dict["scan_settings"]["last_scan_time"] = time.time()
+    save_state(state_dict)
+
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(run_periodic_scan())
@@ -72,18 +88,7 @@ async def run_periodic_scan():
                 last_time = settings.get("last_scan_time", 0)
                 now = time.time()
                 if now - last_time >= interval:
-                    token = os.getenv("TELEGRAM_TOKEN")
-                    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-                    telegram_api = f"https://api.telegram.org/bot{token}" if token else ""
-
-                    def send_telegram_alert(text: str) -> None:
-                        if not token or not chat_id:
-                            return
-                        send_message(requests, telegram_api, chat_id, text)
-
-                    run_fundamental_scan(state, send_telegram_alert)
-                    state["scan_settings"]["last_scan_time"] = time.time()
-                    save_state(state)
+                    perform_scan(state)
         except Exception as e:
             print(f"Error in background scan: {e}")
             
@@ -106,7 +111,8 @@ def add_watchlist_alert(payload: AddAlertRequest):
         raise HTTPException(status_code=400, detail=f"Invalid operator: {operator}")
 
     symbol, name = add_ticker(state, payload.ticker, metric, operator, payload.value)
-    save_state(state)
+    
+    perform_scan(state)
 
     return {
         "message": "Ticker added",
@@ -149,18 +155,7 @@ def update_watchlist_alert(payload: UpdateAlertRequest):
 
 @app.post("/scan")
 def scan_watchlist():
-    token = os.getenv("TELEGRAM_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    telegram_api = f"https://api.telegram.org/bot{token}" if token else ""
-
-    def send_telegram_alert(text: str) -> None:
-        if not token or not chat_id:
-            return
-        send_message(requests, telegram_api, chat_id, text)
-
-    run_fundamental_scan(state, send_telegram_alert)
-    save_state(state)
-
+    perform_scan(state)
     return {"message": "Scan completed", "watchlist_size": len(state.get("watchlist", {}))}
 
 

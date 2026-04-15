@@ -25,6 +25,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [scanInterval, setScanInterval] = useState<number>(0);
+  const [lastScanTime, setLastScanTime] = useState<number>(0);
 
   // Form states
   const [ticker, setTicker] = useState('');
@@ -43,6 +44,9 @@ function App() {
   
   // Stopwatch interval state
   const [localInterval, setLocalInterval] = useState({ d: 0, h: 0, m: 0 });
+
+  // Inline Metric Add
+  const [addingMetricFor, setAddingMetricFor] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalInterval({
@@ -119,6 +123,7 @@ function App() {
       if (response.ok) {
         const data = await response.json();
         setScanInterval(data.interval_seconds || 0);
+        setLastScanTime(data.last_scan_time || 0);
       }
     } catch (err) {
       console.error("Error loading scan settings", err);
@@ -180,6 +185,40 @@ function App() {
       setTicker('');
       setTargetValue('');
       await fetchWatchlist();
+      await fetchScanSettings();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      }
+    }
+  };
+
+  const handleAddAlertInline = async (tickerToAdd: string, metricToAdd: string, operatorToAdd: string, targetValueToAdd: number) => {
+    if (watchlist && watchlist[tickerToAdd]) {
+      const hasMetric = watchlist[tickerToAdd].alerts.some(a => a.metric === metricToAdd);
+      if (hasMetric) {
+        if (!window.confirm("Ya tienes esta métrica configurada para esta empresa. ¿Deseas agregarla de todas formas?")) {
+          return;
+        }
+      }
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticker: tickerToAdd,
+          metric: metricToAdd,
+          operator: operatorToAdd,
+          value: targetValueToAdd,
+        }),
+      });
+      if (!response.ok) throw new Error('Error adding the alert');
+      
+      setAddingMetricFor(null);
+      await fetchWatchlist();
+      await fetchScanSettings();
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
@@ -231,6 +270,7 @@ function App() {
       if (!response.ok) throw new Error('Error scanning');
       alert('Scan finished');
       await fetchWatchlist();
+      await fetchScanSettings();
     } catch (err: unknown) {
        if (err instanceof Error) {
         setError(err.message);
@@ -281,9 +321,14 @@ function App() {
               /><span className="stopwatch-label">m</span>
             </div>
           </div>
-          <button className="btn-primary" onClick={handleScan}>
-            Force Scan
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
+            <button className="btn-primary" onClick={handleScan}>
+              Force Scan
+            </button>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Último scan: {lastScanTime ? new Date(lastScanTime * 1000).toLocaleString() : 'Nunca'}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -385,7 +430,42 @@ function App() {
                     </button>
                   </div>
                   <div className="card-body">
-                    <h4>Configured Alerts:</h4>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <h4 style={{ margin: 0 }}>Configured Alerts:</h4>
+                      <button type="button" onClick={() => setAddingMetricFor(symbol)} style={{ background: 'transparent', border: '1px dashed var(--primary)', color: 'var(--primary)', cursor: 'pointer', borderRadius: '4px', padding: '2px 8px', fontSize: '0.8rem', fontWeight: 'bold' }}>+ Metric</button>
+                    </div>
+
+                    {addingMetricFor === symbol && (
+                      <div style={{ padding: '0.5rem', background: 'var(--bg-color)', borderRadius: '6px', marginBottom: '0.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <select id={`inline-m-${symbol}`} className="target-edit-input" style={{ width: 'auto', padding: '2px 4px' }}>
+                          <option value="pe">PE</option>
+                          <option value="fpe">FPE</option>
+                          <option value="pb">PB</option>
+                          <option value="evebitda">EV/EBITDA</option>
+                          <option value="roe">ROE</option>
+                          <option value="price">Price</option>
+                        </select>
+                        <select id={`inline-o-${symbol}`} className="target-edit-input" style={{ width: 'auto', padding: '2px 4px' }}>
+                          <option value="<">&lt;</option>
+                          <option value=">">&gt;</option>
+                          <option value="<=">&lt;=</option>
+                          <option value=">=">&gt;=</option>
+                          <option value="==">==</option>
+                          <option value="!=">!=</option>
+                        </select>
+                        <input type="number" step="any" placeholder="Valor" id={`inline-t-${symbol}`} className="target-edit-input" style={{ width: '60px', padding: '2px 4px' }} />
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button className="btn-success" style={{ padding: '2px 6px', fontSize: '0.8rem' }} onClick={() => {
+                            const m = (document.getElementById(`inline-m-${symbol}`) as HTMLSelectElement).value;
+                            const o = (document.getElementById(`inline-o-${symbol}`) as HTMLSelectElement).value;
+                            const t = (document.getElementById(`inline-t-${symbol}`) as HTMLInputElement).value;
+                            if (t) handleAddAlertInline(symbol, m, o, parseFloat(t));
+                          }}>✓</button>
+                          <button className="btn-danger" style={{ padding: '2px 6px', fontSize: '0.8rem' }} onClick={() => setAddingMetricFor(null)}>✕</button>
+                        </div>
+                      </div>
+                    )}
+
                     {data.alerts && data.alerts.length > 0 ? (
                       <ul className="alerts-list">
                         {data.alerts.map((alert, idx) => (
@@ -432,7 +512,7 @@ function App() {
                             )}
                             {alert.current_value !== undefined && alert.current_value !== null && (
                               <span className="current-val" style={{ marginLeft: '6px', fontSize: '0.85em', color: '#94a3b8' }}>
-                                (Actual: {alert.current_value.toFixed(2)})
+                                (Current: {alert.current_value.toFixed(2)})
                               </span>
                             )}
                             <button
