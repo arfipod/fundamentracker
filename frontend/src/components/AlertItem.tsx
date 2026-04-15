@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { Alert } from '../types/watchlist';
 
 interface Props {

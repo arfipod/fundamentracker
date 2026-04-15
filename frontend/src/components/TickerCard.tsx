@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { TickerData } from '../types/watchlist';
+import { useState } from 'react';
+import type { TickerData } from '../types/watchlist';
 import { AlertItem } from './AlertItem';
 
 interface Props {

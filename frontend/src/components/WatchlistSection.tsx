@@ -1,5 +1,4 @@
-import React from 'react';
-import { Watchlist } from '../types/watchlist';
+import type { Watchlist } from '../types/watchlist';
 import { TickerCard } from './TickerCard';
 
 interface Props {
