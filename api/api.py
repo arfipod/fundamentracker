@@ -249,24 +249,73 @@ def get_metric_current(ticker: str, metric: str):
 
 
 @app.get("/history")
-def get_history(ticker: str, metric: str):
-    # Nota para la IA (y usuario): yfinance history solo soporta precios (Open, High, Low, Close, Volume)
-    # de forma temporal y gratuita. Para otras métricas fundamentales históricas, se requeriría una API de pago
-    # o descargar estados financieros completos y calcularlos por trimestre.
-    # Por ahora, devolvemos el historial de precios como fallback para que el frontend tenga datos en la gráfica.
+def get_history(ticker: str, metric: str, period: str = "1y"):
     import yfinance as yf
     try:
         t = yf.Ticker(ticker.upper())
-        hist = t.history(period="1y")
+        # The user requested 3y and so on. Yfinance supports 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
+        # If period is not supported it might throw an error, so we catch it
+        hist = t.history(period=period)
         if hist.empty:
             return []
         
         data = []
-        for date, row in hist.iterrows():
-            data.append({
-                "date": date.strftime("%Y-%m-%d"),
-                "value": row["Close"]
-            })
+        metric = metric.lower()
+        
+        if metric == 'price':
+            for date, row in hist.iterrows():
+                data.append({"date": date.strftime("%Y-%m-%d"), "value": row["Close"]})
+            return data
+
+        t_info = t.info
+        
+        if metric == "pe":
+            eps = t_info.get("trailingEps")
+            if eps in (None, 0):
+                raise HTTPException(status_code=400, detail="No valid EPS data for PE calculation")
+            for date, row in hist.iterrows():
+                data.append({"date": date.strftime("%Y-%m-%d"), "value": row["Close"] / eps})
+                
+        elif metric == "fpe":
+            f_eps = t_info.get("forwardEps")
+            if f_eps in (None, 0):
+                raise HTTPException(status_code=400, detail="No valid forward EPS data")
+            for date, row in hist.iterrows():
+                data.append({"date": date.strftime("%Y-%m-%d"), "value": row["Close"] / f_eps})
+                
+        elif metric == "pb":
+            bvps = t_info.get("bookValue")
+            if bvps in (None, 0):
+                raise HTTPException(status_code=400, detail="No valid book value data")
+            for date, row in hist.iterrows():
+                data.append({"date": date.strftime("%Y-%m-%d"), "value": row["Close"] / bvps})
+                
+        elif metric == "evebitda":
+            shares = t_info.get("sharesOutstanding")
+            debt = t_info.get("totalDebt", 0)
+            cash = t_info.get("totalCash", 0)
+            ebitda = t_info.get("ebitda")
+            
+            if not shares or not ebitda or ebitda == 0:
+                raise HTTPException(status_code=400, detail="No valid data for EV/EBITDA calculation")
+                
+            net_debt = debt - cash
+            for date, row in hist.iterrows():
+                ev = row["Close"] * shares + net_debt
+                data.append({"date": date.strftime("%Y-%m-%d"), "value": ev / ebitda})
+                
+        elif metric == "roe":
+            roe = t_info.get("returnOnEquity")
+            if roe is None:
+                raise HTTPException(status_code=400, detail="No ROE data available")
+            for date, row in hist.iterrows():
+                data.append({"date": date.strftime("%Y-%m-%d"), "value": roe * 100})
+                
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported metric for history")
+
         return data
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

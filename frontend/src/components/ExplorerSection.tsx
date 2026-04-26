@@ -20,6 +20,18 @@ interface HistoryData {
 export function ExplorerSection() {
   const [ticker, setTicker] = useState('AAPL');
   const [metric, setMetric] = useState('price');
+  const [period, setPeriod] = useState('1y');
+  
+  const periods = [
+    { label: '1m', value: '1mo' },
+    { label: '3m', value: '3mo' },
+    { label: '6m', value: '6mo' },
+    { label: '1y', value: '1y' },
+    { label: '2y', value: '2y' },
+    { label: '5y', value: '5y' },
+    { label: '10y', value: '10y' },
+    { label: 'Max', value: 'max' }
+  ];
   
   const [searchResults, setSearchResults] = useState<{symbol: string, name: string}[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -81,8 +93,8 @@ export function ExplorerSection() {
         setCurrentValue(null);
       }
 
-      // Fetch history (fallback to price)
-      const histRes = await fetch(`${API_URL}/history?ticker=${ticker}&metric=${metric}`);
+      // Fetch history for the selected metric and period
+      const histRes = await fetch(`${API_URL}/history?ticker=${ticker}&metric=${metric}&period=${period}`);
       if (histRes.ok) {
         const histData = await histRes.json();
         setHistoryData(histData);
@@ -103,7 +115,7 @@ export function ExplorerSection() {
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metric]); // Re-fetch on metric change
+  }, [metric, period]); // Re-fetch on metric or period change
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,7 +182,28 @@ export function ExplorerSection() {
         </div>
 
         <div className="chart-container">
-          <h3>Historical Evolution {metric !== 'price' ? '(Price Fallback)' : ''}</h3>
+          <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3>Historical Evolution</h3>
+            <div className="period-selector" style={{ display: 'flex', gap: '0.5rem' }}>
+              {periods.map(p => (
+                <button
+                  key={p.value}
+                  onClick={() => setPeriod(p.value)}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    border: '1px solid #334155',
+                    background: period === p.value ? '#3b82f6' : '#1e293b',
+                    color: '#f8fafc',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem'
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
           {loading ? (
             <div className="loading">Loading chart data...</div>
           ) : error ? (
@@ -197,7 +230,7 @@ export function ExplorerSection() {
                   <Line 
                     type="monotone" 
                     dataKey="value" 
-                    name={metric === 'price' ? 'Price' : `Price (Fallback for ${metric.toUpperCase()})`} 
+                    name={metric.toUpperCase()} 
                     stroke="#3b82f6" 
                     strokeWidth={2}
                     dot={false}
