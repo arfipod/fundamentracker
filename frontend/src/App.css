@@ -422,3 +422,88 @@ body {
   border-top: 1px solid var(--border-color);
   letter-spacing: 0.05em;
 }
+
+/* Details Table Styling */
+.table-container {
+  overflow-x: auto;
+  border-radius: 12px;
+  background-color: var(--panel-bg);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+.details-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+}
+
+.details-table th, .details-table td {
+  padding: 1rem 1.2rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.details-table th {
+  background-color: rgba(255, 255, 255, 0.02);
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.details-table th:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+}
+
+.details-table tr:last-child td {
+  border-bottom: none;
+}
+
+.details-table tr.ticker-row {
+  transition: background-color 0.2s;
+}
+
+.details-table tr.ticker-row:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* View Toggle Styling */
+.view-toggle {
+  display: flex;
+  gap: 0.5rem;
+  background-color: var(--input-bg);
+  padding: 0.3rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 0.4rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.toggle-btn:hover {
+  color: var(--text-main);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.toggle-btn.active {
+  background-color: var(--panel-bg);
+  color: var(--primary);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
