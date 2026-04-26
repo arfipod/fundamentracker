@@ -7,7 +7,8 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend
+  Legend,
+  ReferenceLine
 } from 'recharts';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -41,6 +42,12 @@ export function ExplorerSection() {
   const [historyData, setHistoryData] = useState<HistoryData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [showMax, setShowMax] = useState(false);
+  const [showMin, setShowMin] = useState(false);
+  const [showAvg, setShowAvg] = useState(false);
+  const [showMedian, setShowMedian] = useState(false);
+  const [showCurrent, setShowCurrent] = useState(false);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -123,6 +130,17 @@ export function ExplorerSection() {
     fetchData();
   };
 
+  const values = historyData.map(d => d.value).filter(v => typeof v === 'number' && !isNaN(v));
+  const dataMax = values.length ? Math.max(...values) : null;
+  const dataMin = values.length ? Math.min(...values) : null;
+  const dataAvg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+  const sortedValues = [...values].sort((a, b) => a - b);
+  const dataMedian = values.length 
+    ? (values.length % 2 === 0 
+      ? (sortedValues[values.length / 2 - 1] + sortedValues[values.length / 2]) / 2 
+      : sortedValues[Math.floor(values.length / 2)]) 
+    : null;
+
   return (
     <div className="explorer-section">
       <section className="form-section">
@@ -182,9 +200,10 @@ export function ExplorerSection() {
         </div>
 
         <div className="chart-container">
-          <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3>Historical Evolution</h3>
-            <div className="period-selector" style={{ display: 'flex', gap: '0.5rem' }}>
+          <div className="chart-header" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3>Historical Evolution</h3>
+              <div className="period-selector" style={{ display: 'flex', gap: '0.5rem' }}>
               {periods.map(p => (
                 <button
                   key={p.value}
@@ -202,6 +221,25 @@ export function ExplorerSection() {
                   {p.label}
                 </button>
               ))}
+              </div>
+            </div>
+            
+            <div className="reference-lines-toggles" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', fontSize: '0.9rem', color: '#cbd5e1' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={showMax} onChange={e => setShowMax(e.target.checked)} /> Max
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={showMin} onChange={e => setShowMin(e.target.checked)} /> Min
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={showAvg} onChange={e => setShowAvg(e.target.checked)} /> Avg
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={showMedian} onChange={e => setShowMedian(e.target.checked)} /> Median
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={showCurrent} onChange={e => setShowCurrent(e.target.checked)} /> Current
+              </label>
             </div>
           </div>
           {loading ? (
@@ -236,6 +274,11 @@ export function ExplorerSection() {
                     dot={false}
                     activeDot={{ r: 8 }} 
                   />
+                  {showMax && dataMax !== null && <ReferenceLine y={dataMax} label={{ value: "Max", position: 'insideTopLeft', fill: '#ef4444' }} stroke="#ef4444" strokeDasharray="3 3" />}
+                  {showMin && dataMin !== null && <ReferenceLine y={dataMin} label={{ value: "Min", position: 'insideBottomLeft', fill: '#10b981' }} stroke="#10b981" strokeDasharray="3 3" />}
+                  {showAvg && dataAvg !== null && <ReferenceLine y={dataAvg} label={{ value: "Avg", position: 'insideBottomLeft', fill: '#f59e0b' }} stroke="#f59e0b" strokeDasharray="3 3" />}
+                  {showMedian && dataMedian !== null && <ReferenceLine y={dataMedian} label={{ value: "Median", position: 'insideTopLeft', fill: '#8b5cf6' }} stroke="#8b5cf6" strokeDasharray="3 3" />}
+                  {showCurrent && currentValue !== null && <ReferenceLine y={currentValue as number} label={{ value: "Current", position: 'right', fill: '#06b6d4' }} stroke="#06b6d4" strokeDasharray="3 3" />}
                 </LineChart>
               </ResponsiveContainer>
             </div>
