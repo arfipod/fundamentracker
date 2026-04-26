@@ -1,12 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import './App.css';
 import { useWatchlist } from './hooks/useWatchlist';
 import { useScanSettings } from './hooks/useScanSettings';
 import { DashboardHeader } from './components/DashboardHeader';
 import { AlertForm } from './components/AlertForm';
 import { WatchlistSection } from './components/WatchlistSection';
+import { ExplorerSection } from './components/ExplorerSection';
 
 function App() {
+  const [activeTab, setActiveTab] = useState<'watchlist' | 'explorer'>('watchlist');
   const {
     watchlist,
     loading,
@@ -65,19 +67,40 @@ function App() {
         onForceScan={handleScan}
       />
 
+      <div className="tabs-container">
+        <button 
+          className={`tab-btn ${activeTab === 'watchlist' ? 'active' : ''}`}
+          onClick={() => setActiveTab('watchlist')}
+        >
+          Watchlist
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'explorer' ? 'active' : ''}`}
+          onClick={() => setActiveTab('explorer')}
+        >
+          Explorer
+        </button>
+      </div>
+
       {combinedError && <div className="error-message">{combinedError}</div>}
 
-      <AlertForm onAdd={handleAddNewAlert} />
+      {activeTab === 'watchlist' ? (
+        <>
+          <AlertForm onAdd={handleAddNewAlert} />
 
-      <WatchlistSection
-        watchlist={watchlist}
-        loading={loading}
-        onDeleteTicker={handleDelete}
-        onAddInline={handleInlineAdd}
-        onUpdateAlert={handleUpdateTarget}
-        onDeleteAlert={handleDeleteAlert}
-        onToggleAlert={handleToggleAlert}
-      />
+          <WatchlistSection
+            watchlist={watchlist}
+            loading={loading}
+            onDeleteTicker={handleDelete}
+            onAddInline={handleInlineAdd}
+            onUpdateAlert={handleUpdateTarget}
+            onDeleteAlert={handleDeleteAlert}
+            onToggleAlert={handleToggleAlert}
+          />
+        </>
+      ) : (
+        <ExplorerSection />
+      )}
 
       <footer className="footer">
         Made with 💙 by arrf

@@ -234,3 +234,39 @@ def search_ticker(q: str):
     except Exception:
         pass
     return []
+
+
+@app.get("/metric-current")
+def get_metric_current(ticker: str, metric: str):
+    import yfinance as yf
+    try:
+        metric_key = METRICS_MAP.get(metric.lower(), "currentPrice")
+        t_info = yf.Ticker(ticker.upper()).info
+        val = t_info.get(metric_key)
+        return {"ticker": ticker.upper(), "metric": metric, "value": val}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/history")
+def get_history(ticker: str, metric: str):
+    # Nota para la IA (y usuario): yfinance history solo soporta precios (Open, High, Low, Close, Volume)
+    # de forma temporal y gratuita. Para otras métricas fundamentales históricas, se requeriría una API de pago
+    # o descargar estados financieros completos y calcularlos por trimestre.
+    # Por ahora, devolvemos el historial de precios como fallback para que el frontend tenga datos en la gráfica.
+    import yfinance as yf
+    try:
+        t = yf.Ticker(ticker.upper())
+        hist = t.history(period="1y")
+        if hist.empty:
+            return []
+        
+        data = []
+        for date, row in hist.iterrows():
+            data.append({
+                "date": date.strftime("%Y-%m-%d"),
+                "value": row["Close"]
+            })
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
