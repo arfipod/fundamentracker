@@ -36,6 +36,7 @@ SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_anon_or_service_key
 TELEGRAM_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_telegram_chat_id
+TUNNEL_TOKEN=your_cloudflare_tunnel_token
 ```
 
 > Telegram variables are optional if you only want API/UI functionality without Telegram notifications.
@@ -81,33 +82,9 @@ After startup:
 
 ## Vercel + Mini PC + Cloudflare Tunnel (production flow)
 
-If your frontend is hosted on Vercel and your backend API runs on your mini PC, follow this sequence:
+If your frontend is hosted on Vercel and your backend API runs on your local machine or mini PC, the architecture is fully automated via Cloudflare Tunnels using a permanent `TUNNEL_TOKEN`.
 
-1. `./start_tunnel.sh` (starts API + tunnel and updates Vercel `VITE_API_URL`)
-2. `vercel --prod` (rebuild frontend with the new env var)
-3. Open your Vercel URL and verify API connectivity
-
-For a full step-by-step guide (initial setup, reboot flow, troubleshooting), see **`DEPLOYMENT_SEQUENCE.md`**.
-
-## Using `start_tunnel.sh`
-
-If you need a temporary public tunnel for the local API and want to update the frontend deployment automatically, use `start_tunnel.sh`.
-
-This script:
-
-- starts the `api` and `cloudflared` containers in the background
-- waits for Cloudflare Tunnel to generate a public `trycloudflare.com` URL
-- updates the `VITE_API_URL` environment variable in Vercel
-
-Run it with:
-
-```bash
-./start_tunnel.sh
-```
-
-Use this when you want to expose your local API publicly during development or testing, especially if your frontend is deployed on Vercel and needs to call the local backend.
-
-> Note: `start_tunnel.sh` requires the `vercel` CLI to be installed and authenticated, and assumes your Vercel project uses `VITE_API_URL` for the API base URL.
+For a full step-by-step guide (initial setup, environment variables, running the server, and troubleshooting), see **`DEPLOYMENT_SEQUENCE.md`**.
 
 ## State schema
 

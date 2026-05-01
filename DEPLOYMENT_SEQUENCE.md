@@ -1,12 +1,13 @@
 # Deployment & Run Sequence (Vercel Frontend + Mini PC API + Cloudflare Tunnel)
 
-This guide is the **exact order of operations** to run your deployed Vercel frontend against the API running on your mini PC through Cloudflare Tunnel.
+This guide provides the exact steps to run your backend API on your Mini PC (or any local machine) and connect it securely to your Vercel frontend using a permanent Cloudflare Tunnel.
 
 ---
 
-## 1) One-time setup (do this once)
+## 1) One-time setup (do this once on your Mini PC)
 
-### 1.1 Install required tools on the mini PC
+### 1.1 Install required tools
+Make sure Docker and Docker Compose are installed. If you are using Ubuntu/Debian:
 
 ```bash
 sudo apt update
@@ -19,153 +20,78 @@ sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 sudo usermod -aG docker $USER
 ```
+*(Log out and back in after adding your user to the `docker` group).*
 
-Log out and back in after adding your user to the `docker` group.
-
-Install Vercel CLI:
-
-```bash
-npm install -g vercel
-```
-
-### 1.2 Connect Vercel CLI to your account/project
-
-Run in the repo root:
-
-```bash
-vercel login
-vercel link
-```
-
-### 1.3 Create the backend `.env` file
-
-Create `.env` at the repository root:
+### 1.2 Create the `.env` file
+The `.env` file is not tracked in git for security reasons. You must create it in the root folder of the repository on your Mini PC.
 
 ```env
-SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_anon_or_service_key
-TELEGRAM_TOKEN=your_telegram_bot_token
-TELEGRAM_CHAT_ID=your_telegram_chat_id
+SUPABASE_URL="your_supabase_url"
+SUPABASE_KEY="your_supabase_anon_or_service_key"
+TELEGRAM_TOKEN="your_telegram_bot_token"
+TELEGRAM_CHAT_ID="your_telegram_chat_id"
+TUNNEL_TOKEN="your_cloudflare_tunnel_token"
 ```
 
-`SUPABASE_URL` and `SUPABASE_KEY` are required for persistence.
+> **Note:** The `TUNNEL_TOKEN` allows your local machine to automatically link to `https://api-fundamentracker.arfipod.org` without needing to open ports on your router.
+
+### 1.3 Configure Vercel (Frontend)
+In your Vercel project dashboard (or via Vercel CLI), go to the **Environment Variables** settings and add:
+
+- `VITE_API_URL` = `https://api-fundamentracker.arfipod.org`
+
+You only need to do this once. As long as your domain stays the same, Vercel will always know how to reach your Mini PC.
 
 ---
 
-## 2) Daily run sequence (recommended)
+## 2) Running the Backend (Daily/Routine)
 
-Use this exact order whenever the mini PC restarts or containers are down.
-
-### Step A — Start API + Cloudflare Tunnel and update Vercel env
+Whenever you restart your Mini PC or want to bring the server up, simply navigate to the project folder and run:
 
 ```bash
-./start_tunnel.sh
+docker compose up -d --build
 ```
 
-What this does automatically:
-1. Starts `api` + `cloudflared` with Docker Compose.
-2. Reads the generated `https://<random>.trycloudflare.com` URL.
-3. Updates Vercel `VITE_API_URL` (production env var) with that URL.
+**What happens next?**
+1. Docker starts the FastAPI backend (`api`) on port 8000.
+2. Docker starts the `cloudflared` container.
+3. `cloudflared` reads the `TUNNEL_TOKEN` and establishes a secure outbound connection to Cloudflare.
+4. Your API is instantly available at `https://api-fundamentracker.arfipod.org`.
 
-### Step B — Trigger a production deploy on Vercel
-
-```bash
-vercel --prod
-```
-
-This is required because changing Vercel env vars does **not** update an already-built frontend.
-
-### Step C — Validate end-to-end
-
-1. Get your Vercel production URL (from CLI output).
-2. Open the app and verify watchlist load/add/remove/scan.
-3. Optional API check from terminal:
-
-```bash
-curl -sS "$VITE_API_URL/watchlist"
-```
+There is no need to deploy or update Vercel again. The connection is permanent and automatic!
 
 ---
 
-## 3) Correct restart order after a reboot
+## 3) Useful Commands
 
-If mini PC or Docker restarts:
-
-1. `./start_tunnel.sh`
-2. `vercel --prod`
-3. Open Vercel app and verify API connectivity.
-
-If you skip step 2, frontend may still point to the old tunnel URL and fail.
-
----
-
-## 4) Normal operations and useful commands
-
-Start only backend + tunnel:
-
+**View logs in real-time (to see API requests or tunnel status):**
 ```bash
-docker-compose up -d api cloudflared
+docker compose logs -f
 ```
 
-View logs:
-
+**View logs only for the API:**
 ```bash
-docker-compose logs -f api
-docker-compose logs -f cloudflared
+docker compose logs -f api
 ```
 
-Stop all services:
-
+**Stop all services:**
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ---
 
-## 5) Troubleshooting checklist
+## 4) Troubleshooting
 
-### Problem: Vercel frontend shows network/CORS/API errors
+### Frontend shows "Failed to load resource" or "Network Error"
+- Ensure the Mini PC is powered on and connected to the internet.
+- Ensure the containers are running: `docker compose ps`
+- Check if the tunnel is healthy in the Cloudflare Zero Trust Dashboard -> Networks -> Tunnels.
+- Make sure `VITE_API_URL` in Vercel exactly matches `https://api-fundamentracker.arfipod.org`.
 
-Check:
-1. Tunnel URL currently alive:
-   ```bash
-   docker-compose logs cloudflared | grep -Eo 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' | head -n 1
-   ```
-2. Vercel env var set to same URL:
-   ```bash
-   vercel env pull .vercel.env
-   rg 'VITE_API_URL' .vercel.env
-   ```
-3. Re-deploy after env change:
-   ```bash
-   vercel --prod
-   ```
+### API Container fails to boot
+- Check that your `.env` file has the correct `SUPABASE_URL` and `SUPABASE_KEY`.
+- View the logs: `docker compose logs -f api` to see the Python error trace.
 
-### Problem: `./start_tunnel.sh` cannot update env var
-
-- Verify Vercel CLI auth: `vercel whoami`
-- Ensure project is linked: `vercel link`
-
-### Problem: API container fails to boot
-
-- Ensure `.env` exists and has valid Supabase credentials.
-- Check logs: `docker-compose logs -f api`
-
----
-
-## 6) Important behavior of `trycloudflare.com`
-
-The current setup uses **ephemeral quick tunnels** (`*.trycloudflare.com`).
-The URL usually changes when tunnel restarts.
-
-That is why the safe sequence is always:
-1. Start tunnel (`./start_tunnel.sh`)
-2. Update Vercel env (script does this)
-3. Re-deploy (`vercel --prod`)
-
----
-
-## 7) Optional improvement for stability
-
-If you want to avoid frequent redeploys, switch from quick tunnels to a **named Cloudflare Tunnel** with a stable hostname (for example `api.yourdomain.com`).
-Then set `VITE_API_URL` once and keep it fixed.
+### SSL Error (ERR_SSL_VERSION_OR_CIPHER_MISMATCH)
+- This happens if you configure a sub-subdomain (like `api.fundamentracker.arfipod.org`) with Cloudflare's free Universal SSL. Use a single-level subdomain like `api-fundamentracker.arfipod.org` or `api.arfipod.org`.

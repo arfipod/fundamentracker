@@ -11,9 +11,13 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    command: tunnel --url http://api:8000
+    command: tunnel run
+    env_file:
+      - .env
     depends_on:
       - api
+    restart: unless-stopped
+
 
   frontend:
     build:
