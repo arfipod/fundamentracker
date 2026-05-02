@@ -31,3 +31,4 @@ fastapi
 uvicorn
 pytest
 httpx
+google-genai

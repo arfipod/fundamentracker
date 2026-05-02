@@ -11,3 +11,6 @@
 - Add a UNDO button to recover deleted items.
 - Add a TAGS system to filter stocks by categories, watchlist or another criteria.
 - Add some statistics to the frontend for a better view of the stock market.
+
+# Experimental
+- Add AI with Gemini Flash to understand current valuation.
