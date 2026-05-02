@@ -24,7 +24,7 @@ FundamenTracker is a full-stack stock fundamentals tracking application.
 - `api/watchlist.py` — watchlist mutation utilities and metric parsing.
 - `api/scanner.py` — scan and alert transition logic.
 - `api/state.py` — legacy/removed components depending on Supabase implementation.
-- `frontend/` — React + Vite application.
+- `frontend/` — React + Vite application. [TODO Document all frontend components and their functionality]
 - `docker-compose.yml` — multi-service orchestration for API + frontend.
 
 ## Environment variables
@@ -113,7 +113,7 @@ For a full step-by-step guide (initial setup, environment variables, running the
 - `fpe` → `forwardPE`
 - `pb` → `priceToBook`
 - `evebitda` → `enterpriseToEbitda`
-- `roe` → `returnOnEquity`
+- `roe` → `returnOnEquity` [BUG: This metric does not seem to be working correctly as all the shown ROE values are a single constant. Check if the logic is correct]
 - `price` → `currentPrice`
 
 ## Supported operators

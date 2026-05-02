@@ -18,7 +18,6 @@ services:
       - api
     restart: unless-stopped
 
-
   frontend:
     build:
       context: ./frontend
