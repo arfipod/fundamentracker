@@ -29,3 +29,5 @@ python-dotenv==1.2.2
 
 fastapi
 uvicorn
+pytest
+httpx
