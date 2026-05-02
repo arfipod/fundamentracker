@@ -40,7 +40,7 @@ export function DashboardHeader({
     <header className="header">
       <h1>FundamenTracker Dashboard</h1>
       <div className="header-actions" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-        <div className="scan-interval-selector" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem', backgroundColor: 'var(--panel-bg)', padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+        <div className="scan-interval-selector" style={{ display: 'flex', flexWrap: 'nowrap', whiteSpace: 'nowrap', alignItems: 'center', gap: '0.4rem', backgroundColor: 'var(--panel-bg)', padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
           <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, marginRight: '0.5rem' }}>Auto-Scan:</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
             <input 
