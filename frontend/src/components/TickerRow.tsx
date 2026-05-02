@@ -82,7 +82,11 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
         <button 
           type="button"
           className="btn-danger" 
-          onClick={() => onDeleteTicker(symbol)}
+          onClick={() => {
+            if (window.confirm(`Are you sure you want to completely remove ${symbol} from the watchlist?`)) {
+              onDeleteTicker(symbol);
+            }
+          }}
           title="Delete Ticker"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
