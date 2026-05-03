@@ -1,73 +1,53 @@
-# React + TypeScript + Vite
+# FundamenTracker Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This directory contains the React-based frontend for FundamenTracker, built with Vite and TypeScript. It serves as the primary user interface for monitoring stocks, managing alerts, and viewing AI valuations.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Framework:** React 18
+- **Build Tool:** Vite
+- **Language:** TypeScript
+- **Styling:** CSS Variables with Dark Mode by default.
+- **Charts:** Recharts for rendering historical fundamental metrics and price action.
+- **Icons:** Lucide React
 
-## React Compiler
+## Project Structure
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `src/components/`: Modular React components.
+  - `WatchlistSection.tsx`: Manages the overall grid/table layout, market overview, and tags.
+  - `TickerCard.tsx`: Grid-view component for individual stocks.
+  - `TickerRow.tsx`: Table-view component for individual stocks.
+  - `LineChartModal.tsx` & `InlineChart.tsx`: Recharts-based components for rendering historical metrics.
+- `src/index.css`: Global styles, CSS tokens, and layout variables.
+- `src/App.tsx`: Main application entry point.
 
-## Expanding the ESLint configuration
+## Environment Variables
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+For the frontend to communicate with the backend, you must configure the API URL. In production (like Vercel), set this in your deployment dashboard. For local development, create a `.env.local` file in this directory:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```env
+VITE_API_URL=http://localhost:8000
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+*(Note: In Docker Compose, the backend runs on port 8000 by default).*
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Running Locally
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+To run the frontend independently of Docker (e.g., for faster HMR during UI development):
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
+
+The application will be available at `http://localhost:5173`.
+
+## UI/UX Notes
+
+- **Dynamic Updates:** The UI listens for custom events (like `tagsUpdated`) to sync state across the application without requiring a full page refresh.
+- **AI Valuations:** Stock analysis is requested directly from the backend (which uses the Gemini API) and rendered dynamically below the ticker rows or inside the cards.
