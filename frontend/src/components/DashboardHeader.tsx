@@ -75,27 +75,55 @@ export function DashboardHeader({
   };
 
   return (
-    <header className="header" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1>FundamenTracker Dashboard</h1>
-          {marketStats.length > 0 && (
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '0.85rem' }}>
-              {marketStats.map(stat => (
-                <div key={stat.symbol} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.2rem 0.5rem', background: 'var(--panel-bg)', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
-                  <span style={{ fontWeight: 'bold' }}>{stat.symbol}</span>
-                  <span>{stat.current.toFixed(2)}</span>
-                  <span style={{ color: stat.change_percent >= 0 ? '#10b981' : '#ef4444' }}>
-                    {stat.change_percent >= 0 ? '▲' : '▼'} {Math.abs(stat.change_percent).toFixed(2)}%
-                  </span>
-                </div>
-              ))}
+    <>
+      {marketStats.length > 0 && (
+        <div className="top-bar-tickers" style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '2rem',
+          padding: '0.3rem 1rem',
+          fontSize: '0.75rem',
+          color: 'var(--text-muted)',
+          borderBottom: '1px solid var(--border-color)',
+          marginBottom: '1.5rem',
+          backgroundColor: 'transparent'
+        }}>
+          {marketStats.map(stat => (
+            <div key={stat.symbol} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontWeight: '600', opacity: 0.8 }}>{stat.symbol}</span>
+              <span>{stat.current.toFixed(2)}</span>
+              <span style={{ color: stat.change_percent >= 0 ? '#10b981' : '#ef4444', fontWeight: '500' }}>
+                {stat.change_percent >= 0 ? '▲' : '▼'} {Math.abs(stat.change_percent).toFixed(2)}%
+              </span>
             </div>
-          )}
+          ))}
         </div>
-        <div className="header-actions" style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div className="scan-interval-selector" style={{ display: 'flex', flexWrap: 'nowrap', whiteSpace: 'nowrap', alignItems: 'center', gap: '0.4rem', backgroundColor: 'var(--panel-bg)', padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, marginRight: '0.5rem' }}>Auto-Scan:</label>
+      )}
+
+      <header className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem' }}>
+        <div className="header-left">
+          <h1 style={{ margin: 0, fontSize: '1.8rem' }}>FundamenTracker Dashboard</h1>
+        </div>
+        
+        <div className="header-right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.6rem' }}>
+          <div className="header-status-row" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              <span>Server time: {new Date(currentServerTime * 1000).toLocaleTimeString()}</span>
+              <span>|</span>
+              <span>Last scan: {lastScanTime ? new Date(lastScanTime * 1000).toLocaleTimeString() : 'Nunca'}</span>
+              <span>|</span>
+              <span>Next scan: {nextScanTime ? new Date(nextScanTime * 1000).toLocaleTimeString() : 'Manual'}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {isScanning && <span style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 'bold' }}>Scanning...</span>}
+              <button className="btn-primary" onClick={onForceScan} disabled={isScanning} style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                Force Scan
+              </button>
+            </div>
+          </div>
+
+          <div className="scan-interval-selector" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'var(--panel-bg)', padding: '0.3rem 0.8rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Auto-Scan:</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
               <input 
                 type="number" min="0" className="stopwatch-input" value={localInterval.d}
@@ -118,29 +146,8 @@ export function DashboardHeader({
               /><span className="stopwatch-label">m</span>
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              {isScanning && <span style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 'bold' }}>Scanning...</span>}
-              <button className="btn-primary" onClick={onForceScan} disabled={isScanning}>
-                Force Scan
-              </button>
-            </div>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '4px' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Server time: {new Date(currentServerTime * 1000).toLocaleTimeString()}
-              </span>
-            </div>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '2px' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Last scan: {lastScanTime ? new Date(lastScanTime * 1000).toLocaleTimeString() : 'Nunca'}
-              </span>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Next scan: {nextScanTime ? new Date(nextScanTime * 1000).toLocaleTimeString() : 'Manual'}
-              </span>
-            </div>
-          </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </>
   );
 }
