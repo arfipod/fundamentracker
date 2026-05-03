@@ -7,6 +7,12 @@ METRICS_MAP = {
     "evebitda": "enterpriseToEbitda",
     "roe": "returnOnEquity",
     "price": "currentPrice",
+    "roic": "roic",  # Handled specially
+    "dividendyield": "dividendYield",
+    "payoutratio": "payoutRatio",
+    "debttoequity": "debtToEquity",
+    "profitmargins": "profitMargins",
+    "operatingmargins": "operatingMargins",
 }
 
 OPERATORS_MAP = {

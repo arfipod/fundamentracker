@@ -18,6 +18,17 @@ interface HistoryData {
   value: number;
 }
 
+/**
+ * Props for the MetricChart component.
+ * @interface MetricChartProps
+ * @property {string} ticker - The stock ticker symbol.
+ * @property {string} metric - The metric to plot (e.g., 'pe', 'price', 'roe').
+ * @property {number} [currentValue] - The current value of the metric to plot as a reference line.
+ * @property {number} [targetValue] - The target value from the alert to plot as a reference line.
+ * @property {number} [height=400] - The height of the chart container in pixels.
+ * @property {boolean} [showPeriodToggle=true] - Whether to show the period selector buttons.
+ * @property {boolean} [showReferenceLineToggle=true] - Whether to show the toggles for min/max/avg reference lines.
+ */
 interface MetricChartProps {
   ticker: string;
   metric: string;
@@ -28,6 +39,14 @@ interface MetricChartProps {
   showReferenceLineToggle?: boolean;
 }
 
+/**
+ * MetricChart component fetches and displays historical data for a specific stock metric.
+ * It uses recharts to plot a line chart and allows toggling various reference lines
+ * such as maximum, minimum, average, median, current, and target values.
+ * 
+ * @param {MetricChartProps} props - The component props
+ * @returns {JSX.Element} The rendered MetricChart component
+ */
 export function MetricChart({ ticker, metric, currentValue, targetValue, height = 400, showPeriodToggle = true, showReferenceLineToggle = true }: MetricChartProps) {
   const [period, setPeriod] = useState('1y');
   const [historyData, setHistoryData] = useState<HistoryData[]>([]);
@@ -38,6 +57,7 @@ export function MetricChart({ ticker, metric, currentValue, targetValue, height 
   const [showMin, setShowMin] = useState(false);
   const [showAvg, setShowAvg] = useState(false);
   const [showMedian, setShowMedian] = useState(false);
+  const [showStdDev, setShowStdDev] = useState(false);
   const [showCurrent, setShowCurrent] = useState(false);
   const [showTarget, setShowTarget] = useState(false);
 
@@ -84,6 +104,7 @@ export function MetricChart({ ticker, metric, currentValue, targetValue, height 
   const dataMax = values.length ? Math.max(...values) : null;
   const dataMin = values.length ? Math.min(...values) : null;
   const dataAvg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+  const dataStd = values.length ? Math.sqrt(values.reduce((sum, val) => sum + Math.pow(val - dataAvg!, 2), 0) / values.length) : null;
   const sortedValues = [...values].sort((a, b) => a - b);
   const dataMedian = values.length 
     ? (values.length % 2 === 0 
@@ -131,6 +152,9 @@ export function MetricChart({ ticker, metric, currentValue, targetValue, height 
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
               <input type="checkbox" checked={showMedian} onChange={e => setShowMedian(e.target.checked)} /> Median
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showStdDev} onChange={e => setShowStdDev(e.target.checked)} /> ±1 SD Band
             </label>
             {currentValue !== undefined && currentValue !== null && (
               <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
@@ -181,6 +205,8 @@ export function MetricChart({ ticker, metric, currentValue, targetValue, height 
               {showMax && dataMax !== null && <ReferenceLine y={dataMax} label={{ value: "Max", position: 'insideTopLeft', fill: '#ef4444' }} stroke="#ef4444" strokeDasharray="3 3" />}
               {showMin && dataMin !== null && <ReferenceLine y={dataMin} label={{ value: "Min", position: 'insideBottomLeft', fill: '#10b981' }} stroke="#10b981" strokeDasharray="3 3" />}
               {showAvg && dataAvg !== null && <ReferenceLine y={dataAvg} label={{ value: "Avg", position: 'insideBottomLeft', fill: '#f59e0b' }} stroke="#f59e0b" strokeDasharray="3 3" />}
+              {showStdDev && dataAvg !== null && dataStd !== null && <ReferenceLine y={dataAvg + dataStd} label={{ value: "+1 SD", position: 'insideTopLeft', fill: '#fbbf24' }} stroke="#fbbf24" strokeDasharray="3 3" opacity={0.5} />}
+              {showStdDev && dataAvg !== null && dataStd !== null && <ReferenceLine y={dataAvg - dataStd} label={{ value: "-1 SD", position: 'insideBottomLeft', fill: '#fbbf24' }} stroke="#fbbf24" strokeDasharray="3 3" opacity={0.5} />}
               {showMedian && dataMedian !== null && <ReferenceLine y={dataMedian} label={{ value: "Median", position: 'insideTopLeft', fill: '#8b5cf6' }} stroke="#8b5cf6" strokeDasharray="3 3" />}
               {showCurrent && currentValue !== null && currentValue !== undefined && <ReferenceLine y={currentValue} label={{ value: "Current", position: 'right', fill: '#06b6d4' }} stroke="#06b6d4" strokeDasharray="3 3" />}
               {showTarget && targetValue !== null && targetValue !== undefined && <ReferenceLine y={targetValue} label={{ value: "Target", position: 'left', fill: '#ec4899' }} stroke="#ec4899" strokeDasharray="3 3" />}

@@ -2,6 +2,15 @@ import { useState } from 'react';
 import type { Alert } from '../types/watchlist';
 import { MetricChart } from './MetricChart';
 
+/**
+ * Props for the AlertItem component.
+ * @interface Props
+ * @property {string} symbol - The ticker symbol associated with this alert.
+ * @property {Alert} alert - The alert object containing metric, operator, and target details.
+ * @property {Function} onUpdate - Callback triggered when the alert's target value is updated.
+ * @property {Function} onDelete - Callback triggered when the alert is deleted.
+ * @property {Function} [onToggle] - Optional callback triggered when the alert's active status is toggled.
+ */
 interface Props {
   symbol: string;
   alert: Alert;
@@ -10,6 +19,14 @@ interface Props {
   onToggle?: (alertId: string, isActive: boolean) => void;
 }
 
+/**
+ * AlertItem component renders a single alert configuration for a ticker.
+ * It displays the metric, operator, target, and current value. It allows inline editing
+ * of the target value and toggling a historical MetricChart.
+ * 
+ * @param {Props} props - The component props
+ * @returns {JSX.Element} The rendered AlertItem component
+ */
 export function AlertItem({ symbol, alert, onUpdate, onDelete, onToggle }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editingValue, setEditingValue] = useState(alert.target.toString());

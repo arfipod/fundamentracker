@@ -102,6 +102,12 @@ export function AlertForm({ onAdd }: Props) {
             <option value="evebitda">EV/EBITDA</option>
             <option value="roe">ROE</option>
             <option value="price">Price</option>
+            <option value="roic">ROIC</option>
+            <option value="dividendyield">Dividend Yield</option>
+            <option value="payoutratio">Payout Ratio</option>
+            <option value="debttoequity">Debt to Equity</option>
+            <option value="profitmargins">Profit Margins</option>
+            <option value="operatingmargins">Operating Margins</option>
           </select>
         </div>
         <div className="form-group">
