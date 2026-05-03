@@ -112,7 +112,7 @@ export function useWatchlist() {
 
   const handleDelete = async (tickerToDelete: string) => {
     try {
-      let alertsToUndo = [];
+      let alertsToUndo: any[] = [];
       let nameToUndo = "";
       if (watchlist && watchlist[tickerToDelete]) {
         alertsToUndo = watchlist[tickerToDelete].alerts;
