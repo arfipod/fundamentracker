@@ -8,6 +8,8 @@ export function useWatchlist() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [undoQueue, setUndoQueue] = useState<{ ticker: string, name: string, alerts: any[], id: number } | null>(null);
+
   const fetchWatchlist = useCallback(async () => {
     try {
       setLoading(true);
@@ -46,7 +48,7 @@ export function useWatchlist() {
           metric: metricToAdd,
           operator: operatorToAdd,
           value: targetValueToAdd,
-          alert_type: "absolute" // By default inline adds are absolute
+          alert_type: "absolute"
         }),
       });
       if (!response.ok) throw new Error('Error adding the alert');
@@ -84,10 +86,22 @@ export function useWatchlist() {
 
   const handleDeleteAlert = async (tickerToDelete: string, metricToDelete: string) => {
     try {
+      let alertToUndo = null;
+      if (watchlist && watchlist[tickerToDelete]) {
+        alertToUndo = watchlist[tickerToDelete].alerts.find(a => a.metric === metricToDelete);
+      }
+      
       const response = await fetch(`${API_URL}/remove/${tickerToDelete}/${metricToDelete}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Error removing the alert');
+      
+      if (alertToUndo) {
+        const id = Date.now();
+        setUndoQueue({ ticker: tickerToDelete, name: watchlist![tickerToDelete].name, alerts: [alertToUndo], id });
+        setTimeout(() => setUndoQueue(prev => prev?.id === id ? null : prev), 6000);
+      }
+      
       await fetchWatchlist();
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -98,10 +112,24 @@ export function useWatchlist() {
 
   const handleDelete = async (tickerToDelete: string) => {
     try {
+      let alertsToUndo: any[] = [];
+      let nameToUndo = "";
+      if (watchlist && watchlist[tickerToDelete]) {
+        alertsToUndo = watchlist[tickerToDelete].alerts;
+        nameToUndo = watchlist[tickerToDelete].name;
+      }
+
       const response = await fetch(`${API_URL}/remove/${tickerToDelete}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Error removing the ticker');
+      
+      if (alertsToUndo.length >= 0) {
+        const id = Date.now();
+        setUndoQueue({ ticker: tickerToDelete, name: nameToUndo, alerts: alertsToUndo, id });
+        setTimeout(() => setUndoQueue(prev => prev?.id === id ? null : prev), 6000);
+      }
+      
       await fetchWatchlist();
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -126,6 +154,27 @@ export function useWatchlist() {
     }
   };
 
+  const handleUndo = async () => {
+    if (!undoQueue) return;
+    
+    // Add ticker and alerts back
+    for (const alert of undoQueue.alerts) {
+      await fetch(`${API_URL}/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticker: undoQueue.ticker,
+          metric: alert.metric,
+          operator: alert.operator,
+          value: alert.target,
+          alert_type: alert.alert_type
+        }),
+      });
+    }
+    setUndoQueue(null);
+    await fetchWatchlist();
+  };
+
   return {
     watchlist,
     loading,
@@ -136,6 +185,8 @@ export function useWatchlist() {
     handleUpdateTarget,
     handleDeleteAlert,
     handleDelete,
-    handleToggleAlert
+    handleToggleAlert,
+    undoQueue,
+    handleUndo
   };
 }

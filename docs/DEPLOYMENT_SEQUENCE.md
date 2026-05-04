@@ -28,6 +28,7 @@ The `.env` file is not tracked in git for security reasons. You must create it i
 ```env
 SUPABASE_URL="your_supabase_url"
 SUPABASE_KEY="your_supabase_anon_or_service_key"
+GEMINI_API_KEY="your_google_gemini_api_key"
 TELEGRAM_TOKEN="your_telegram_bot_token"
 TELEGRAM_CHAT_ID="your_telegram_chat_id"
 TUNNEL_TOKEN="your_cloudflare_tunnel_token"

@@ -3,6 +3,13 @@ import { MetricChart } from './MetricChart';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+/**
+ * ExplorerSection component allows users to search for any stock ticker
+ * and view current and historical data for a selected metric.
+ * It uses an autocomplete search to help find tickers.
+ * 
+ * @returns {JSX.Element} The rendered ExplorerSection component
+ */
 export function ExplorerSection() {
   const [ticker, setTicker] = useState('AAPL');
   const [metric, setMetric] = useState('price');
@@ -122,6 +129,12 @@ export function ExplorerSection() {
               <option value="evebitda">EV/EBITDA</option>
               <option value="roe">ROE</option>
               <option value="price">Price</option>
+              <option value="roic">ROIC</option>
+              <option value="dividendyield">Dividend Yield</option>
+              <option value="payoutratio">Payout Ratio</option>
+              <option value="debttoequity">Debt to Equity</option>
+              <option value="profitmargins">Profit Margins</option>
+              <option value="operatingmargins">Operating Margins</option>
             </select>
           </div>
           <button type="submit" className="btn-primary" disabled={loading}>

@@ -18,7 +18,9 @@ function App() {
     handleUpdateTarget,
     handleDeleteAlert,
     handleDelete,
-    handleToggleAlert
+    handleToggleAlert,
+    undoQueue,
+    handleUndo
   } = useWatchlist();
 
   const {
@@ -100,6 +102,44 @@ function App() {
         </>
       ) : (
         <ExplorerSection />
+      )}
+
+      {undoQueue && (
+        <div className="undo-toast" style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'var(--panel-bg)',
+          color: 'var(--text-color)',
+          padding: '12px 24px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          zIndex: 9999,
+          border: '1px solid var(--border-color)',
+          animation: 'slideUp 0.3s ease-out'
+        }}>
+          <span>
+            Eliminado {undoQueue.alerts.length} alerta(s) de <strong>{undoQueue.ticker}</strong>
+          </span>
+          <button 
+            onClick={handleUndo}
+            style={{
+              background: 'var(--primary)',
+              color: 'white',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            DESHACER
+          </button>
+        </div>
       )}
 
       <footer className="footer">

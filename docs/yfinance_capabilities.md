@@ -2,6 +2,8 @@
 
 This project uses `yfinance` via `yf.Ticker(...).info` for ticker metadata and alert metric evaluation.
 
+[TODO: Expand all possible fields in order to have a database with all possibilities and use them for alerts]
+
 ## Fields currently used
 
 ### 1) Watchlist metadata
