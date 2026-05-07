@@ -73,6 +73,8 @@ SUPABASE_URL=https://example-project.supabase.co
 SUPABASE_KEY=your_supabase_key
 CORS_ALLOWED_ORIGINS=https://your-frontend.example.com
 ALLOW_WILDCARD_CORS=false
+API_AUTH_TOKEN=generate-a-long-random-token
+READONLY_PUBLIC=false
 GEMINI_API_KEY=your_google_gemini_api_key
 TELEGRAM_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_telegram_chat_id
@@ -87,12 +89,17 @@ TUNNEL_TOKEN=your_cloudflare_tunnel_token
 
 > **CORS:** `CORS_ALLOWED_ORIGINS` is a comma-separated list of exact browser origins allowed to call the API. The development stack allows `http://localhost:5173` by default. The production stack sets `APP_ENV=production` and does not allow `*` unless you explicitly set both `CORS_ALLOWED_ORIGINS=*` and `ALLOW_WILDCARD_CORS=true`; prefer exact frontend origins for public deployments.
 
+> **API auth:** Mutable API endpoints require `Authorization: Bearer <API_AUTH_TOKEN>`. `GET /health/live` remains public for health checks. `GET /watchlist` is protected by default; set `READONLY_PUBLIC=true` only if you intentionally want read-only watchlist data to be public.
+
 ### 2.3 Configure Vercel (Hosted Frontend)
 In your Vercel project dashboard (or via Vercel CLI), go to the **Environment Variables** settings and add:
 
 - `VITE_API_URL` = your public API URL, for example `https://api.example.com`
+- `VITE_API_AUTH_TOKEN` = the same token as `API_AUTH_TOKEN`, only for private or access-controlled frontends
 
 You only need to do this once. As long as your domain stays the same, Vercel will always know how to reach your Mini PC.
+
+Do not treat `VITE_API_AUTH_TOKEN` as strong authentication on a public Vercel deployment. Vite embeds this value into the browser bundle, so anyone who can load the frontend can inspect and reuse it. For public production, put the frontend and API behind Cloudflare Access, a VPN, or real user authentication instead of relying on the Vite token alone.
 
 ---
 
@@ -136,6 +143,7 @@ docker compose -f docker-compose.prod.yml --profile frontend up -d --build
 ```
 
 Set `PUBLIC_API_URL` in `.env` before building because Vite embeds it into the static frontend bundle.
+Set `VITE_API_AUTH_TOKEN` only when this bundled frontend is private or protected by another access layer.
 
 ---
 
@@ -156,6 +164,12 @@ docker compose -f docker-compose.prod.yml logs -f api
 docker compose -f docker-compose.prod.yml ps
 curl http://127.0.0.1:8000/health/live
 curl http://127.0.0.1:8000/health/ready
+```
+
+**Call a protected endpoint locally:**
+```bash
+curl -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/watchlist
+curl -X POST -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/scan
 ```
 
 **Stop all services:**

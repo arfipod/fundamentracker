@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { TickerData } from '../types/watchlist';
 import { AlertItem } from './AlertItem';
+import { apiFetch } from '../lib/apiClient';
 
 /**
  * Props for the TickerCard component.
@@ -68,8 +69,7 @@ export function TickerCard({ symbol, data, onDeleteTicker, onAddInline, onUpdate
     setLoadingAi(true);
     setAiValuation(null);
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const res = await fetch(`${API_URL}/ai-valuation`, {
+      const res = await apiFetch('/ai-valuation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticker: symbol })
@@ -81,7 +81,7 @@ export function TickerCard({ symbol, data, onDeleteTicker, onAddInline, onUpdate
         const err = await res.json();
         setAiValuation(`Error: ${err.detail || 'Failed to fetch valuation'}`);
       }
-    } catch (e) {
+    } catch {
       setAiValuation('Network error');
     } finally {
       setLoadingAi(false);

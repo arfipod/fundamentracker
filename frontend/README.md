@@ -27,9 +27,12 @@ For the frontend to communicate with the backend, you must configure the API URL
 
 ```env
 VITE_API_URL=http://localhost:8000
+VITE_API_AUTH_TOKEN=change-me-api-token
 ```
 
 *(Note: In Docker Compose, the backend runs on port 8000 by default).*
+
+`VITE_API_AUTH_TOKEN` is sent as `Authorization: Bearer <token>` for API requests. Because Vite embeds this value into browser assets, it is only a convenience for private/self-hosted frontends. For public Vercel production, use Cloudflare Access, a VPN, or real user authentication instead of relying on this token alone.
 
 ## Running Locally
 

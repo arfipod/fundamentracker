@@ -19,6 +19,7 @@ services:
       - "${FRONTEND_PORT:-5173}:5173"
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+      VITE_API_AUTH_TOKEN: ${VITE_API_AUTH_TOKEN:-}
     volumes:
       - ./frontend:/app
       - /app/node_modules

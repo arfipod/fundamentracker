@@ -16,7 +16,9 @@ CMD ["npm", "run", "dev", "--", "--host"]
 FROM base AS build
 
 ARG VITE_API_URL=http://localhost:8000
+ARG VITE_API_AUTH_TOKEN=
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_API_AUTH_TOKEN=$VITE_API_AUTH_TOKEN
 
 RUN npm run build
 

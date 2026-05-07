@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { apiFetch } from '../lib/apiClient';
 
 export function useScanSettings(onScanComplete?: () => void) {
   const [scanInterval, setScanInterval] = useState<number>(0);
@@ -13,14 +12,14 @@ export function useScanSettings(onScanComplete?: () => void) {
 
   const fetchScanSettings = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/scan-settings`);
+      const response = await apiFetch('/scan-settings');
       if (response.ok) {
         const data = await response.json();
         setScanInterval(data.interval_seconds || 0);
         setLastScanTime(data.last_scan_time || 0);
       }
       
-      const timeRes = await fetch(`${API_URL}/server-time`);
+      const timeRes = await apiFetch('/server-time');
       if (timeRes.ok) {
         const timeData = await timeRes.json();
         const offset = timeData.server_time - (Date.now() / 1000);
@@ -34,7 +33,7 @@ export function useScanSettings(onScanComplete?: () => void) {
   const handleUpdateInterval = async (newInterval: number) => {
     setScanInterval(newInterval);
     try {
-      await fetch(`${API_URL}/scan-settings`, {
+      await apiFetch('/scan-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ interval_seconds: newInterval })
@@ -47,7 +46,7 @@ export function useScanSettings(onScanComplete?: () => void) {
   const handleScan = async () => {
     try {
       setIsScanning(true);
-      const response = await fetch(`${API_URL}/scan`, { method: 'POST' });
+      const response = await apiFetch('/scan', { method: 'POST' });
       if (!response.ok) throw new Error('Error scanning');
       await fetchScanSettings();
       if (onScanComplete) onScanComplete();

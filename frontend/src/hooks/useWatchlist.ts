@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
+import { apiFetch } from '../lib/apiClient';
 import type { Watchlist } from '../types/watchlist';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export function useWatchlist() {
   const [watchlist, setWatchlist] = useState<Watchlist | null>(null);
@@ -13,7 +12,7 @@ export function useWatchlist() {
   const fetchWatchlist = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/watchlist`);
+      const response = await apiFetch('/watchlist');
       if (!response.ok) throw new Error('Error loading the watchlist');
       const result = await response.json();
       setWatchlist(result);
@@ -40,7 +39,7 @@ export function useWatchlist() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/add`, {
+      const response = await apiFetch('/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -64,7 +63,7 @@ export function useWatchlist() {
 
   const handleUpdateTarget = async (tickerToUpdate: string, metricToUpdate: string, newValue: number) => {
     try {
-      const response = await fetch(`${API_URL}/update`, {
+      const response = await apiFetch('/update', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -91,7 +90,7 @@ export function useWatchlist() {
         alertToUndo = watchlist[tickerToDelete].alerts.find(a => a.metric === metricToDelete);
       }
       
-      const response = await fetch(`${API_URL}/remove/${tickerToDelete}/${metricToDelete}`, {
+      const response = await apiFetch(`/remove/${tickerToDelete}/${metricToDelete}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Error removing the alert');
@@ -119,7 +118,7 @@ export function useWatchlist() {
         nameToUndo = watchlist[tickerToDelete].name;
       }
 
-      const response = await fetch(`${API_URL}/remove/${tickerToDelete}`, {
+      const response = await apiFetch(`/remove/${tickerToDelete}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Error removing the ticker');
@@ -140,7 +139,7 @@ export function useWatchlist() {
 
   const handleToggleAlert = async (alertId: string, isActive: boolean) => {
     try {
-      const response = await fetch(`${API_URL}/alerts/${alertId}/toggle`, {
+      const response = await apiFetch(`/alerts/${alertId}/toggle`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: isActive }),
@@ -159,7 +158,7 @@ export function useWatchlist() {
     
     // Add ticker and alerts back
     for (const alert of undoQueue.alerts) {
-      await fetch(`${API_URL}/add`, {
+      await apiFetch('/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import sys
 from pathlib import Path
 from datetime import datetime, timezone
@@ -8,8 +9,9 @@ from datetime import datetime, timezone
 import requests
 import asyncio
 import time
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from typing import Optional
 
@@ -17,7 +19,7 @@ SRC_DIR = Path(__file__).resolve().parent
 if str(SRC_DIR) not in sys.path:
     sys.path.append(str(SRC_DIR))
 
-from config import METRICS_MAP, OPERATORS_MAP, get_cors_allowed_origins
+from config import METRICS_MAP, OPERATORS_MAP, env_flag_enabled, get_cors_allowed_origins
 from db import client as db
 from scanner import run_fundamental_scan
 from telegram_service import send_message, process_telegram_commands
@@ -33,6 +35,41 @@ app.add_middleware(
 
 SERVICE_NAME = "fundamentracker-api"
 SERVICE_VERSION = os.getenv("FUNDAMENTRACKER_VERSION") or os.getenv("APP_VERSION")
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def require_api_token(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> None:
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing API token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    expected_token = os.getenv("API_AUTH_TOKEN")
+    if not expected_token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="API_AUTH_TOKEN is not configured",
+        )
+
+    if not secrets.compare_digest(credentials.credentials, expected_token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+def require_watchlist_access(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> None:
+    if env_flag_enabled(os.getenv("READONLY_PUBLIC")):
+        return
+
+    require_api_token(credentials)
 
 
 def utc_timestamp():
@@ -110,7 +147,7 @@ class ToggleAlertRequest(BaseModel):
 class ValuationRequest(BaseModel):
     ticker: str
 
-@app.post("/ai-valuation")
+@app.post("/ai-valuation", dependencies=[Depends(require_api_token)])
 def ai_valuation(payload: ValuationRequest):
     import os
     import yfinance as yf
@@ -213,12 +250,12 @@ async def run_periodic_scan():
         await asyncio.sleep(5)
 
 
-@app.get("/watchlist")
+@app.get("/watchlist", dependencies=[Depends(require_watchlist_access)])
 def get_watchlist():
     return db.get_watchlist()
 
 
-@app.post("/add")
+@app.post("/add", dependencies=[Depends(require_api_token)])
 def add_watchlist_alert(payload: AddAlertRequest):
     metric = payload.metric.lower()
     operator = payload.operator
@@ -256,7 +293,7 @@ def add_watchlist_alert(payload: AddAlertRequest):
     }
 
 
-@app.delete("/remove/{ticker}")
+@app.delete("/remove/{ticker}", dependencies=[Depends(require_api_token)])
 def remove_watchlist_ticker(ticker: str):
     res = db.delete_ticker_db(ticker.upper())
     if not res:
@@ -265,7 +302,7 @@ def remove_watchlist_ticker(ticker: str):
     return {"message": "Ticker removed", "ticker": ticker.upper()}
 
 
-@app.delete("/remove/{ticker}/{metric}")
+@app.delete("/remove/{ticker}/{metric}", dependencies=[Depends(require_api_token)])
 def remove_watchlist_alert(ticker: str, metric: str):
     res = db.delete_alert_db(symbol=ticker.upper(), metric=metric.lower())
     if not res:
@@ -278,7 +315,7 @@ def remove_watchlist_alert(ticker: str, metric: str):
     return {"message": "Alert removed"}
 
 
-@app.put("/update")
+@app.put("/update", dependencies=[Depends(require_api_token)])
 def update_watchlist_alert(payload: UpdateAlertRequest):
     symbol = payload.ticker.upper()
     watchlist = db.get_watchlist()
@@ -291,7 +328,7 @@ def update_watchlist_alert(payload: UpdateAlertRequest):
     raise HTTPException(status_code=404, detail="Alert not found")
 
 
-@app.post("/scan")
+@app.post("/scan", dependencies=[Depends(require_api_token)])
 def scan_watchlist():
     perform_scan()
     return {"message": "Scan completed"}
@@ -308,13 +345,13 @@ def get_server_time():
     return {"server_time": time.time()}
 
 
-@app.put("/scan-settings")
+@app.put("/scan-settings", dependencies=[Depends(require_api_token)])
 def update_scan_settings(payload: ScanSettingsRequest):
     db.update_scan_settings_db(interval=payload.interval_seconds)
     return db.get_scan_settings_db()
 
 
-@app.patch("/alerts/{alert_id}/toggle")
+@app.patch("/alerts/{alert_id}/toggle", dependencies=[Depends(require_api_token)])
 def toggle_alert(alert_id: str, payload: ToggleAlertRequest):
     res = db.toggle_alert_active(alert_id, payload.is_active)
     if not res:
