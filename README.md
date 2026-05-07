@@ -26,6 +26,15 @@ cp .env.example .env
 
 `.env.example` documents the development and production variables. Never commit real Supabase keys, Gemini keys, Telegram tokens, Cloudflare tunnel tokens, or chat IDs.
 
+Configure API CORS with `CORS_ALLOWED_ORIGINS`, a comma-separated list of exact browser origins:
+
+```env
+CORS_ALLOWED_ORIGINS=http://localhost:5173,https://your-frontend.example.com
+ALLOW_WILDCARD_CORS=false
+```
+
+The development compose stack sets `APP_ENV=development` and allows `http://localhost:5173` by default when no origins are configured. The production compose stack sets `APP_ENV=production`; production does not allow wildcard CORS unless `CORS_ALLOWED_ORIGINS=*` and `ALLOW_WILDCARD_CORS=true` are both set intentionally. If you run the API without Compose in production, set `APP_ENV=production` yourself.
+
 ## Running Locally
 
 Use the development compose file for local work. It keeps FastAPI reload, bind mounts, and the Vite dev server.

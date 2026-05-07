@@ -71,6 +71,8 @@ Then edit `.env` and fill in your real values. Do not commit real secrets.
 ```env
 SUPABASE_URL=https://example-project.supabase.co
 SUPABASE_KEY=your_supabase_key
+CORS_ALLOWED_ORIGINS=https://your-frontend.example.com
+ALLOW_WILDCARD_CORS=false
 GEMINI_API_KEY=your_google_gemini_api_key
 TELEGRAM_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_telegram_chat_id
@@ -82,6 +84,8 @@ TUNNEL_TOKEN=your_cloudflare_tunnel_token
 ```
 
 > **Note:** `TUNNEL_TOKEN` is required only when using the `tunnel` profile. Keep `API_BIND_IP=127.0.0.1` when Cloudflare Tunnel or a local reverse proxy is the only public entrypoint.
+
+> **CORS:** `CORS_ALLOWED_ORIGINS` is a comma-separated list of exact browser origins allowed to call the API. The development stack allows `http://localhost:5173` by default. The production stack sets `APP_ENV=production` and does not allow `*` unless you explicitly set both `CORS_ALLOWED_ORIGINS=*` and `ALLOW_WILDCARD_CORS=true`; prefer exact frontend origins for public deployments.
 
 ### 2.3 Configure Vercel (Hosted Frontend)
 In your Vercel project dashboard (or via Vercel CLI), go to the **Environment Variables** settings and add:

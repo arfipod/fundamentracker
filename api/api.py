@@ -17,7 +17,7 @@ SRC_DIR = Path(__file__).resolve().parent
 if str(SRC_DIR) not in sys.path:
     sys.path.append(str(SRC_DIR))
 
-from config import METRICS_MAP, OPERATORS_MAP
+from config import METRICS_MAP, OPERATORS_MAP, get_cors_allowed_origins
 from db import client as db
 from scanner import run_fundamental_scan
 from telegram_service import send_message, process_telegram_commands
@@ -25,10 +25,10 @@ from telegram_service import send_message, process_telegram_commands
 app = FastAPI(title="FundamenTracker API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://fundamentracker.vercel.app", "*"],
+    allow_origins=get_cors_allowed_origins(),
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 SERVICE_NAME = "fundamentracker-api"
