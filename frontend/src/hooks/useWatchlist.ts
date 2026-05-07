@@ -1,13 +1,15 @@
 import { useState, useCallback } from 'react';
 import { apiFetch } from '../lib/apiClient';
-import type { Watchlist } from '../types/watchlist';
+import type { Alert, Watchlist } from '../types/watchlist';
+
+type UndoQueue = { ticker: string, name: string, alerts: Alert[], id: number };
 
 export function useWatchlist() {
   const [watchlist, setWatchlist] = useState<Watchlist | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [undoQueue, setUndoQueue] = useState<{ ticker: string, name: string, alerts: any[], id: number } | null>(null);
+  const [undoQueue, setUndoQueue] = useState<UndoQueue | null>(null);
 
   const fetchWatchlist = useCallback(async () => {
     try {
@@ -61,16 +63,12 @@ export function useWatchlist() {
     }
   };
 
-  const handleUpdateTarget = async (tickerToUpdate: string, metricToUpdate: string, newValue: number) => {
+  const handleUpdateTarget = async (alertId: string, newValue: number) => {
     try {
-      const response = await apiFetch('/update', {
-        method: 'PUT',
+      const response = await apiFetch(`/alerts/${alertId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticker: tickerToUpdate,
-          metric: metricToUpdate,
-          value: newValue,
-        }),
+        body: JSON.stringify({ value: newValue }),
       });
       if (!response.ok) throw new Error('Error updating alert');
       await fetchWatchlist();
@@ -83,21 +81,32 @@ export function useWatchlist() {
     }
   };
 
-  const handleDeleteAlert = async (tickerToDelete: string, metricToDelete: string) => {
+  const handleDeleteAlert = async (alertId: string, tickerToDelete: string) => {
     try {
-      let alertToUndo = null;
+      let alertToUndo: Alert | undefined;
       if (watchlist && watchlist[tickerToDelete]) {
-        alertToUndo = watchlist[tickerToDelete].alerts.find(a => a.metric === metricToDelete);
+        alertToUndo = watchlist[tickerToDelete].alerts.find(a => a.id === alertId);
+      }
+      if (!alertToUndo && watchlist) {
+        for (const [symbol, data] of Object.entries(watchlist)) {
+          const alert = data.alerts.find(a => a.id === alertId);
+          if (alert) {
+            tickerToDelete = symbol;
+            alertToUndo = alert;
+            break;
+          }
+        }
       }
       
-      const response = await apiFetch(`/remove/${tickerToDelete}/${metricToDelete}`, {
+      const response = await apiFetch(`/alerts/${alertId}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Error removing the alert');
       
       if (alertToUndo) {
         const id = Date.now();
-        setUndoQueue({ ticker: tickerToDelete, name: watchlist![tickerToDelete].name, alerts: [alertToUndo], id });
+        const name = watchlist?.[tickerToDelete]?.name || tickerToDelete;
+        setUndoQueue({ ticker: tickerToDelete, name, alerts: [alertToUndo], id });
         setTimeout(() => setUndoQueue(prev => prev?.id === id ? null : prev), 6000);
       }
       
@@ -111,7 +120,7 @@ export function useWatchlist() {
 
   const handleDelete = async (tickerToDelete: string) => {
     try {
-      let alertsToUndo: any[] = [];
+      let alertsToUndo: Alert[] = [];
       let nameToUndo = "";
       if (watchlist && watchlist[tickerToDelete]) {
         alertsToUndo = watchlist[tickerToDelete].alerts;

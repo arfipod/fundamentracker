@@ -14,8 +14,8 @@ import { MetricChart } from './MetricChart';
 interface Props {
   symbol: string;
   alert: Alert;
-  onUpdate: (ticker: string, metric: string, val: number) => void;
-  onDelete: (ticker: string, metric: string) => void;
+  onUpdate: (alertId: string, val: number) => void;
+  onDelete: (alertId: string, ticker: string) => void;
   onToggle?: (alertId: string, isActive: boolean) => void;
 }
 
@@ -35,7 +35,7 @@ export function AlertItem({ symbol, alert, onUpdate, onDelete, onToggle }: Props
   const handleSave = () => {
     const val = parseFloat(parseFloat(editingValue).toFixed(2));
     if (!isNaN(val)) {
-      onUpdate(symbol, alert.metric, val);
+      onUpdate(alert.id, val);
     }
     setIsEditing(false);
   };
@@ -152,7 +152,7 @@ export function AlertItem({ symbol, alert, onUpdate, onDelete, onToggle }: Props
             className="btn-delete-alert"
             onClick={() => {
               if (window.confirm(`Are you sure you want to delete the ${alert.metric.toUpperCase()} alert for ${symbol}?`)) {
-                onDelete(symbol, alert.metric);
+                onDelete(alert.id, symbol);
               }
             }}
             title="Eliminar alerta"

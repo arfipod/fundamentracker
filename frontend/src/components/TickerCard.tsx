@@ -19,8 +19,8 @@ interface Props {
   data: TickerData;
   onDeleteTicker: (ticker: string) => void;
   onAddInline: (ticker: string, metric: string, operator: string, val: number) => void;
-  onUpdateAlert: (ticker: string, metric: string, val: number) => void;
-  onDeleteAlert: (ticker: string, metric: string) => void;
+  onUpdateAlert: (alertId: string, val: number) => void;
+  onDeleteAlert: (alertId: string, ticker: string) => void;
   onToggleAlert: (alertId: string, isActive: boolean) => void;
 }
 
@@ -201,9 +201,9 @@ export function TickerCard({ symbol, data, onDeleteTicker, onAddInline, onUpdate
 
         {data.alerts && data.alerts.length > 0 ? (
           <ul className="alerts-list">
-            {data.alerts.map((alert, idx) => (
+            {data.alerts.map((alert) => (
               <AlertItem
-                key={`${alert.metric}-${idx}`}
+                key={alert.id}
                 symbol={symbol}
                 alert={alert}
                 onUpdate={onUpdateAlert}

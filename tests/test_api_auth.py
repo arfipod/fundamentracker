@@ -17,6 +17,8 @@ def test_mutable_endpoints_require_api_token(monkeypatch):
         ("DELETE", "/remove/AAPL", None),
         ("DELETE", "/remove/AAPL/pe", None),
         ("PUT", "/update", {"ticker": "AAPL", "metric": "pe", "value": 18}),
+        ("PATCH", "/alerts/alert-1", {"value": 18}),
+        ("DELETE", "/alerts/alert-1", None),
         ("POST", "/scan", None),
         ("PUT", "/scan-settings", {"interval_seconds": 3600}),
         ("PATCH", "/alerts/alert-1/toggle", {"is_active": False}),

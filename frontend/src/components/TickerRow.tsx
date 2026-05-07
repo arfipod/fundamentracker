@@ -8,8 +8,8 @@ interface Props {
   data: TickerData;
   onDeleteTicker: (ticker: string) => void;
   onAddInline: (ticker: string, metric: string, operator: string, val: number) => void;
-  onUpdateAlert: (ticker: string, metric: string, val: number) => void;
-  onDeleteAlert: (ticker: string, metric: string) => void;
+  onUpdateAlert: (alertId: string, val: number) => void;
+  onDeleteAlert: (alertId: string, ticker: string) => void;
   onToggleAlert: (alertId: string, isActive: boolean) => void;
 }
 
@@ -113,9 +113,9 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {data.alerts && data.alerts.length > 0 ? (
               <div className="alerts-list" style={{ gap: '0.3rem' }}>
-                {data.alerts.map((alert, idx) => (
+                {data.alerts.map((alert) => (
                   <AlertItem
-                    key={`${alert.metric}-${idx}`}
+                    key={alert.id}
                     symbol={symbol}
                     alert={alert}
                     onUpdate={onUpdateAlert}

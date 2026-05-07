@@ -138,6 +138,10 @@ class UpdateAlertRequest(BaseModel):
     value: float
 
 
+class UpdateAlertByIdRequest(BaseModel):
+    value: float
+
+
 class ScanSettingsRequest(BaseModel):
     interval_seconds: int
 
@@ -302,7 +306,7 @@ def remove_watchlist_ticker(ticker: str):
     return {"message": "Ticker removed", "ticker": ticker.upper()}
 
 
-@app.delete("/remove/{ticker}/{metric}", dependencies=[Depends(require_api_token)])
+@app.delete("/remove/{ticker}/{metric}", dependencies=[Depends(require_api_token)], deprecated=True)
 def remove_watchlist_alert(ticker: str, metric: str):
     res = db.delete_alert_db(symbol=ticker.upper(), metric=metric.lower())
     if not res:
@@ -315,7 +319,7 @@ def remove_watchlist_alert(ticker: str, metric: str):
     return {"message": "Alert removed"}
 
 
-@app.put("/update", dependencies=[Depends(require_api_token)])
+@app.put("/update", dependencies=[Depends(require_api_token)], deprecated=True)
 def update_watchlist_alert(payload: UpdateAlertRequest):
     symbol = payload.ticker.upper()
     watchlist = db.get_watchlist()
@@ -326,6 +330,40 @@ def update_watchlist_alert(payload: UpdateAlertRequest):
                 return {"message": "Alert updated"}
                 
     raise HTTPException(status_code=404, detail="Alert not found")
+
+
+def _find_alert_symbol(alert_id: str) -> str | None:
+    watchlist = db.get_watchlist()
+    if not isinstance(watchlist, dict):
+        return None
+    for symbol, details in watchlist.items():
+        for alert in details.get("alerts", []):
+            if str(alert.get("id")) == str(alert_id):
+                return symbol
+    return None
+
+
+@app.patch("/alerts/{alert_id}", dependencies=[Depends(require_api_token)])
+def update_alert_by_id(alert_id: str, payload: UpdateAlertByIdRequest):
+    res = db.update_alert_target(alert_id, payload.value)
+    if not res:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return {"message": "Alert updated"}
+
+
+@app.delete("/alerts/{alert_id}", dependencies=[Depends(require_api_token)])
+def delete_alert_by_id(alert_id: str):
+    symbol = _find_alert_symbol(alert_id)
+    res = db.delete_alert_db(alert_id=alert_id)
+    if not res:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    if symbol:
+        watchlist = db.get_watchlist()
+        if symbol in watchlist and len(watchlist[symbol]["alerts"]) == 0:
+            db.delete_ticker_db(symbol)
+
+    return {"message": "Alert removed"}
 
 
 @app.post("/scan", dependencies=[Depends(require_api_token)])
