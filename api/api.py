@@ -415,13 +415,31 @@ def search_ticker(q: str):
         return []
 
 
+@app.get("/data/providers/health")
+def get_data_provider_health():
+    try:
+        return market_data_service.get_provider_health()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/metric-current")
 def get_metric_current(ticker: str, metric: str):
     try:
         metric_name = metric.lower()
         service_metric = metric_name if metric_name in METRICS_MAP else "price"
-        val = market_data_service.get_metric(ticker.upper(), service_metric)
-        return {"ticker": ticker.upper(), "metric": metric, "value": val}
+        snapshot = market_data_service.get_metric_snapshot(ticker.upper(), service_metric)
+        return {
+            "ticker": ticker.upper(),
+            "metric": metric,
+            "value": snapshot.get("value"),
+            "stale": snapshot.get("stale", False),
+            "source": snapshot.get("source"),
+            "as_of_date": snapshot.get("as_of_date"),
+            "fetched_at": snapshot.get("fetched_at"),
+            "expires_at": snapshot.get("expires_at"),
+            "confidence": snapshot.get("confidence"),
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

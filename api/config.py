@@ -15,6 +15,12 @@ OPERATORS_MAP = {
 
 
 DEVELOPMENT_ENVIRONMENTS = {"dev", "development", "local"}
+DEFAULT_MARKET_DATA_TTLS = {
+    "price": 300,
+    "quote": 300,
+    "fundamentals": 24 * 60 * 60,
+    "statements": 7 * 24 * 60 * 60,
+}
 
 
 def parse_cors_allowed_origins(value: str | None) -> list[str]:
@@ -26,6 +32,34 @@ def parse_cors_allowed_origins(value: str | None) -> list[str]:
 
 def env_flag_enabled(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        return default
+
+    try:
+        parsed = int(value)
+    except ValueError:
+        return default
+
+    return max(parsed, 0)
+
+
+def get_market_data_ttls() -> dict[str, int]:
+    return {
+        "price": _env_int("MARKET_DATA_TTL_PRICE_SECONDS", DEFAULT_MARKET_DATA_TTLS["price"]),
+        "quote": _env_int("MARKET_DATA_TTL_QUOTE_SECONDS", DEFAULT_MARKET_DATA_TTLS["quote"]),
+        "fundamentals": _env_int(
+            "MARKET_DATA_TTL_FUNDAMENTALS_SECONDS",
+            DEFAULT_MARKET_DATA_TTLS["fundamentals"],
+        ),
+        "statements": _env_int(
+            "MARKET_DATA_TTL_STATEMENTS_SECONDS",
+            DEFAULT_MARKET_DATA_TTLS["statements"],
+        ),
+    }
 
 
 def get_cors_allowed_origins(

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import os
 import time
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
+from urllib.parse import quote
 from uuid import UUID
 
 import requests
@@ -12,6 +14,11 @@ import requests
 DEFAULT_TIMEOUT_SECONDS = 5
 DEFAULT_POSTGRES_STARTUP_TIMEOUT_SECONDS = 60
 SUPPORTED_DATABASE_BACKENDS = {"supabase_rest", "postgres"}
+METRIC_SNAPSHOT_COLUMNS = (
+    "id,symbol,metric,value,unit,currency,source,as_of_date,"
+    "fetched_at,expires_at,confidence,raw_payload"
+)
+PROVIDER_HEALTH_COLUMNS = "provider,status,last_ok_at,last_error_at,last_error"
 
 
 class DatabaseHealthError(Exception):
@@ -223,6 +230,16 @@ def _serialize_row(row: dict[str, Any]) -> dict[str, Any]:
     return {key: _serialize_value(value) for key, value in row.items()}
 
 
+def _encode_filter_value(value: Any) -> str:
+    return quote(str(_serialize_value(value)), safe="")
+
+
+def _jsonb_param(value: Any) -> str | None:
+    if value is None:
+        return None
+    return json.dumps(value, default=str)
+
+
 def _postgres_query_all(query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
     dict_row = _dict_row_factory()
     with _connect_postgres(row_factory=dict_row) as conn:
@@ -335,6 +352,186 @@ def get_alerts():
             """
         )
     return _supabase_req("GET", "alerts") or []
+
+
+def get_fresh_metric_snapshot(symbol: str, metric: str, now: datetime) -> dict[str, Any] | None:
+    symbol = symbol.upper()
+    metric = metric.lower()
+
+    if is_postgres_backend():
+        rows = _postgres_query_all(
+            f"""
+            SELECT {METRIC_SNAPSHOT_COLUMNS}
+            FROM metric_snapshots
+            WHERE symbol = %s
+              AND metric = %s
+              AND expires_at > %s
+            ORDER BY fetched_at DESC
+            LIMIT 1
+            """,
+            (symbol, metric, now),
+        )
+        return rows[0] if rows else None
+
+    rows = (
+        _supabase_req(
+            "GET",
+            "metric_snapshots"
+            f"?select={METRIC_SNAPSHOT_COLUMNS}"
+            f"&symbol=eq.{_encode_filter_value(symbol)}"
+            f"&metric=eq.{_encode_filter_value(metric)}"
+            f"&expires_at=gt.{_encode_filter_value(now)}"
+            "&order=fetched_at.desc"
+            "&limit=1",
+        )
+        or []
+    )
+    return rows[0] if rows else None
+
+
+def get_latest_metric_snapshot(symbol: str, metric: str) -> dict[str, Any] | None:
+    symbol = symbol.upper()
+    metric = metric.lower()
+
+    if is_postgres_backend():
+        rows = _postgres_query_all(
+            f"""
+            SELECT {METRIC_SNAPSHOT_COLUMNS}
+            FROM metric_snapshots
+            WHERE symbol = %s
+              AND metric = %s
+            ORDER BY fetched_at DESC
+            LIMIT 1
+            """,
+            (symbol, metric),
+        )
+        return rows[0] if rows else None
+
+    rows = (
+        _supabase_req(
+            "GET",
+            "metric_snapshots"
+            f"?select={METRIC_SNAPSHOT_COLUMNS}"
+            f"&symbol=eq.{_encode_filter_value(symbol)}"
+            f"&metric=eq.{_encode_filter_value(metric)}"
+            "&order=fetched_at.desc"
+            "&limit=1",
+        )
+        or []
+    )
+    return rows[0] if rows else None
+
+
+def save_metric_snapshot(snapshot: dict[str, Any]) -> dict[str, Any] | None:
+    payload = {
+        "symbol": snapshot.get("symbol", "").upper(),
+        "metric": snapshot.get("metric", "").lower(),
+        "value": snapshot.get("value"),
+        "unit": snapshot.get("unit"),
+        "currency": snapshot.get("currency"),
+        "source": snapshot.get("source"),
+        "as_of_date": _serialize_value(snapshot.get("as_of_date")),
+        "fetched_at": _serialize_value(snapshot.get("fetched_at")),
+        "expires_at": _serialize_value(snapshot.get("expires_at")),
+        "confidence": snapshot.get("confidence"),
+        "raw_payload": snapshot.get("raw_payload"),
+    }
+
+    if is_postgres_backend():
+        rows = _postgres_query_all(
+            """
+            INSERT INTO metric_snapshots (
+                symbol, metric, value, unit, currency, source, as_of_date,
+                fetched_at, expires_at, confidence, raw_payload
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+            RETURNING id, symbol, metric, value, unit, currency, source,
+                      as_of_date, fetched_at, expires_at, confidence, raw_payload
+            """,
+            (
+                payload["symbol"],
+                payload["metric"],
+                payload["value"],
+                payload["unit"],
+                payload["currency"],
+                payload["source"],
+                payload["as_of_date"],
+                payload["fetched_at"],
+                payload["expires_at"],
+                payload["confidence"],
+                _jsonb_param(payload["raw_payload"]),
+            ),
+        )
+        return rows[0] if rows else None
+
+    headers = {"Prefer": "return=representation"}
+    rows = _supabase_req("POST", "metric_snapshots", json=payload, headers=headers) or []
+    return rows[0] if rows else None
+
+
+def upsert_provider_health(
+    provider: str,
+    status: str,
+    *,
+    last_ok_at: datetime | None = None,
+    last_error_at: datetime | None = None,
+    last_error: str | None = None,
+) -> dict[str, Any] | None:
+    payload = {
+        "provider": provider,
+        "status": status,
+        "last_ok_at": _serialize_value(last_ok_at),
+        "last_error_at": _serialize_value(last_error_at),
+        "last_error": last_error,
+    }
+
+    if is_postgres_backend():
+        rows = _postgres_query_all(
+            """
+            INSERT INTO provider_health (
+                provider, status, last_ok_at, last_error_at, last_error
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (provider) DO UPDATE SET
+                status = EXCLUDED.status,
+                last_ok_at = COALESCE(EXCLUDED.last_ok_at, provider_health.last_ok_at),
+                last_error_at = COALESCE(EXCLUDED.last_error_at, provider_health.last_error_at),
+                last_error = COALESCE(EXCLUDED.last_error, provider_health.last_error)
+            RETURNING provider, status, last_ok_at, last_error_at, last_error
+            """,
+            (
+                payload["provider"],
+                payload["status"],
+                payload["last_ok_at"],
+                payload["last_error_at"],
+                payload["last_error"],
+            ),
+        )
+        return rows[0] if rows else None
+
+    headers = {"Prefer": "resolution=merge-duplicates, return=representation"}
+    clean_payload = {key: value for key, value in payload.items() if value is not None}
+    rows = _supabase_req("POST", "provider_health", json=clean_payload, headers=headers) or []
+    return rows[0] if rows else None
+
+
+def get_provider_health() -> list[dict[str, Any]]:
+    if is_postgres_backend():
+        return _postgres_query_all(
+            f"""
+            SELECT {PROVIDER_HEALTH_COLUMNS}
+            FROM provider_health
+            ORDER BY provider ASC
+            """
+        )
+
+    return (
+        _supabase_req(
+            "GET",
+            f"provider_health?select={PROVIDER_HEALTH_COLUMNS}&order=provider.asc",
+        )
+        or []
+    )
 
 
 def get_tickers():

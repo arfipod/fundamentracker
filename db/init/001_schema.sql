@@ -57,36 +57,33 @@ CREATE TABLE IF NOT EXISTS data_providers (
 
 CREATE TABLE IF NOT EXISTS metric_snapshots (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  ticker_symbol VARCHAR REFERENCES tickers(symbol) ON DELETE CASCADE,
+  symbol VARCHAR NOT NULL,
   metric VARCHAR NOT NULL,
   value NUMERIC,
+  unit VARCHAR,
   currency VARCHAR,
   source VARCHAR NOT NULL,
-  provider_id UUID REFERENCES data_providers(id) ON DELETE SET NULL,
-  fetched_at TIMESTAMPTZ DEFAULT NOW(),
   as_of_date DATE,
+  fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
   confidence NUMERIC,
-  stale BOOLEAN DEFAULT FALSE,
-  raw_payload JSONB,
-  warning TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  raw_payload JSONB
 );
 
 CREATE INDEX IF NOT EXISTS idx_metric_snapshots_lookup
-  ON metric_snapshots(ticker_symbol, metric, fetched_at DESC);
-CREATE INDEX IF NOT EXISTS idx_metric_snapshots_provider_id
-  ON metric_snapshots(provider_id);
+  ON metric_snapshots(symbol, metric, fetched_at DESC);
+CREATE INDEX IF NOT EXISTS idx_metric_snapshots_freshness
+  ON metric_snapshots(symbol, metric, expires_at DESC);
+CREATE INDEX IF NOT EXISTS idx_metric_snapshots_source
+  ON metric_snapshots(source, fetched_at DESC);
 
 CREATE TABLE IF NOT EXISTS provider_health (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  provider_id UUID REFERENCES data_providers(id) ON DELETE CASCADE,
-  provider_name VARCHAR NOT NULL,
+  provider VARCHAR PRIMARY KEY,
   status VARCHAR NOT NULL,
-  checked_at TIMESTAMPTZ DEFAULT NOW(),
-  latency_ms INT,
-  error_message TEXT,
-  details JSONB DEFAULT '{}'::JSONB
+  last_ok_at TIMESTAMPTZ,
+  last_error_at TIMESTAMPTZ,
+  last_error TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_provider_health_lookup
-  ON provider_health(provider_name, checked_at DESC);
+  ON provider_health(status);

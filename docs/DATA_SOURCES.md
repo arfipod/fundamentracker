@@ -2,6 +2,29 @@
 
 FundamenTracker currently uses `yfinance` for live quotes and alert-oriented market metrics. A basic SEC EDGAR provider also exists for audited US issuer fundamentals exposed through the SEC company facts XBRL API.
 
+## Persistent Metric Cache
+
+Current quotes, metric values, and history payloads are cached in `metric_snapshots`.
+
+The backend checks for a fresh snapshot before calling the provider. If the snapshot is expired, `MarketDataService` calls the provider, stores a new snapshot, and updates `provider_health`. If the provider fails and an older snapshot exists, the metric endpoint can return that snapshot with `stale=true`.
+
+Configured TTLs:
+
+```env
+MARKET_DATA_TTL_PRICE_SECONDS=300
+MARKET_DATA_TTL_QUOTE_SECONDS=300
+MARKET_DATA_TTL_FUNDAMENTALS_SECONDS=86400
+MARKET_DATA_TTL_STATEMENTS_SECONDS=604800
+```
+
+Provider health is exposed at:
+
+```text
+GET /data/providers/health
+```
+
+Response rows include `provider`, `status`, `last_ok_at`, `last_error_at`, and `last_error`.
+
 ## SEC EDGAR Provider
 
 Implementation:

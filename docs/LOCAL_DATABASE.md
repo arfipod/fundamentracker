@@ -37,6 +37,22 @@ FT_DATA_DIR=/srv/fundamentracker
 
 The schema in `db/init/001_schema.sql` is applied automatically only when PostgreSQL initializes an empty data directory. Existing data is not recreated or reset by normal `docker compose up` runs.
 
+## Apply Migrations
+
+For an existing PostgreSQL data directory, apply schema migrations without recreating the database:
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T postgres \
+  psql -U "${POSTGRES_USER:-fundamentracker}" -d "${POSTGRES_DB:-fundamentracker}" \
+  < db/migrations/002_metric_cache_provider_health.sql
+```
+
+If you are running `psql` from the repository on the host instead of inside the container:
+
+```bash
+psql "$DATABASE_URL" -f db/migrations/002_metric_cache_provider_health.sql
+```
+
 Start the production stack:
 
 ```bash
