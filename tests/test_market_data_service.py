@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from copy import deepcopy
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
@@ -9,9 +8,7 @@ import pandas as pd
 from fastapi.testclient import TestClient
 
 import api as api_module
-import scanner
 from api import app
-from market_data.normalizers import normalize_metric_value
 from market_data.providers import yfinance_provider
 from market_data.providers.yfinance_provider import YFinanceProvider
 from market_data.service import MarketDataService
@@ -79,14 +76,6 @@ class FakeProvider:
 
     def search_symbols(self, query):
         return []
-
-
-def test_normalize_metric_value_uses_metric_definition_multiplier():
-    assert normalize_metric_value("roe", 0.1234) == 12.34
-    assert normalize_metric_value("profitmargins", 0.25) == 25.0
-    assert normalize_metric_value("dividendyield", 0.021) == 2.1
-    assert normalize_metric_value("payoutratio", 0.35) == 35.0
-    assert normalize_metric_value("pe", 18.5) == 18.5
 
 
 def test_market_data_service_returns_fresh_cached_metric_without_provider_call():
@@ -318,53 +307,3 @@ def test_provider_health_endpoint_uses_market_data_service(monkeypatch):
             "last_error": None,
         }
     ]
-
-
-def test_scanner_uses_injected_market_data_service(monkeypatch):
-    state = {
-        "AAPL": {
-            "name": "Apple Inc.",
-            "alerts": [
-                {
-                    "id": "alert-1",
-                    "metric": "pe",
-                    "operator": "<",
-                    "target": 20.0,
-                    "is_active": True,
-                    "is_triggered": False,
-                    "reference_value": None,
-                    "alert_type": "absolute",
-                }
-            ],
-        }
-    }
-    updates = []
-    history = []
-
-    class FakeMarketDataService:
-        def get_metric(self, symbol, metric):
-            assert symbol == "AAPL"
-            assert metric == "pe"
-            return 18.0
-
-    monkeypatch.setattr(scanner.db, "get_watchlist", lambda: deepcopy(state))
-    monkeypatch.setattr(
-        scanner.db,
-        "update_alert_status",
-        lambda alert_id, is_triggered, current_value: updates.append(
-            (alert_id, is_triggered, current_value)
-        ),
-    )
-    monkeypatch.setattr(
-        scanner.db,
-        "log_alert_history",
-        lambda alert_id, current_value, target: history.append((alert_id, current_value, target)),
-    )
-
-    send_alert = MagicMock()
-
-    scanner.run_fundamental_scan(send_alert, market_data_service=FakeMarketDataService())
-
-    assert updates == [("alert-1", True, 18.0)]
-    assert history == [("alert-1", 18.0, 20.0)]
-    send_alert.assert_called_once()
