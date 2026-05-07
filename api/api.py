@@ -263,11 +263,14 @@ def get_watchlist():
 def add_watchlist_alert(payload: AddAlertRequest):
     metric = payload.metric.lower()
     operator = payload.operator
+    alert_type = payload.alert_type or "absolute"
 
     if metric not in METRICS_MAP:
         raise HTTPException(status_code=400, detail=f"Invalid metric: {metric}")
     if operator not in OPERATORS_MAP:
         raise HTTPException(status_code=400, detail=f"Invalid operator: {operator}")
+    if alert_type not in {"absolute", "relative"}:
+        raise HTTPException(status_code=400, detail=f"Invalid alert_type: {alert_type}")
 
     symbol = payload.ticker.upper()
     
@@ -282,8 +285,8 @@ def add_watchlist_alert(payload: AddAlertRequest):
         
     db.add_ticker_db(symbol, name)
     
-    ref_val = current_val if payload.alert_type == "relative" else None
-    db.add_alert_db(symbol, metric, operator, payload.value, payload.alert_type, ref_val)
+    ref_val = current_val if alert_type == "relative" else None
+    db.add_alert_db(symbol, metric, operator, payload.value, alert_type, ref_val)
     
     perform_scan()
 
@@ -294,6 +297,8 @@ def add_watchlist_alert(payload: AddAlertRequest):
         "metric": metric,
         "operator": operator,
         "value": payload.value,
+        "alert_type": alert_type,
+        "reference_value": ref_val,
     }
 
 

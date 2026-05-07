@@ -41,10 +41,23 @@ export function AlertItem({ symbol, alert, onUpdate, onDelete, onToggle }: Props
   };
 
   const isRelative = alert.alert_type === 'relative';
+  const relativeDiff =
+    isRelative &&
+    alert.current_value !== undefined &&
+    alert.current_value !== null &&
+    alert.reference_value !== undefined &&
+    alert.reference_value !== null &&
+    alert.reference_value !== 0
+      ? ((alert.current_value / alert.reference_value) - 1) * 100
+      : null;
   
   const isConditionMet = () => {
     if (alert.current_value === undefined || alert.current_value === null) return null;
-    const curr = alert.current_value;
+    let curr = alert.current_value;
+    if (isRelative) {
+      if (relativeDiff === null) return null;
+      curr = relativeDiff;
+    }
     const target = alert.target;
     switch (alert.operator) {
       case '<': return curr < target;
@@ -108,6 +121,11 @@ export function AlertItem({ symbol, alert, onUpdate, onDelete, onToggle }: Props
         {isRelative && alert.reference_value !== null && alert.reference_value !== undefined && (
           <span style={{ marginLeft: '4px', fontSize: '0.8em', color: 'var(--primary)' }}>
             (Ref: {alert.reference_value.toFixed(2)})
+          </span>
+        )}
+        {relativeDiff !== null && (
+          <span style={{ marginLeft: '4px', fontSize: '0.8em', color: valueColor }}>
+            (Diff: {relativeDiff >= 0 ? '+' : ''}{relativeDiff.toFixed(2)}%)
           </span>
         )}
         

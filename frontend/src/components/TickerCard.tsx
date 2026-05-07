@@ -18,7 +18,7 @@ interface Props {
   symbol: string;
   data: TickerData;
   onDeleteTicker: (ticker: string) => void;
-  onAddInline: (ticker: string, metric: string, operator: string, val: number) => void;
+  onAddInline: (ticker: string, metric: string, operator: string, val: number, alertType?: string) => void;
   onUpdateAlert: (alertId: string, val: number) => void;
   onDeleteAlert: (alertId: string, ticker: string) => void;
   onToggleAlert: (alertId: string, isActive: boolean) => void;
@@ -91,10 +91,11 @@ export function TickerCard({ symbol, data, onDeleteTicker, onAddInline, onUpdate
   const handleAddSubmit = () => {
     const mElement = document.getElementById(`inline-m-${symbol}`) as HTMLSelectElement;
     const oElement = document.getElementById(`inline-o-${symbol}`) as HTMLSelectElement;
+    const typeElement = document.getElementById(`inline-type-${symbol}`) as HTMLSelectElement;
     const tElement = document.getElementById(`inline-t-${symbol}`) as HTMLInputElement;
 
     if (tElement && tElement.value) {
-      onAddInline(symbol, mElement.value, oElement.value, parseFloat(tElement.value));
+      onAddInline(symbol, mElement.value, oElement.value, parseFloat(tElement.value), typeElement.value);
       setAddingMetric(false);
     }
   };
@@ -190,6 +191,10 @@ export function TickerCard({ symbol, data, onDeleteTicker, onAddInline, onUpdate
               <option value=">=">&gt;=</option>
               <option value="==">==</option>
               <option value="!=">!=</option>
+            </select>
+            <select id={`inline-type-${symbol}`} className="target-edit-input" style={{ width: 'auto', padding: '2px 4px' }}>
+              <option value="absolute">Value</option>
+              <option value="relative">Change %</option>
             </select>
             <input type="number" step="any" placeholder="Valor" id={`inline-t-${symbol}`} className="target-edit-input" style={{ width: '60px', padding: '2px 4px' }} onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubmit(); if (e.key === 'Escape') setAddingMetric(false); }} />
             <div style={{ display: 'flex', gap: '4px' }}>

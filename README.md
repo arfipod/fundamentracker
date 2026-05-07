@@ -69,6 +69,17 @@ After startup, access the application:
 
 - `<`, `>`, `<=`, `>=`, `==`, `=`, `!=`
 
+## Alert Types
+
+- **Absolute value:** compares the current metric directly to the configured target, for example `PE < 20`.
+- **Change (%):** compares the current metric to the reference value captured when the alert is created:
+
+```text
+diff_percent = ((current_value / reference_value) - 1) * 100
+```
+
+For relative alerts, the target is a percentage. A target of `5` means `+5%`; a target of `-5` means `-5%`. Relative alerts can be created from both the main Add Alert form and inline ticker controls.
+
 ## Project Structure
 
 - `api/api.py` — FastAPI REST API handling watchlist, scan, and AI endpoints.

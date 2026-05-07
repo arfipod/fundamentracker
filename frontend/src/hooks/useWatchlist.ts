@@ -30,7 +30,7 @@ export function useWatchlist() {
     }
   }, []);
 
-  const handleAddAlertInline = async (tickerToAdd: string, metricToAdd: string, operatorToAdd: string, targetValueToAdd: number) => {
+  const handleAddAlertInline = async (tickerToAdd: string, metricToAdd: string, operatorToAdd: string, targetValueToAdd: number, alertType: string = 'absolute') => {
     if (watchlist && watchlist[tickerToAdd]) {
       const hasMetric = watchlist[tickerToAdd].alerts.some(a => a.metric === metricToAdd);
       if (hasMetric) {
@@ -49,7 +49,7 @@ export function useWatchlist() {
           metric: metricToAdd,
           operator: operatorToAdd,
           value: targetValueToAdd,
-          alert_type: "absolute"
+          alert_type: alertType
         }),
       });
       if (!response.ok) throw new Error('Error adding the alert');
