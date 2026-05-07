@@ -1,20 +1,7 @@
 import operator
 import os
 
-METRICS_MAP = {
-    "pe": "trailingPE",
-    "fpe": "forwardPE",
-    "pb": "priceToBook",
-    "evebitda": "enterpriseToEbitda",
-    "roe": "returnOnEquity",
-    "price": "currentPrice",
-    "roic": "roic",  # Handled specially
-    "dividendyield": "dividendYield",
-    "payoutratio": "payoutRatio",
-    "debttoequity": "debtToEquity",
-    "profitmargins": "profitMargins",
-    "operatingmargins": "operatingMargins",
-}
+from market_data.metric_definitions import METRICS_MAP
 
 OPERATORS_MAP = {
     "<": operator.lt,

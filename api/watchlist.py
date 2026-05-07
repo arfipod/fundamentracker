@@ -1,23 +1,21 @@
 from __future__ import annotations
 
-from cache import get_ticker_info
-
 from alert_evaluator import calculate_relative_diff, evaluate_alert
 from config import METRICS_MAP
-import requests
+from market_data.service import get_market_data_service
+
 
 def fetch_company_name(ticker: str) -> str:
-    info = get_ticker_info(ticker)
+    info = get_market_data_service().get_quote(ticker)
     return info.get("shortName", ticker)
 
 
 def fetch_metric(ticker: str, metric_name: str) -> float | None:
     try:
-        if metric_name not in METRICS_MAP:
+        metric = metric_name.lower()
+        if metric not in METRICS_MAP:
             return None
-        yf_key = METRICS_MAP[metric_name]
-        ticker_info = get_ticker_info(ticker)
-        return ticker_info.get(yf_key)
+        return get_market_data_service().get_metric(ticker, metric)
     except Exception:
         return None
 

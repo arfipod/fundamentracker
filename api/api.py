@@ -21,6 +21,7 @@ if str(SRC_DIR) not in sys.path:
 
 from config import METRICS_MAP, OPERATORS_MAP, env_flag_enabled, get_cors_allowed_origins
 from db import client as db
+from market_data.service import get_market_data_service
 from scanner import run_fundamental_scan
 from telegram_service import send_message, process_telegram_commands
 
@@ -36,6 +37,7 @@ app.add_middleware(
 SERVICE_NAME = "fundamentracker-api"
 SERVICE_VERSION = os.getenv("FUNDAMENTRACKER_VERSION") or os.getenv("APP_VERSION")
 bearer_scheme = HTTPBearer(auto_error=False)
+market_data_service = get_market_data_service()
 
 
 def require_api_token(
@@ -154,7 +156,6 @@ class ValuationRequest(BaseModel):
 @app.post("/ai-valuation", dependencies=[Depends(require_api_token)])
 def ai_valuation(payload: ValuationRequest):
     import os
-    import yfinance as yf
     try:
         from google import genai
     except ImportError:
@@ -167,10 +168,10 @@ def ai_valuation(payload: ValuationRequest):
     client = genai.Client(api_key=api_key)
     
     try:
-        t = yf.Ticker(payload.ticker.upper())
-        info = t.info
+        symbol = payload.ticker.upper()
+        info = market_data_service.get_quote(symbol)
         
-        stats_str = f"Company: {info.get('longName', payload.ticker)}\n"
+        stats_str = f"Company: {info.get('longName', symbol)}\n"
         stats_str += f"Sector: {info.get('sector', 'N/A')}\n"
         stats_str += f"Industry: {info.get('industry', 'N/A')}\n"
         stats_str += f"Current Price: {info.get('currentPrice', 'N/A')}\n"
@@ -182,7 +183,7 @@ def ai_valuation(payload: ValuationRequest):
         stats_str += f"Profit Margin: {info.get('profitMargins', 'N/A')}\n"
         stats_str += f"Dividend Yield: {info.get('dividendYield', 'N/A')}\n"
         
-        prompt = f"You are a financial analyst. Based on the following current fundamental data for {payload.ticker.upper()}:\n\n{stats_str}\n\nProvide a concise (3-4 sentences) valuation analysis. Is the stock undervalued, fairly valued, or overvalued compared to historical norms and its sector? Be objective."
+        prompt = f"You are a financial analyst. Based on the following current fundamental data for {symbol}:\n\n{stats_str}\n\nProvide a concise (3-4 sentences) valuation analysis. Is the stock undervalued, fairly valued, or overvalued compared to historical norms and its sector? Be objective."
         
         response = client.models.generate_content(
             model='gemini-2.5-flash',
@@ -274,12 +275,11 @@ def add_watchlist_alert(payload: AddAlertRequest):
 
     symbol = payload.ticker.upper()
     
-    import yfinance as yf
     try:
-        t_info = yf.Ticker(symbol).info
-        name = t_info.get("shortName", symbol)
-        current_val = t_info.get(METRICS_MAP[metric], None)
-    except:
+        quote = market_data_service.get_quote(symbol)
+        name = quote.get("shortName", quote.get("name", symbol))
+        current_val = market_data_service.get_metric(symbol, metric)
+    except Exception:
         name = symbol
         current_val = None
         
@@ -409,243 +409,50 @@ def get_alert_history(limit: int = 50):
 
 @app.get("/search")
 def search_ticker(q: str):
-    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        res = requests.get(f"https://query2.finance.yahoo.com/v1/finance/search?q={q}&quotesCount=5", headers=headers)
-        if res.ok:
-            data = res.json()
-            quotes = data.get("quotes", [])
-            return [{"symbol": quote.get("symbol"), "name": quote.get("shortname", quote.get("longname", ""))} for quote in quotes if "symbol" in quote and quote.get("quoteType") in ["EQUITY", "ETF", "CURRENCY", "CRYPTOCURRENCY"]]
+        return market_data_service.search_symbols(q)
     except Exception:
-        pass
-    return []
+        return []
 
 
 @app.get("/metric-current")
 def get_metric_current(ticker: str, metric: str):
-    import yfinance as yf
     try:
-        t = yf.Ticker(ticker.upper())
-        if metric.lower() == "roic":
-            # Just grab the last available from the helper
-            from datetime import datetime, timedelta
-            import pandas as pd
-            # Create a dummy index of last 2 days
-            idx = pd.date_range(end=datetime.now(), periods=2, freq='D')
-            series = _get_historical_fundamental(t, "roic", idx)
-            if series.isna().all():
-                val = None
-            else:
-                val = float(series.iloc[-1])
-            return {"ticker": ticker.upper(), "metric": metric, "value": val}
-            
-        metric_key = METRICS_MAP.get(metric.lower(), "currentPrice")
-        t_info = t.info
-        val = t_info.get(metric_key)
-        if val is not None and metric.lower() in ["profitmargins", "operatingmargins", "roe"]:
-            val *= 100
-            
+        metric_name = metric.lower()
+        service_metric = metric_name if metric_name in METRICS_MAP else "price"
+        val = market_data_service.get_metric(ticker.upper(), service_metric)
         return {"ticker": ticker.upper(), "metric": metric, "value": val}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _get_historical_fundamental(t, metric_name, hist_index):
-    import pandas as pd
-    try:
-        q_inc = t.quarterly_incomestmt.T if t.quarterly_incomestmt is not None else pd.DataFrame()
-        q_bal = t.quarterly_balancesheet.T if t.quarterly_balancesheet is not None else pd.DataFrame()
-        q_df = pd.concat([q_inc, q_bal], axis=1).sort_index()
-    except Exception:
-        q_df = pd.DataFrame()
-        
-    if q_df.empty:
-        return pd.Series(index=hist_index, dtype=float)
-
-    values = []
-    dates = []
-    
-    for date, row in q_df.iterrows():
-        val = None
-        if metric_name == "roe":
-            ni = row.get("Net Income", 0)
-            eq = row.get("Stockholders Equity", 0)
-            if pd.notna(ni) and pd.notna(eq) and eq != 0:
-                val = (ni / eq) * 100
-                
-        elif metric_name == "roic":
-            ebit = row.get("EBIT", 0)
-            if pd.isna(ebit):
-                pi = row.get("Pretax Income", 0)
-                ie = row.get("Interest Expense", 0)
-                ebit = (pi if pd.notna(pi) else 0) + (ie if pd.notna(ie) else 0)
-                
-            tp = row.get("Tax Provision", 0)
-            pi = row.get("Pretax Income", 0)
-            tax_rate = tp / pi if pd.notna(tp) and pd.notna(pi) and pi != 0 else 0.21
-            nopat = ebit * (1 - tax_rate)
-            
-            debt = row.get("Total Debt", 0)
-            eq = row.get("Stockholders Equity", 0)
-            if pd.isna(debt): debt = 0
-            if pd.isna(eq): eq = 0
-            
-            if (debt + eq) != 0:
-                val = (nopat / (debt + eq)) * 100
-                
-        elif metric_name == "debttoequity":
-            debt = row.get("Total Debt", 0)
-            eq = row.get("Stockholders Equity", 0)
-            if pd.notna(debt) and pd.notna(eq) and eq != 0:
-                val = debt / eq
-                
-        elif metric_name == "profitmargins":
-            ni = row.get("Net Income", 0)
-            tr = row.get("Total Revenue", 0)
-            if pd.notna(ni) and pd.notna(tr) and tr != 0:
-                val = (ni / tr) * 100
-                
-        elif metric_name == "operatingmargins":
-            oi = row.get("Operating Income", 0)
-            tr = row.get("Total Revenue", 0)
-            if pd.notna(oi) and pd.notna(tr) and tr != 0:
-                val = (oi / tr) * 100
-
-        if val is not None:
-            values.append(val)
-            dates.append(date)
-            
-    if not values:
-        return pd.Series(index=hist_index, dtype=float)
-        
-    series = pd.Series(values, index=dates).sort_index()
-    series.index = pd.to_datetime(series.index)
-    if hist_index.tz is not None and series.index.tz is None:
-        series.index = series.index.tz_localize(hist_index.tz)
-        
-    combined = pd.concat([pd.Series(index=hist_index, dtype=float), series], axis=1)
-    combined = combined.iloc[:, 1].ffill()
-    return combined.loc[hist_index]
-
 @app.get("/history")
 def get_history(ticker: str, metric: str, period: str = "1y"):
-    import yfinance as yf
-    import pandas as pd
     try:
-        t = yf.Ticker(ticker.upper())
-        hist = t.history(period=period)
-        if hist.empty:
-            return []
-        
-        data = []
-        metric = metric.lower()
-        
-        if metric == 'price':
-            for date, row in hist.iterrows():
-                data.append({"date": date.strftime("%Y-%m-%d"), "value": row["Close"]})
-            return data
-
-        t_info = t.info
-        
-        if metric == "pe":
-            eps = t_info.get("trailingEps")
-            if eps in (None, 0):
-                raise HTTPException(status_code=400, detail="No valid EPS data for PE calculation")
-            for date, row in hist.iterrows():
-                data.append({"date": date.strftime("%Y-%m-%d"), "value": row["Close"] / eps})
-                
-        elif metric == "fpe":
-            f_eps = t_info.get("forwardEps")
-            if f_eps in (None, 0):
-                raise HTTPException(status_code=400, detail="No valid forward EPS data")
-            for date, row in hist.iterrows():
-                data.append({"date": date.strftime("%Y-%m-%d"), "value": row["Close"] / f_eps})
-                
-        elif metric == "pb":
-            bvps = t_info.get("bookValue")
-            if bvps in (None, 0):
-                raise HTTPException(status_code=400, detail="No valid book value data")
-            for date, row in hist.iterrows():
-                data.append({"date": date.strftime("%Y-%m-%d"), "value": row["Close"] / bvps})
-                
-        elif metric == "evebitda":
-            shares = t_info.get("sharesOutstanding")
-            debt = t_info.get("totalDebt", 0)
-            cash = t_info.get("totalCash", 0)
-            ebitda = t_info.get("ebitda")
-            
-            if not shares or not ebitda or ebitda == 0:
-                raise HTTPException(status_code=400, detail="No valid data for EV/EBITDA calculation")
-                
-            net_debt = debt - cash
-            for date, row in hist.iterrows():
-                ev = row["Close"] * shares + net_debt
-                data.append({"date": date.strftime("%Y-%m-%d"), "value": ev / ebitda})
-                
-        elif metric in ["roe", "roic", "debttoequity", "profitmargins", "operatingmargins"]:
-            fund_series = _get_historical_fundamental(t, metric, hist.index)
-            if fund_series.isna().all():
-                # Fallback to current values if available
-                current_val = t_info.get(METRICS_MAP.get(metric))
-                if current_val is None:
-                    raise HTTPException(status_code=400, detail=f"No {metric.upper()} data available")
-                # Return constant line
-                if metric in ["profitmargins", "operatingmargins", "roe"]:
-                    current_val *= 100
-                for date, row in hist.iterrows():
-                    data.append({"date": date.strftime("%Y-%m-%d"), "value": current_val})
-            else:
-                for date, val in fund_series.items():
-                    if pd.notna(val):
-                        data.append({"date": date.strftime("%Y-%m-%d"), "value": float(val)})
-
-        elif metric == "dividendyield":
-            div = t_info.get("trailingAnnualDividendRate") or t_info.get("dividendRate")
-            if not div:
-                raise HTTPException(status_code=400, detail="No dividend data available")
-            for date, row in hist.iterrows():
-                data.append({"date": date.strftime("%Y-%m-%d"), "value": (div / row["Close"]) * 100})
-                
-        elif metric == "payoutratio":
-            pr = t_info.get("payoutRatio")
-            if pr is None:
-                raise HTTPException(status_code=400, detail="No payout ratio data available")
-            for date, row in hist.iterrows():
-                data.append({"date": date.strftime("%Y-%m-%d"), "value": pr * 100})
-
-        else:
-            raise HTTPException(status_code=400, detail="Unsupported metric for history")
-
-        return data
-    except HTTPException:
-        raise
+        return market_data_service.get_metric_history(ticker.upper(), metric, period)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/market-overview")
 def get_market_overview():
-    import yfinance as yf
     tickers = ["SPY", "QQQ", "DIA"]
     overview = []
     try:
-        data = yf.download(tickers, period="2d", interval="1d", group_by="ticker", threads=True, progress=False)
-        for t in tickers:
+        for ticker in tickers:
             try:
-                if t in data:
-                    closes = data[t]["Close"].dropna()
-                else:
-                    # Depending on yf version, single ticker download format might differ, but multiple usually has ticker as top level
-                    closes = data["Close"][t].dropna()
-                
-                if len(closes) >= 2:
-                    current = closes.iloc[-1]
-                    previous = closes.iloc[-2]
+                history = market_data_service.get_price_history(ticker, "2d")
+                values = [point["value"] for point in history if point.get("value") is not None]
+                if len(values) >= 2:
+                    current = values[-1]
+                    previous = values[-2]
                     change = ((current - previous) / previous) * 100
-                    overview.append({"symbol": t, "current": float(current), "change_percent": float(change)})
-                elif len(closes) == 1:
-                    overview.append({"symbol": t, "current": float(closes.iloc[-1]), "change_percent": 0.0})
+                    overview.append({"symbol": ticker, "current": float(current), "change_percent": float(change)})
+                elif len(values) == 1:
+                    overview.append({"symbol": ticker, "current": float(values[-1]), "change_percent": 0.0})
             except Exception as e:
-                print(f"Error fetching {t}: {e}")
+                print(f"Error fetching {ticker}: {e}")
         return overview
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

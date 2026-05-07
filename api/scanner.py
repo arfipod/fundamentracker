@@ -1,17 +1,15 @@
 from alert_evaluator import calculate_relative_diff, evaluate_alert
-try:
-    from watchlist import fetch_metric
-except Exception:
-    pass
-
 from db import client as db
+from market_data.service import MarketDataService, get_market_data_service
 
-def run_fundamental_scan(send_alert_func):
+
+def run_fundamental_scan(send_alert_func, market_data_service: MarketDataService | None = None):
     """
     1) Fetches watchlist from db
     2) Performs logic for each alert
     3) Triggers log & updates if condition met
     """
+    market_data = market_data_service or get_market_data_service()
     watchlist = db.get_watchlist()
     
     symbols = list(watchlist.keys())
@@ -26,7 +24,10 @@ def run_fundamental_scan(send_alert_func):
                 # Better left as is.
                 continue
                 
-            current_val = fetch_metric(ticker, alert["metric"])
+            try:
+                current_val = market_data.get_metric(ticker, alert["metric"])
+            except Exception:
+                current_val = None
             if current_val is None:
                 continue
                 
