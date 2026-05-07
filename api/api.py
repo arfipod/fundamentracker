@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from datetime import datetime, timezone
 
 import requests
 import asyncio
@@ -30,10 +31,60 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+SERVICE_NAME = "fundamentracker-api"
+SERVICE_VERSION = os.getenv("FUNDAMENTRACKER_VERSION") or os.getenv("APP_VERSION")
+
+
+def utc_timestamp():
+    return datetime.now(timezone.utc).isoformat()
+
 
 @app.get("/health/live")
 def health_live():
-    return {"status": "ok"}
+    payload = {
+        "status": "ok",
+        "service": SERVICE_NAME,
+        "timestamp": utc_timestamp(),
+    }
+    if SERVICE_VERSION:
+        payload["version"] = SERVICE_VERSION
+    return payload
+
+
+@app.get("/health/ready")
+def health_ready():
+    try:
+        database = db.check_database_connectivity()
+    except db.DatabaseHealthError as error:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "error",
+                "service": SERVICE_NAME,
+                "timestamp": utc_timestamp(),
+                "checks": {
+                    "database": {
+                        "status": "error",
+                        "backend": "supabase_rest",
+                        "reason": error.reason,
+                        "detail": error.detail,
+                    }
+                },
+            },
+        ) from error
+
+    payload = {
+        "status": "ok",
+        "service": SERVICE_NAME,
+        "timestamp": utc_timestamp(),
+        "checks": {
+            "configuration": {"status": "ok"},
+            "database": database,
+        },
+    }
+    if SERVICE_VERSION:
+        payload["version"] = SERVICE_VERSION
+    return payload
 
 
 class AddAlertRequest(BaseModel):

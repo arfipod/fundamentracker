@@ -3,12 +3,60 @@ import requests
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+DEFAULT_TIMEOUT_SECONDS = 5
 
 HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json"
 }
+
+
+class DatabaseHealthError(Exception):
+    def __init__(self, reason: str, detail: str):
+        self.reason = reason
+        self.detail = detail
+        super().__init__(detail)
+
+
+def is_database_configured():
+    return bool(SUPABASE_URL and SUPABASE_KEY)
+
+
+def check_database_connectivity():
+    if not is_database_configured():
+        raise DatabaseHealthError(
+            reason="not_configured",
+            detail="SUPABASE_URL and SUPABASE_KEY must be configured.",
+        )
+
+    url = f"{SUPABASE_URL}/rest/v1/scan_settings"
+    params = {"select": "id", "id": "eq.1", "limit": "1"}
+
+    try:
+        response = requests.get(
+            url,
+            headers=HEADERS,
+            params=params,
+            timeout=DEFAULT_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+    except requests.exceptions.Timeout as exc:
+        raise DatabaseHealthError(
+            reason="timeout",
+            detail="Database readiness check timed out.",
+        ) from exc
+    except requests.exceptions.RequestException as exc:
+        status_code = exc.response.status_code if exc.response is not None else None
+        detail = "Database readiness check failed."
+        if status_code is not None:
+            detail = f"{detail} Upstream status: {status_code}."
+        raise DatabaseHealthError(reason="connection_failed", detail=detail) from exc
+
+    return {
+        "status": "ok",
+        "backend": "supabase_rest",
+    }
 
 def _req(method, endpoint, **kwargs):
     if not SUPABASE_URL or not SUPABASE_KEY:

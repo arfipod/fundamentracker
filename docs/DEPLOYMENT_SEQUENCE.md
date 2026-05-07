@@ -32,6 +32,12 @@ Development URLs:
 - Frontend UI: `http://localhost:5173`
 - Backend API: `http://localhost:8000`
 - API live health: `http://localhost:8000/health/live`
+- API readiness health: `http://localhost:8000/health/ready`
+
+Health endpoints:
+
+- `GET /health/live` confirms the FastAPI process is running. It does not check yfinance, Gemini, Telegram, or the database, so it is suitable for container liveness checks.
+- `GET /health/ready` confirms required runtime configuration and minimum Supabase REST database connectivity. It returns HTTP 503 with non-sensitive failure details when the database is missing or unreachable.
 
 ---
 
@@ -144,6 +150,8 @@ docker compose -f docker-compose.prod.yml logs -f api
 **Check health status:**
 ```bash
 docker compose -f docker-compose.prod.yml ps
+curl http://127.0.0.1:8000/health/live
+curl http://127.0.0.1:8000/health/ready
 ```
 
 **Stop all services:**
@@ -165,6 +173,7 @@ docker compose -f docker-compose.prod.yml down
 - Check that your `.env` file has the correct `SUPABASE_URL` and `SUPABASE_KEY`.
 - View the logs: `docker compose -f docker-compose.prod.yml logs -f api` to see the Python error trace.
 - Check the live endpoint locally: `curl http://127.0.0.1:8000/health/live`.
+- Check database readiness locally: `curl http://127.0.0.1:8000/health/ready`. A 503 response means the API process is running but database configuration or connectivity needs attention.
 
 ### SSL Error (ERR_SSL_VERSION_OR_CIPHER_MISMATCH)
 - This happens if you configure a sub-subdomain (like `api.fundamentracker.arfipod.org`) with Cloudflare's free Universal SSL. Use a single-level subdomain like `api-fundamentracker.arfipod.org` or `api.arfipod.org`.
