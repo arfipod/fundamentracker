@@ -39,6 +39,8 @@ sudo ./scripts/install-systemd.sh
 
 The installer copies `systemd/fundamentracker.service` to `/etc/systemd/system/`, reloads systemd, enables the service at boot, and starts it immediately.
 
+It also installs and starts the watchdog timer from `systemd/fundamentracker-watchdog.timer`. See `docs/WATCHDOG.md` for health-check recovery behavior and configuration.
+
 If your checkout is not in `/opt/fundamentracker`, move or copy the project there before installing:
 
 ```bash
@@ -56,11 +58,25 @@ Check service status:
 sudo systemctl status fundamentracker.service
 ```
 
+Check watchdog timer status:
+
+```bash
+sudo systemctl status fundamentracker-watchdog.timer
+sudo systemctl list-timers fundamentracker-watchdog.timer
+```
+
 View service logs:
 
 ```bash
 sudo journalctl -u fundamentracker.service -n 100 --no-pager
 sudo journalctl -u fundamentracker.service -f
+```
+
+View watchdog logs:
+
+```bash
+sudo journalctl -u fundamentracker-watchdog.service -n 100 --no-pager
+sudo journalctl -u fundamentracker-watchdog.service -f
 ```
 
 Start, stop, or restart the stack:

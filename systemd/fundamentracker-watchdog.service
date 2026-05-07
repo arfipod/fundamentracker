@@ -1,0 +1,11 @@
+[Unit]
+Description=FundamenTracker watchdog health check
+Requires=docker.service
+After=docker.service network-online.target fundamentracker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/fundamentracker
+ExecStart=/opt/fundamentracker/scripts/watchdog.sh
+TimeoutStartSec=180
