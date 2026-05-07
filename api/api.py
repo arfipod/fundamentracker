@@ -31,6 +31,11 @@ app.add_middleware(
 )
 
 
+@app.get("/health/live")
+def health_live():
+    return {"status": "ok"}
+
+
 class AddAlertRequest(BaseModel):
     ticker: str
     metric: str
