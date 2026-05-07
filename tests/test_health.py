@@ -59,3 +59,27 @@ def test_health_ready_returns_503_for_database_failure(monkeypatch):
         "detail": "SUPABASE_URL and SUPABASE_KEY must be configured.",
     }
     assert "timestamp" in detail
+
+
+def test_health_ready_error_reports_selected_backend(monkeypatch):
+    client = TestClient(app)
+
+    def fake_check_database_connectivity():
+        raise api_module.db.DatabaseHealthError(
+            reason="connection_failed",
+            detail="PostgreSQL readiness check failed.",
+            backend="postgres",
+        )
+
+    monkeypatch.setattr(api_module.db, "check_database_connectivity", fake_check_database_connectivity)
+
+    response = client.get("/health/ready")
+
+    assert response.status_code == 503
+    detail = response.json()["detail"]
+    assert detail["checks"]["database"] == {
+        "status": "error",
+        "backend": "postgres",
+        "reason": "connection_failed",
+        "detail": "PostgreSQL readiness check failed.",
+    }

@@ -26,6 +26,7 @@ urllib3==2.6.3
 websockets==16.0
 yfinance==1.2.1
 python-dotenv==1.2.2
+psycopg[binary]>=3.1,<4
 
 fastapi
 uvicorn

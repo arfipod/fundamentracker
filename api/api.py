@@ -65,7 +65,7 @@ def health_ready():
                 "checks": {
                     "database": {
                         "status": "error",
-                        "backend": "supabase_rest",
+                        "backend": error.backend,
                         "reason": error.reason,
                         "detail": error.detail,
                     }
@@ -172,6 +172,9 @@ background_tasks = set()
 
 @app.on_event("startup")
 async def startup_event():
+    if db.is_postgres_backend():
+        await asyncio.to_thread(db.wait_for_database_ready)
+
     task1 = asyncio.create_task(run_periodic_scan())
     background_tasks.add(task1)
     task2 = asyncio.create_task(run_telegram_polling())

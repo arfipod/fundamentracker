@@ -1,4 +1,4 @@
-Add this to supabase SQL to create tables
+Add this to Supabase SQL to create tables. The local PostgreSQL bootstrap schema lives in `db/init/001_schema.sql` and includes these current tables plus forward-looking provider snapshot tables.
 ```sql
 CREATE TABLE tickers (
   symbol VARCHAR PRIMARY KEY,

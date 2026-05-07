@@ -37,7 +37,7 @@ Development URLs:
 Health endpoints:
 
 - `GET /health/live` confirms the FastAPI process is running. It does not check yfinance, Gemini, Telegram, or the database, so it is suitable for container liveness checks.
-- `GET /health/ready` confirms required runtime configuration and minimum Supabase REST database connectivity. It returns HTTP 503 with non-sensitive failure details when the database is missing or unreachable.
+- `GET /health/ready` confirms required runtime configuration and minimum database connectivity for the selected `DATABASE_BACKEND` (`supabase_rest` or `postgres`). It returns HTTP 503 with non-sensitive failure details when the database is missing or unreachable.
 
 ---
 
