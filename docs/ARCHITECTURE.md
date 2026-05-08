@@ -75,6 +75,12 @@ Scanner behavior and constraints:
 
 - Alerts are evaluated by `alert_id`, which allows multiple alerts for the same
   ticker and metric.
+- Primary alert mutations use ID-based routes: `PATCH /alerts/{alert_id}`,
+  `DELETE /alerts/{alert_id}`, and `PATCH /alerts/{alert_id}/toggle`.
+- Deprecated compatibility routes `PUT /update` and
+  `DELETE /remove/{ticker}/{metric}` first resolve exactly one matching alert.
+  They return `404` when no alert matches and `409` when multiple alerts match,
+  so duplicate ticker+metric alerts cannot be updated or deleted accidentally.
 - Relative alerts use the shared formula in `api/alert_evaluator.py`.
 - Telegram delivery is optional; missing Telegram settings should not block
   scanning.

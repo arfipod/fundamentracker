@@ -9,6 +9,14 @@ class WatchlistValidationError(ValueError):
     pass
 
 
+class WatchlistAlertNotFoundError(ValueError):
+    pass
+
+
+class WatchlistAmbiguousAlertError(ValueError):
+    pass
+
+
 def get_watchlist(db_client: Any):
     return db_client.get_watchlist()
 
@@ -66,24 +74,39 @@ def remove_watchlist_ticker(db_client: Any, ticker: str) -> bool:
     return bool(db_client.delete_ticker_db(ticker.upper()))
 
 
+def _find_single_alert_by_symbol_metric(db_client: Any, ticker: str, metric: str) -> tuple[str, dict[str, Any]]:
+    symbol = ticker.upper()
+    metric_name = metric.lower()
+    watchlist = db_client.get_watchlist()
+    alerts = [
+        alert
+        for alert in watchlist.get(symbol, {}).get("alerts", [])
+        if str(alert.get("metric", "")).lower() == metric_name
+    ]
+
+    if not alerts:
+        raise WatchlistAlertNotFoundError("Alert not found")
+    if len(alerts) > 1:
+        raise WatchlistAmbiguousAlertError(
+            "Multiple alerts match this ticker and metric; use /alerts/{alert_id}"
+        )
+
+    return symbol, alerts[0]
+
+
 def remove_watchlist_alert(db_client: Any, ticker: str, metric: str) -> bool:
-    deleted = db_client.delete_alert_db(symbol=ticker.upper(), metric=metric.lower())
+    symbol, alert = _find_single_alert_by_symbol_metric(db_client, ticker, metric)
+    deleted = db_client.delete_alert_db(alert_id=alert["id"])
     if not deleted:
         return False
 
     watchlist = db_client.get_watchlist()
-    if ticker.upper() in watchlist and len(watchlist[ticker.upper()]["alerts"]) == 0:
-        db_client.delete_ticker_db(ticker.upper())
+    if symbol in watchlist and len(watchlist[symbol]["alerts"]) == 0:
+        db_client.delete_ticker_db(symbol)
 
     return True
 
 
 def update_watchlist_alert(db_client: Any, payload: UpdateAlertRequest) -> bool:
-    symbol = payload.ticker.upper()
-    watchlist = db_client.get_watchlist()
-    if symbol in watchlist:
-        for alert in watchlist[symbol]["alerts"]:
-            if alert["metric"] == payload.metric.lower():
-                db_client.update_alert_target(alert["id"], payload.value)
-                return True
-    return False
+    _, alert = _find_single_alert_by_symbol_metric(db_client, payload.ticker, payload.metric)
+    return bool(db_client.update_alert_target(alert["id"], payload.value))

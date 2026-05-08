@@ -40,6 +40,9 @@ Core backend coverage is split by module:
   operations, including false-to-true transitions, already-triggered alerts,
   clearing triggered state, relative alerts, inactive alerts, missing data, and
   duplicate same-metric alerts by `alert_id`.
+- `tests/test_alert_id_operations.py`: alert update/delete behavior for
+  duplicate same-metric alerts, including deprecated ticker+metric route
+  compatibility returning `409` instead of mutating ambiguous alerts.
 - `tests/test_repositories_fake.py`: fake repository behavior and watchlist
   shaping without Supabase or PostgreSQL.
 - `tests/test_market_data_normalizers.py`: symbol, numeric, metric, history,
