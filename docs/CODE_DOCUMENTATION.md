@@ -1,69 +1,183 @@
-# Code Documentation — FundamenTracker
+# Code Documentation
 
-## 1) Runtime Overview
+This document is a practical code map for the current repository. For broader
+flow diagrams and tradeoffs, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
-FundamenTracker operates as a **full-stack application**:
+## Runtime Overview
 
-1. `api/api.py` exposes the core functionality as a REST API using FastAPI.
-2. The React (`frontend/`) application acts as the primary client, consuming these APIs.
-3. The API layer manages market scanning via `yfinance`, AI valuation via Google's `gemini`, and persists watchlist and alert state using a PostgreSQL Supabase database.
+Active runtime:
 
-## 2) Module Responsibilities
+1. `api/api.py` creates the FastAPI app exposed as `api.api:app`.
+2. `frontend/src/App.tsx` renders the React/Vite frontend.
+3. Frontend requests go through `frontend/src/lib/apiClient.ts`.
+4. FastAPI route modules in `api/routes/` call service modules in
+   `api/services/`.
+5. Services call repository implementations in `api/repositories/` and
+   market-data code in `api/market_data/`.
+6. The scanner in `api/scanner.py` evaluates active alerts and writes alert
+   state/history through the repository boundary.
+
+Production Docker starts the API through `scripts/start-api.sh`, which can run
+local PostgreSQL migrations first when `RUN_MIGRATIONS_ON_START=true`, then
+execs `uvicorn api.api:app`.
+
+## Backend Modules
 
 ### `api/api.py`
-- Exposes REST endpoints for watchlist retrieval, alert CRUD operations, manual scanning, and historical data retrieval (`/history`).
-- Houses the `/ai-valuation` endpoint, which interacts with the Gemini API to produce AI-generated insights.
-- Validates payload structures and maintains CORS constraints for the React frontend.
 
-### `api/db/client.py`
-- Serves as the interface to Supabase.
-- Interacts with `tickers`, `alerts`, `alert_history`, and `scan_settings` relational tables.
-- Handles concurrent reads/writes and removes global RAM state dependency.
+- Configures FastAPI, CORS, bearer-token dependencies, logging, router
+  registration, and startup background tasks.
+- Creates one repository with `get_repository()` and one `MarketDataService`.
+- Starts periodic scanning and Telegram polling on startup.
+- Public health and read endpoints are defined by routers, not directly in this
+  file.
 
-### `api/config.py`
-- `METRICS_MAP`: Maps internal user-facing metric keys (like `pe`, `roic`) to `yfinance` dictionary keys.
-- `OPERATORS_MAP`: Maps string operators (e.g., `<`) to Python operator functions.
+### `api/routes/`
 
-### `api/scanner.py`
-- Queries active alerts from Supabase.
-- Retrieves current metric values via `yfinance`.
-- For dynamic alerts, compares current values against historical `reference_values`.
-- Triggers alerts, logs events to the `alert_history` table, and toggles states.
+Active route modules:
+
+- `health.py`: `GET /health/live`, `GET /health/ready`.
+- `watchlist.py`: `GET /watchlist`, `POST /add`,
+  `DELETE /remove/{ticker}`, and deprecated ticker/metric compatibility routes.
+- `alerts.py`: ID-based alert update, delete, toggle, and alert history.
+- `scans.py`: manual scan, scan settings, and server time.
+- `market.py`: symbol search, provider health, current metrics, history, and
+  market overview.
+- `valuation.py`: Gemini valuation endpoint.
+- `ops.py`: protected operations status snapshot.
+
+Routes should stay thin and delegate behavior to services.
+
+### `api/services/`
+
+Service modules hold behavior that has been split out of routes:
+
+- `watchlist.py`: add/remove watchlist items and alerts, duplicate ticker/metric
+  compatibility checks, reference value capture for relative alerts.
+- `alerts.py`: ID-based alert mutation and history reads.
+- `scans.py`: scan execution, scan interval loop, and Telegram polling startup.
+- `market.py`: market-data endpoint behavior.
+- `health.py`: health payload formatting.
+- `ops.py`: operations status payload.
+- `valuation.py`: Gemini prompt assembly and response call.
+
+The valuation service currently returns plain text in `{"analysis": "..."}`.
+Structured AI output is not implemented yet.
+
+### `api/repositories/`
+
+The repository boundary supports two backends:
+
+- `PostgresRepository` in `postgres.py`.
+- `SupabaseRestRepository` in `supabase_rest.py`.
+
+`factory.py` selects the backend from `DATABASE_BACKEND`. Production Compose
+defaults this to `postgres`; a bare non-Compose API defaults to `supabase_rest`
+when `DATABASE_BACKEND` is unset.
+
+The common data shape is defined in `base.py`, including `build_watchlist()`,
+which converts ticker and alert rows into the API watchlist response shape.
+
+### `api/db/`
+
+- `migration_runner.py` applies SQL files from `db/migrations/` to local
+  PostgreSQL and records file name/checksum in `schema_migrations`.
+- `client.py` is a compatibility wrapper around repository factory functions.
+
+### `api/market_data/`
+
+- `service.py`: `MarketDataService`, snapshot cache lookup/write,
+  provider-health updates, stale fallback, and quote/history response shaping.
+- `metric_definitions.py`: supported alert/Explorer metrics and yfinance keys.
+- `normalizers.py`: symbol, numeric, history, and calculated fundamental helpers.
+- `providers/yfinance_provider.py`: default live provider.
+- `providers/sec_edgar_provider.py`: SEC company facts provider for selected US
+  audited fundamentals. It is implemented and tested but not selected by the
+  default live service.
+
+### `api/scanner.py` and `api/alert_evaluator.py`
+
+`scanner.py` loads the watchlist, skips inactive alerts, fetches current values
+through `MarketDataService`, evaluates alert conditions, updates alert state,
+logs newly triggered alerts, and sends a Telegram message through the provided
+callback.
+
+`alert_evaluator.py` owns absolute and relative alert logic. Relative alerts
+compare the percentage difference from the stored reference value:
+
+```text
+diff_percent = ((current_value / reference_value) - 1) * 100
+```
 
 ### `api/telegram_service.py`
-- Optional module for Telegram notifications.
-- Processes commands (`/add`, `/remove`, `/list`) and mutates state directly.
 
-### `frontend/`
-- React + Vite web client using TypeScript.
-- **Component Architecture:**
-  - `WatchlistSection`: Manages views (Grid vs. Table), controls the tagging ecosystem, and renders the Market Overview widget.
-  - `TickerCard` / `TickerRow`: Represent individual tickers in their respective view states, providing UI controls to delete items, toggle charts, and request AI valuations.
-  - `InlineChart`: Uses Recharts to visually graph historical metrics (incorporating ±1 Standard Deviation bands).
-- Uses standard CSS variables for dark/light styling and responsiveness.
+Optional Telegram integration. It sends alert messages and processes simple bot
+commands using the repository-backed watchlist service. Missing Telegram token
+or chat ID disables polling.
 
-## 3) Alert Transition Logic
+### Legacy Backend Modules
 
-For each alert under a ticker:
-- Evaluate `OPERATORS_MAP[operator](current_value, target)`.
-- If condition is `true` and `is_triggered` was `false` → Send Telegram alert and set `is_triggered = true`.
-- If condition is `false` and `is_triggered` was `true` → Set `is_triggered = false`.
+These modules remain in the repository but are not the active web API path:
 
-This "edge-trigger" model ensures users aren't spammed with identical alerts if a metric simply remains below/above its target.
+- `api/main.py`
+- `api/supabase_db.py`
+- `api/state.py`
+- `api/watchlist.py`
 
-## 4) Historical Interpolation
+Treat them as legacy/compatibility code unless a task explicitly targets them.
 
-When querying `/history` for fundamental metrics (like ROIC, Margins, Debt to Equity), `yfinance` typically only provides data for the most recent 4 quarters.
-To prevent drawing misleading flat lines into the distant past, the interpolation logic strictly forward-fills (`ffill`) missing dates within the known range, avoiding infinite backward-filling for "Max" charts.
+## Frontend Modules
 
-## 5) Data Dependencies
+The frontend is a React 19 + Vite + TypeScript app under `frontend/`.
 
-- **Yahoo Finance (`yfinance`)**: Primary data source for current quotes, market overviews, and historical financial statements.
-- **Google GenAI (`google-genai`)**: Consumed by the `/ai-valuation` endpoint to provide NLP-based fundamental analysis.
-- **Supabase**: Primary persistent storage for tables.
-- **Telegram Bot API**: Alert notification system.
+Important files:
 
-## 6) Extension Points
+- `src/App.tsx`: top-level tabs for Watchlist and Explorer.
+- `src/lib/apiClient.ts`: shared fetch wrapper that adds bearer auth when a
+  frontend token is configured.
+- `src/hooks/useWatchlist.ts`: watchlist loading, alert add/update/delete/toggle,
+  ticker delete, and undo queue.
+- `src/hooks/useScanSettings.ts`: scan interval, manual scan, and server-time
+  offset.
+- `src/components/AlertForm.tsx`: add-alert form with ticker autocomplete.
+- `src/components/WatchlistSection.tsx`: table/grid views, sorting, and
+  localStorage tag filtering.
+- `src/components/TickerRow.tsx` and `TickerCard.tsx`: ticker display,
+  inline metric add, local tags, delete controls, and AI valuation display.
+- `src/components/AlertItem.tsx`: alert rendering, target editing, toggle,
+  delete, relative-diff display, and chart toggle.
+- `src/components/ExplorerSection.tsx`: ticker/metric lookup outside the
+  watchlist.
+- `src/components/MetricChart.tsx`: Recharts history chart with period and
+  reference-line toggles.
 
-- **Adding Metrics:** Add the key mapping in `api/config.py` (`METRICS_MAP`) and ensure it's handled in `_get_historical_fundamental` (in `api.py`) if history is supported.
-- **Adding UI Fields:** Map the new data into the React UI components (`TickerCard` / `TickerRow`).
+Current tags are stored in browser `localStorage` keys named `tags_<SYMBOL>`.
+They are UI preferences, not backend data.
+
+## Database Schema
+
+Local PostgreSQL bootstrap schema lives in `db/init/001_schema.sql`.
+Migrations for existing PostgreSQL databases live in `db/migrations/`.
+
+Current app tables include:
+
+- `tickers`
+- `alerts`
+- `alert_history`
+- `scan_settings`
+- `data_providers` (created by bootstrap schema, not actively used by current
+  service selection)
+- `metric_snapshots`
+- `provider_health`
+- `schema_migrations` (created by the migration runner)
+
+See [SQL_TABLES.md](SQL_TABLES.md) for schema details.
+
+## Tests And CI
+
+Backend tests are in `tests/` and run with `pytest`. CI uses Python 3.13.
+
+Frontend CI runs `npm ci` and `npm run build` with Node 22. Frontend lint exists
+but is intentionally not enforced yet, and there is no `npm test` script.
+
+See [TESTING.md](TESTING.md) for exact commands and known gaps.

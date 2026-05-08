@@ -1,6 +1,13 @@
 # Data Sources
 
-FundamenTracker currently uses `yfinance` for live quotes and alert-oriented market metrics. A basic SEC EDGAR provider also exists for audited US issuer fundamentals exposed through the SEC company facts XBRL API.
+FundamenTracker currently uses `yfinance` as the default live provider for
+quotes, alert metrics, ticker search, market overview, and historical chart
+data. A SEC EDGAR provider module also exists for selected audited US issuer
+fundamentals through the SEC company facts XBRL API, but it is not selected by
+the default live `MarketDataService`.
+
+Provider arbitration, provider disagreement reporting, Alpha Vantage support,
+and FMP support are planned/future work. Do not document them as implemented.
 
 ## Persistent Metric Cache
 
@@ -54,7 +61,37 @@ The provider supports:
 
 Returned metric snapshots include `source="sec"` plus SEC filing metadata such as CIK, concept, unit, form, filing date, fiscal year/period, accession number, and `as_of_date`.
 
-## Limitations
+Current integration limitation: the live API's default `MarketDataService`
+constructs `YFinanceProvider()`. The SEC provider is available for direct use,
+tests, and future service wiring, but current alert scans and Explorer calls do
+not automatically prefer SEC data for audited fundamentals.
+
+## yfinance Provider
+
+Implementation:
+
+```text
+api/market_data/providers/yfinance_provider.py
+```
+
+The yfinance provider currently supplies:
+
+- `get_quote(symbol)` from `yf.Ticker(symbol).info`.
+- `get_metric(symbol, metric)` for the metric catalog in
+  `api/market_data/metric_definitions.py`.
+- `get_price_history(symbol, period)` and normalized price-history points.
+- best-effort metric histories for valuation ratios, profitability metrics,
+  leverage metrics, dividend yield, and payout ratio.
+- symbol search through Yahoo Finance's search endpoint.
+
+Some historical fundamental charts are derived from current yfinance fields or
+quarterly statements. They are useful for context, but they are not a complete
+audited point-in-time fundamentals database.
+
+See [yfinance usage](yfinance_capabilities.md) for the exact current fields and
+limitations.
+
+## SEC EDGAR Limitations
 
 This first SEC provider is intentionally conservative:
 

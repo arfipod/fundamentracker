@@ -1,6 +1,9 @@
 # Deployment & Run Sequence
 
-This guide explains the difference between the local development stack and the production Linux-host stack. Production can run only the API, the API plus a static frontend, the API plus Cloudflare Tunnel, or all three.
+This guide explains the difference between the local development stack and the
+production Linux-host stack. Production defaults to local PostgreSQL plus the
+API, and can optionally add the static frontend, pgAdmin dashboard, Cloudflare
+Tunnel, or a Supabase REST backend instead of using the local database.
 
 ## Compose Files
 
@@ -8,7 +11,8 @@ This guide explains the difference between the local development stack and the p
 - `docker-compose.prod.yml` is for production. It runs the API without `--reload`, does not bind mount source code, uses `restart: unless-stopped`, and health-checks `/health/live`.
 - `docker-compose.yml` is kept as a backwards-compatible development alias. Prefer the explicit dev/prod files in new commands.
 
-The service names remain `api`, `frontend`, and `cloudflared`.
+Important service names are `postgres`, `api`, `frontend`, `pgadmin`, and
+`cloudflared`.
 
 ---
 
@@ -44,7 +48,9 @@ Health endpoints:
 ## 2) One-time Production Setup
 
 ### 2.1 Install required tools
-Make sure Docker and Docker Compose are installed. If you are using Ubuntu/Debian:
+Make sure Docker and Docker Compose are installed. The following abbreviated
+commands are for Ubuntu. For Debian or a fuller host walkthrough, use
+[HOST_SETUP.md](HOST_SETUP.md).
 
 ```bash
 sudo apt update
@@ -67,10 +73,14 @@ cp .env.example .env
 ```
 
 Then edit `.env` and fill in your real values. Do not commit real secrets.
+Production Compose defaults to local PostgreSQL when `DATABASE_BACKEND` is
+unset.
 
 ```env
-SUPABASE_URL=https://example-project.supabase.co
-SUPABASE_KEY=your_supabase_key
+DATABASE_BACKEND=postgres
+POSTGRES_DB=fundamentracker
+POSTGRES_USER=fundamentracker
+POSTGRES_PASSWORD=replace-with-a-strong-password
 CORS_ALLOWED_ORIGINS=https://your-frontend.example.com
 ALLOW_WILDCARD_CORS=false
 API_AUTH_TOKEN=generate-a-long-random-token
@@ -84,6 +94,14 @@ API_PORT=8000
 PROD_FRONTEND_PORT=8080
 PUBLIC_API_URL=https://api.example.com
 TUNNEL_TOKEN=your_cloudflare_tunnel_token
+```
+
+To use Supabase REST instead of local PostgreSQL, set:
+
+```env
+DATABASE_BACKEND=supabase_rest
+SUPABASE_URL=https://example-project.supabase.co
+SUPABASE_KEY=your_supabase_key
 ```
 
 > **Note:** `TUNNEL_TOKEN` is required only when using the `tunnel` profile. Keep `API_BIND_IP=127.0.0.1` when Cloudflare Tunnel or a local reverse proxy is the only public entrypoint.
@@ -112,9 +130,21 @@ Validate the production compose file before starting it:
 docker compose -f docker-compose.prod.yml config
 ```
 
-### API only
+### Default production services
 
-Use this when Vercel hosts the frontend and another reverse proxy or tunnel exposes the API:
+This starts the default production services, `postgres` and `api`:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Use this when the host should own the local PostgreSQL database and expose only
+the API through localhost, a reverse proxy, a VPN, or a tunnel.
+
+### API service target
+
+With the default PostgreSQL backend, targeting `api` also starts the `postgres`
+dependency:
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build api
@@ -189,7 +219,10 @@ docker compose -f docker-compose.prod.yml down
 - Make sure `VITE_API_URL` in Vercel or `PUBLIC_API_URL` in `.env` exactly matches your public API URL.
 
 ### API Container fails to boot
-- Check that your `.env` file has the correct `SUPABASE_URL` and `SUPABASE_KEY`.
+- Check the selected `DATABASE_BACKEND`. For `postgres`, verify
+  `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `DATABASE_URL` if
+  explicitly set. For `supabase_rest`, verify `SUPABASE_URL` and
+  `SUPABASE_KEY`.
 - View the logs: `docker compose -f docker-compose.prod.yml logs -f api` to see the Python error trace.
 - Check the live endpoint locally: `curl http://127.0.0.1:8000/health/live`.
 - Check database readiness locally: `curl -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/health/ready`. A 503 response means the API process is running but database configuration or connectivity needs attention.

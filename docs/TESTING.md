@@ -1,21 +1,21 @@
 # Testing
 
 FundamenTracker backend tests are written with `pytest` and are configured by
-`pytest.ini`.
+`pytest.ini`. CI currently runs backend tests with Python 3.13.
 
 ## Run Backend Tests
 
 From the repository root:
 
 ```bash
-source venv/bin/activate
 pytest
 ```
 
-If the virtual environment is not activated, use:
+If you use the checked-out virtual environment or create `.venv`, run:
 
 ```bash
-venv/bin/python -m pytest
+source .venv/bin/activate
+python -m pytest
 ```
 
 `pytest.ini` sets:
@@ -52,6 +52,9 @@ Additional focused tests cover API auth, CORS, DB client configuration, market
 data service caching/fallback behavior, and the SEC EDGAR provider using local
 fixtures and fake request clients.
 
+`tests/test_all.py` is a legacy placeholder that documents the retirement of an
+older monolithic test file; active coverage is in the focused modules above.
+
 ## No External Calls
 
 Tests must not call real external services:
@@ -72,23 +75,42 @@ they remain deterministic and offline.
 Run a specific module:
 
 ```bash
-venv/bin/python -m pytest tests/test_scanner.py
+python -m pytest tests/test_scanner.py
 ```
 
 Run one test by name:
 
 ```bash
-venv/bin/python -m pytest tests/test_alert_evaluation.py::test_relative_alert_evaluation_compares_percent_diff_to_target
+python -m pytest tests/test_alert_evaluation.py::test_relative_alert_evaluation_compares_percent_diff_to_target
 ```
 
 Show extra skip and failure context:
 
 ```bash
-venv/bin/python -m pytest -ra
+python -m pytest -ra
 ```
 
-## Current Known Warning
+Run frontend build validation:
+
+```bash
+cd frontend
+npm ci
+npm run build
+```
+
+Run compose validation:
+
+```bash
+docker compose -f docker-compose.dev.yml config
+docker compose -f docker-compose.prod.yml config
+```
+
+## Current Known Warnings And Gaps
 
 The suite currently emits FastAPI deprecation warnings for `@app.on_event`.
 These warnings do not fail tests, but should be addressed when the API startup
 flow is moved to lifespan handlers.
+
+Frontend lint exists but is not currently enforced in CI because `npm run lint`
+fails on existing React hooks and TypeScript lint issues. There is no frontend
+`npm test` script and no committed frontend unit test suite at the moment.

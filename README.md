@@ -1,94 +1,199 @@
-# 📈 FundamenTracker
+# FundamenTracker
 
-FundamenTracker is a powerful, full-stack stock fundamentals tracking application. It provides real-time alerts, historical data visualization, and AI-powered valuations to help you monitor the health of your investment portfolio.
+FundamenTracker is a self-hosted fundamental investing tracker. It combines a
+FastAPI backend, a React/Vite frontend, Docker Compose deployment, alert
+scanning, optional Telegram notifications, and optional Gemini-based analysis.
 
-- **Frontend:** React + Vite web interface with interactive Recharts.
-- **Backend:** FastAPI service for watchlist operations, market scanning, and AI integrations.
-- **Database:** Supabase PostgreSQL for reliable, relational state persistence.
-- **Orchestration:** Separate Docker Compose files for local development and Linux-host production, with optional Cloudflare Tunnel access.
+This repository currently runs as a personal investment-monitoring app, not as a
+general multi-user SaaS product. Some long-term architecture goals are already
+started, but not every planned provider, database feature, or AI contract is
+implemented yet.
 
-## Features
+## Current Features
 
-- **Live Watchlist & Alerts:** Track stocks and configure condition-based alerts (e.g., P/E < 20). Alerts transition gracefully to avoid spam.
-- **Interactive Charting:** View historical data charts (up to 10+ years) for prices and fundamental metrics with ±1 Standard Deviation bands for quick historical context.
-- **AI Valuations:** Get instant, AI-generated objective analyses on whether a stock is undervalued or overvalued using the Gemini API.
-- **Tagging System:** Organize and filter your watchlist with custom tags.
-- **Market Overview:** Get a quick glance at major indices (SPY, QQQ, DIA) directly from the dashboard.
-- **Telegram Integration:** Manage alerts and receive notifications directly via Telegram.
+- Watchlist storage with one or more alerts per ticker.
+- Absolute alerts such as `PE < 20`.
+- Relative alerts that compare current value to a captured reference value.
+- ID-based alert update, delete, and toggle routes so duplicate ticker/metric
+  alerts can be managed safely.
+- Manual and periodic alert scanning.
+- Market metric and history lookup through `MarketDataService`.
+- yfinance provider for quotes, metrics, symbol search, market overview, and
+  historical chart data.
+- Metric snapshot cache and provider-health rows through the repository layer.
+- SEC EDGAR provider module for selected audited US fundamentals. It exists and
+  has tests, but it is not the default provider selected by the live API.
+- Optional Telegram notifications and command polling.
+- Gemini valuation endpoint that returns a plain text analysis string.
+- Local PostgreSQL and Supabase REST repository implementations.
+- Development and production Docker Compose files.
+- systemd units, watchdog script, migration runner, and PostgreSQL backup script.
+
+## Known Limitations
+
+- The Gemini endpoint is implemented as a service, but it currently returns
+  `{"analysis": "..."}` text instead of a structured valuation object with
+  explicit warnings and disclaimer fields.
+- Tags are frontend-only UI state stored in browser `localStorage`; they are not
+  persisted in the backend database.
+- The frontend has no committed Vitest test files and no `npm test` script.
+- The default live provider is yfinance. Multi-provider arbitration and provider
+  disagreement reporting are planned, not implemented.
+- `api/main.py`, `api/supabase_db.py`, `api/state.py`, and `api/watchlist.py`
+  are legacy Telegram/CLI-era modules. The active web API entrypoint is
+  `api.api:app`.
+
+## Documentation Map
+
+- [Architecture](docs/ARCHITECTURE.md): active request, scanner, repository, and
+  market-data flows.
+- [Code Documentation](docs/CODE_DOCUMENTATION.md): practical map of active and
+  legacy modules.
+- [Host Setup](docs/HOST_SETUP.md): clone-to-Linux-host setup and operations.
+- [Deployment Sequence](docs/DEPLOYMENT_SEQUENCE.md): dev/prod Compose usage and
+  public exposure notes.
+- [Local PostgreSQL](docs/LOCAL_DATABASE.md): PostgreSQL backend, migrations,
+  pgAdmin, and Supabase compatibility.
+- [SQL Tables](docs/SQL_TABLES.md): current schema and migration notes.
+- [Data Sources](docs/DATA_SOURCES.md): yfinance, SEC EDGAR, metric cache, and
+  provider-health behavior.
+- [Security](docs/SECURITY.md) and
+  [Security Hardening](docs/SECURITY_HARDENING.md): API token, CORS, frontend
+  token limitations, and safe exposure modes.
+- [Testing](docs/TESTING.md): current backend/CI test commands and test gaps.
+- [Watchdog](docs/WATCHDOG.md): systemd watchdog behavior.
+- [Frontend README](frontend/README.md): frontend-specific setup and structure.
+- [ISSUES](ISSUES.md): historical scratchpad; active work is not tracked there.
+
+## Requirements
+
+The project is tested in CI with:
+
+- Python 3.13 for backend tests.
+- Node.js 22 for frontend builds.
+- Docker Compose for compose-file validation.
+
+The backend Docker image currently uses `python:3.11-slim`, and the frontend
+Docker image uses `node:20-alpine`. Local development usually works with modern
+Python 3.11+ and Node 20+, but CI is the authoritative validation target.
 
 ## Environment Variables
 
-Copy the example file and fill in your own values:
+Copy the example file and fill in local values:
 
 ```bash
 cp .env.example .env
 ```
 
-`.env.example` documents the development and production variables. Never commit real Supabase keys, Gemini keys, Telegram tokens, Cloudflare tunnel tokens, or chat IDs.
+Never commit real Supabase keys, Gemini keys, Telegram tokens, Cloudflare tunnel
+tokens, API tokens, database passwords, or chat IDs.
 
-Configure API CORS with `CORS_ALLOWED_ORIGINS`, a comma-separated list of exact browser origins:
+Important variables:
 
-```env
-CORS_ALLOWED_ORIGINS=http://localhost:5173,https://your-frontend.example.com
-ALLOW_WILDCARD_CORS=false
-```
+- `API_AUTH_TOKEN`: bearer token required by mutable and sensitive read
+  endpoints.
+- `CORS_ALLOWED_ORIGINS`: comma-separated exact browser origins.
+- `ALLOW_WILDCARD_CORS`: must be `true` as well as `CORS_ALLOWED_ORIGINS=*` to
+  allow wildcard CORS.
+- `DATABASE_BACKEND`: `postgres` or `supabase_rest`.
+- `DATABASE_URL`: required by the API when `DATABASE_BACKEND=postgres`, unless
+  production Compose derives it from the PostgreSQL variables.
+- `SUPABASE_URL` and `SUPABASE_KEY`: required only for
+  `DATABASE_BACKEND=supabase_rest`.
+- `VITE_API_URL`: backend URL embedded into the frontend build.
+- `VITE_API_AUTH_TOKEN`: optional frontend convenience token; it is visible to
+  anyone who can load the frontend bundle.
+- `GEMINI_API_KEY`: required only for `/ai-valuation`.
+- `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID`: required only for Telegram.
+- `SEC_USER_AGENT`, `SEC_RATE_LIMIT_SECONDS`, `SEC_TICKER_CACHE_PATH`: SEC
+  provider settings.
 
-The development compose stack sets `APP_ENV=development` and allows `http://localhost:5173` by default when no origins are configured. The production compose stack sets `APP_ENV=production`; production does not allow wildcard CORS unless `CORS_ALLOWED_ORIGINS=*` and `ALLOW_WILDCARD_CORS=true` are both set intentionally. If you run the API without Compose in production, set `APP_ENV=production` yourself.
+See `.env.example` for the full template.
 
 ## API Security
 
-Set a long random `API_AUTH_TOKEN` and send it as:
+Protected endpoints expect:
 
 ```text
 Authorization: Bearer <API_AUTH_TOKEN>
 ```
 
-By default, mutable endpoints and sensitive read endpoints are private. This includes `/watchlist`, `/alert-history`, `/scan-settings`, `/data/providers/health`, `/metric-current`, `/history`, scanning, alert writes, and AI valuation. The bundled frontend sends `VITE_API_AUTH_TOKEN` through its shared API client when configured.
+Public endpoints:
 
-Important: `VITE_API_AUTH_TOKEN` is embedded into public Vite frontend builds. Anyone who can load an unprotected frontend can inspect and reuse it, so it is suitable only for trusted/private deployments. For internet-facing deployments, put the frontend and API behind Cloudflare Access, Tailscale/WireGuard/VPN, or future real login/session authentication.
+- `GET /health/live`
+- `GET /server-time`
+- `GET /search`
+- `GET /market-overview`
 
-Public endpoints are intentionally narrow:
+`GET /health/ready` is protected unless `PUBLIC_READY_HEALTH=true`.
+`GET /watchlist` is protected unless `READONLY_PUBLIC=true`.
 
-- `GET /health/live` is always public for container liveness checks.
-- `GET /health/ready` is protected by default; set `PUBLIC_READY_HEALTH=true` only when you intentionally want readiness details available without a token.
-- `GET /server-time`, `GET /search`, and `GET /market-overview` are currently public read endpoints.
-- `GET /watchlist` can be made public with `READONLY_PUBLIC=true`, but this exposes portfolio data and should stay `false` for internet-facing deployments.
-
-See [`docs/SECURITY.md`](docs/SECURITY.md) for the endpoint exposure model and [`docs/SECURITY_HARDENING.md`](docs/SECURITY_HARDENING.md) for safe deployment modes.
+`VITE_API_AUTH_TOKEN` is embedded into public Vite assets. It is acceptable for
+trusted/private deployments, but it is not strong authentication for an
+unprotected internet-facing frontend. Use Cloudflare Access, VPN, or future real
+session authentication for public exposure.
 
 ## Common Commands
 
 | Command | What it does |
 | --- | --- |
-| `make dev-up` | Builds and starts the development API and frontend with `docker-compose.dev.yml`. |
-| `make dev-down` | Stops the development compose stack. |
-| `make prod-up` | Builds and starts the default production services with `docker-compose.prod.yml`. |
-| `make prod-down` | Stops the production compose stack without removing persisted data. |
-| `make logs` | Follows production compose logs. Use `LOG_SERVICES=api` to focus one service. |
-| `make test` | Runs backend tests with `pytest`. |
-| `make frontend-build` | Builds the React/Vite frontend. |
-| `make health` | Checks the API readiness endpoint. Override with `HEALTH_URL=...` if needed. |
-| `make backup-db` | Writes a local PostgreSQL custom-format dump to `/srv/fundamentracker/backups`. Override with `BACKUP_DIR=...` if needed. |
-| `make install-systemd` | Runs `sudo ./scripts/install-systemd.sh` to install and start the systemd units. |
+| `make dev-up` | Build and start the development API and frontend. |
+| `make dev-down` | Stop the development stack. |
+| `make prod-up` | Build and start default production services (`postgres` and `api`). |
+| `make prod-down` | Stop production containers without removing data. |
+| `make logs` | Follow production logs. Use `LOG_SERVICES=api` to focus one service. |
+| `make test` | Run backend tests with `pytest`. |
+| `make frontend-build` | Run `npm run build` in `frontend/`. |
+| `make health` | Check `HEALTH_URL`, defaulting to `/health/ready`. Reads `API_AUTH_TOKEN` from `.env` when present. |
+| `make db-migrate` | Apply pending local PostgreSQL migrations. |
+| `make backup-db` | Write a local PostgreSQL custom-format dump to `/srv/fundamentracker/backups` unless `BACKUP_DIR` is set. |
+| `make install-systemd` | Install and start the production systemd units. |
+
+Frontend lint exists as `cd frontend && npm run lint`, but CI does not enforce it
+yet because it currently fails on existing React hooks and TypeScript lint
+issues. There is no frontend `npm test` script at the moment.
+
+Python commands such as `pytest` and `make test` assume the Python dependencies
+are installed and the relevant virtual environment is active. In this checkout,
+`.venv/bin/python -m pytest` is the direct non-activated form.
 
 ## Running Locally
 
-Use the development compose file for local work. It keeps FastAPI reload, bind mounts, and the Vite dev server.
+Create `.env` first:
+
+```bash
+cp .env.example .env
+```
+
+Use the development compose file for local work. It keeps FastAPI reload, bind
+mounts, and the Vite dev server.
 
 ```bash
 docker compose -f docker-compose.dev.yml config
 docker compose -f docker-compose.dev.yml up --build api frontend
 ```
 
-After startup, access the application:
-- **Frontend UI:** `http://localhost:5173`
-- **Backend API:** `http://localhost:8000`
+Local URLs:
 
-`docker-compose.yml` is kept as a backwards-compatible development alias, but new commands should use `docker-compose.dev.yml` explicitly.
+- Frontend UI: `http://localhost:5173`
+- Backend API: `http://localhost:8000`
+- Live health: `http://localhost:8000/health/live`
 
-For a complete clone-to-running-host walkthrough, including Docker installation, `/opt/fundamentracker` setup, `.env` configuration, dev/prod startup, systemd, health checks, pgAdmin, logs, backups, and troubleshooting, see **[`docs/HOST_SETUP.md`](docs/HOST_SETUP.md)**.
+If you use `DATABASE_BACKEND=postgres` in development, start the production
+PostgreSQL service first or provide another reachable `DATABASE_URL`:
 
-## Supported Metrics
+```bash
+docker compose -f docker-compose.prod.yml up -d postgres
+docker compose -f docker-compose.dev.yml up --build api frontend
+```
+
+`docker-compose.yml` is a backwards-compatible development alias. Prefer
+`docker-compose.dev.yml` and `docker-compose.prod.yml` in new docs and commands.
+
+## Supported Alert Metrics
+
+The live yfinance metric catalog is defined in
+`api/market_data/metric_definitions.py`:
 
 - `pe` (Trailing P/E)
 - `fpe` (Forward P/E)
@@ -103,61 +208,81 @@ For a complete clone-to-running-host walkthrough, including Docker installation,
 - `operatingmargins` (Operating Margins)
 - `price` (Current Price)
 
-## Supported Operators
-
-- `<`, `>`, `<=`, `>=`, `==`, `=`, `!=`
+Supported operators are `<`, `>`, `<=`, `>=`, `==`, `=`, and `!=`.
 
 ## Alert Types
 
-- **Absolute value:** compares the current metric directly to the configured target, for example `PE < 20`.
-- **Change (%):** compares the current metric to the reference value captured when the alert is created:
+Absolute alerts compare the current metric directly to the configured target:
+
+```text
+PE < 20
+```
+
+Relative alerts compare current value to the reference value captured when the
+alert is created:
 
 ```text
 diff_percent = ((current_value / reference_value) - 1) * 100
 ```
 
-For relative alerts, the target is a percentage. A target of `5` means `+5%`; a target of `-5` means `-5%`. Relative alerts can be created from both the main Add Alert form and inline ticker controls.
+The computed percentage difference is then compared with the configured target.
+A target of `5` means `+5%`; a target of `-5` means `-5%`.
 
 ## Project Structure
 
-- `api/api.py` — FastAPI REST API handling watchlist, scan, and AI endpoints.
-- `api/db/` — Database layer connecting to PostgreSQL or Supabase REST tables (`tickers`, `alerts`, `alert_history`, etc.).
-- `api/telegram_service.py` — Telegram API polling and command parsing.
-- `api/scanner.py` — Periodic evaluation of active alerts against live `yfinance` data.
-- `frontend/` — React frontend containing modular components (`TickerCard`, `TickerRow`, `WatchlistSection`).
-- `docker-compose.dev.yml` — Local development stack with reload, bind mounts, Vite dev server, and the existing `api`, `frontend`, and `cloudflared` service names.
-- `docker-compose.prod.yml` — Production stack for Linux hosts. It removes reload and source bind mounts, adds API health checks, and makes `frontend` and `cloudflared` optional profiles.
-- `docker-compose.yml` — Backwards-compatible development alias.
+- `api/api.py`: active FastAPI app, auth dependencies, startup tasks, and router
+  registration.
+- `api/routes/`: HTTP route modules.
+- `api/services/`: application behavior split out from routes.
+- `api/repositories/`: PostgreSQL and Supabase REST repository implementations.
+- `api/db/migration_runner.py`: local PostgreSQL SQL migration runner.
+- `api/market_data/`: market-data service, providers, normalizers, and metric
+  definitions.
+- `api/scanner.py`: alert evaluation loop used by manual and periodic scans.
+- `api/telegram_service.py`: optional Telegram command polling and messages.
+- `frontend/`: React/Vite/TypeScript frontend.
+- `db/init/`: bootstrap schema for a new local PostgreSQL data directory.
+- `db/migrations/`: explicit SQL migrations for existing local PostgreSQL
+  databases.
+- `scripts/`: systemd install/uninstall, watchdog, migration, backup, and API
+  startup scripts.
+- `systemd/`: production unit files.
+- `tests/`: backend pytest suite with fakes and fixtures.
+- `experimental/`: exploratory scripts that are not production entrypoints.
 
 ## Production Deployment
 
-Production uses `docker-compose.prod.yml`. It runs the API without `--reload`, does not bind mount source code, uses `restart: unless-stopped`, and health-checks `/health/live`. The default production persistence mode is local PostgreSQL: `DATABASE_BACKEND` defaults to `postgres`, and `DATABASE_URL` defaults to the Compose `postgres` service.
-
-Validate and start the default production services (`postgres` and `api`):
+Production uses `docker-compose.prod.yml`. The default services are
+`postgres` and `api`:
 
 ```bash
 docker compose -f docker-compose.prod.yml config
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-To keep using Supabase REST instead, set these values explicitly in `.env` before starting the API:
+Production Compose sets:
 
-```env
-DATABASE_BACKEND=supabase_rest
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-supabase-service-or-rest-key
-```
+- `APP_ENV=production`
+- `DATABASE_BACKEND=postgres` when unset
+- a Compose-network `DATABASE_URL` when unset
+- API bind address `127.0.0.1:${API_PORT:-8000}`
 
-Optional production services:
+Optional profiles:
 
 ```bash
-# Include the static nginx-served frontend.
+# Static nginx-served frontend.
 docker compose -f docker-compose.prod.yml --profile frontend up -d --build
 
-# Include Cloudflare Tunnel.
-docker compose -f docker-compose.prod.yml --profile tunnel up -d --build
+# pgAdmin for local PostgreSQL administration.
+docker compose -f docker-compose.prod.yml --profile dashboard up -d pgadmin
+
+# Cloudflare Tunnel.
+docker compose -f docker-compose.prod.yml --profile tunnel up -d
 ```
 
-If your frontend is hosted on Vercel and your backend API runs on your local machine or Mini PC, the connection can be automated via Cloudflare Tunnels using your `TUNNEL_TOKEN`.
+Set `DATABASE_BACKEND=supabase_rest`, `SUPABASE_URL`, and `SUPABASE_KEY` only
+when the API should use Supabase REST instead of local PostgreSQL.
 
-For a full host installation and operations guide, start with **[`docs/HOST_SETUP.md`](docs/HOST_SETUP.md)**. For the Cloudflare/Vercel-oriented deployment sequence, see **[`docs/DEPLOYMENT_SEQUENCE.md`](docs/DEPLOYMENT_SEQUENCE.md)**.
+For a full host walkthrough, start with [Host Setup](docs/HOST_SETUP.md). For
+the public-exposure sequence, see
+[Deployment Sequence](docs/DEPLOYMENT_SEQUENCE.md).

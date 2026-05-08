@@ -49,9 +49,12 @@ GET /data/providers/health
 GET /metric-current
 GET /history
 GET /health/ready
+GET /ops/status
 ```
 
-Mutable endpoints such as alert CRUD, `/scan`, `/scan-settings`, `/add`, `/remove`, and `/ai-valuation` are also protected.
+Mutable endpoints such as alert CRUD, `/scan`, `/scan-settings`, `/add`, and
+`/remove` are protected. The AI endpoint `POST /ai-valuation` is also protected
+because it can call a paid/limited external model and expose portfolio context.
 
 `GET /watchlist` can be made public with:
 

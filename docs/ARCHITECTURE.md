@@ -2,7 +2,8 @@
 
 FundamenTracker is a self-hosted investing tracker with a React/Vite frontend, a
 FastAPI backend, repository-style database access, market data snapshots, alert
-scanning, Telegram notifications, and optional local PostgreSQL.
+scanning, optional Telegram notifications, optional Gemini analysis, and local
+PostgreSQL or Supabase REST persistence.
 
 The project is moving toward a clearer layered architecture without doing a large
 rewrite in one step. The current active entrypoint is `api.api:app`; the main
@@ -21,7 +22,7 @@ flowchart LR
     API[FastAPI app<br/>api.api:app]
     Routes[Route modules<br/>api/routes]
     Services[Services<br/>api/services]
-    Repository[Repository boundary<br/>api/db/client.py]
+    Repository[Repository boundary<br/>api/repositories]
     DB[(Database<br/>Supabase REST or PostgreSQL)]
 
     Browser --> Frontend
@@ -40,8 +41,13 @@ Important current boundaries:
   router registration.
 - `api/routes/*` owns HTTP-level validation and dependency wiring.
 - `api/services/*` owns application behavior where it has already been split out.
-- `api/db/client.py` is the current persistence boundary. It supports
-  `DATABASE_BACKEND=supabase_rest` and `DATABASE_BACKEND=postgres`.
+- `api/repositories/factory.py` selects the current persistence backend.
+- `api/repositories/postgres.py` and `api/repositories/supabase_rest.py` contain
+  backend-specific query logic.
+- `api/db/client.py` is a compatibility wrapper around the repository factory,
+  not the primary implementation file.
+- `docker-compose.prod.yml` defaults to `DATABASE_BACKEND=postgres`; a bare
+  non-Compose API defaults to `supabase_rest` if `DATABASE_BACKEND` is unset.
 
 ## Scanner Flow
 
@@ -103,8 +109,8 @@ flowchart TD
     Fresh --> Response[Return value with source metadata]
 
     CacheCheck -- No --> ProviderPolicy[Provider policy]
-    ProviderPolicy --> YF[YFinanceProvider]
-    ProviderPolicy --> SEC[SECEdgarProvider]
+    ProviderPolicy --> YF[YFinanceProvider<br/>current default]
+    ProviderPolicy --> SEC[SECEdgarProvider<br/>implemented, not default]
     ProviderPolicy --> AV[Alpha Vantage provider<br/>planned/optional]
     ProviderPolicy --> FMP[FMP provider<br/>planned/optional]
 
@@ -124,13 +130,16 @@ flowchart TD
 
 Current state:
 
-- `YFinanceProvider` is the default provider.
-- SEC EDGAR support exists for audited US fundamentals and should remain
-  provider-isolated.
+- `YFinanceProvider` is the default live provider.
+- SEC EDGAR support exists for selected audited US fundamentals and should
+  remain provider-isolated. It is implemented and tested, but not automatically
+  selected by the default live service.
 - Metric snapshots and provider health are stored through the repository
   boundary.
 - The service already normalizes symbols and metric values before returning or
   storing data.
+- The bootstrap schema includes a `data_providers` table, but current provider
+  selection is code-based rather than table-driven.
 
 Target direction:
 
@@ -179,13 +188,13 @@ injection. React/Vite keeps the frontend simple and fast to develop. The tradeof
 is that API contracts need discipline: frontend code should use shared client
 helpers instead of repeated ad hoc `fetch` calls.
 
-### Repository Boundary Before Full Repository Classes
+### Repository Boundary
 
-`api/db/client.py` currently acts as the persistence boundary rather than a full
-set of repository classes. This keeps the project incremental and preserves
-existing Supabase behavior while adding PostgreSQL support. The tradeoff is that
-the file is broad; future changes should split it by domain only when the split
-is small and behavior-preserving.
+The active persistence boundary is `api/repositories/`. `api/db/client.py`
+remains as a compatibility wrapper for older imports. This preserves existing
+Supabase REST behavior while supporting local PostgreSQL. The tradeoff is that
+there is still duplicated backend-specific query logic, so tests should cover
+both repository selection and shared response shapes.
 
 ### Supabase REST and Local PostgreSQL
 
@@ -233,5 +242,7 @@ change should update the relevant docs and keep copy-pasteable commands current.
 
 AI valuation should stay behind a service that builds an explicit data pack,
 tracks sources, and returns structured output with warnings and a disclaimer.
-The tradeoff is more upfront structure, but it prevents route handlers from
-becoming opaque prompts and keeps analysis auditable.
+The current code has moved the Gemini call into `api/services/valuation.py`, but
+the response is still plain text shaped as `{"analysis": "..."}`. Structured
+output with explicit warnings, sources, confidence, and disclaimer fields is
+planned but not implemented yet.

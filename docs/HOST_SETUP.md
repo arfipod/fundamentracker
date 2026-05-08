@@ -24,7 +24,7 @@ Minimum practical host:
 CPU: 2 cores
 RAM: 2 GB minimum, 4 GB recommended
 Disk: 10 GB minimum, more if keeping PostgreSQL backups locally
-Network: outbound HTTPS access for market data, Supabase, Gemini, Telegram, and Cloudflare Tunnel if enabled
+Network: outbound HTTPS access for yfinance/Yahoo Finance, SEC EDGAR if used, Supabase if used, Gemini if used, Telegram if used, and Cloudflare Tunnel if enabled
 ```
 
 Install baseline packages:
