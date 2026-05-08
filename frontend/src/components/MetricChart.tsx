@@ -10,8 +10,7 @@ import {
   Legend,
   ReferenceLine
 } from 'recharts';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { apiFetch } from '../lib/apiClient';
 
 interface HistoryData {
   date: string;
@@ -80,7 +79,7 @@ export function MetricChart({ ticker, metric, currentValue, targetValue, height 
       setError(null);
       
       try {
-        const histRes = await fetch(`${API_URL}/history?ticker=${ticker}&metric=${metric}&period=${period}`);
+        const histRes = await apiFetch(`/history?ticker=${ticker}&metric=${metric}&period=${period}`);
         if (histRes.ok) {
           const histData = await histRes.json();
           setHistoryData(histData);

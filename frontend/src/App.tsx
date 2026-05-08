@@ -40,16 +40,16 @@ function App() {
     fetchScanSettings();
   }, [fetchWatchlist, fetchScanSettings]);
 
-  const handleAddNewAlert = async (ticker: string, metric: string, operator: string, targetValue: number): Promise<boolean> => {
-    const success = await handleAddAlertInline(ticker, metric, operator, targetValue);
+  const handleAddNewAlert = async (ticker: string, metric: string, operator: string, targetValue: number, alertType: string): Promise<boolean> => {
+    const success = await handleAddAlertInline(ticker, metric, operator, targetValue, alertType);
     if (success) {
       await fetchScanSettings();
     }
     return success;
   };
 
-  const handleInlineAdd = async (ticker: string, metric: string, operator: string, targetValue: number) => {
-    const success = await handleAddAlertInline(ticker, metric, operator, targetValue);
+  const handleInlineAdd = async (ticker: string, metric: string, operator: string, targetValue: number, alertType: string = 'absolute') => {
+    const success = await handleAddAlertInline(ticker, metric, operator, targetValue, alertType);
     if (success) {
       await fetchScanSettings();
     }

@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import type { TickerData } from '../types/watchlist';
 import { AlertItem } from './AlertItem';
+import { apiFetch } from '../lib/apiClient';
 
 interface Props {
   symbol: string;
   data: TickerData;
   onDeleteTicker: (ticker: string) => void;
-  onAddInline: (ticker: string, metric: string, operator: string, val: number) => void;
-  onUpdateAlert: (ticker: string, metric: string, val: number) => void;
-  onDeleteAlert: (ticker: string, metric: string) => void;
+  onAddInline: (ticker: string, metric: string, operator: string, val: number, alertType?: string) => void;
+  onUpdateAlert: (alertId: string, val: number) => void;
+  onDeleteAlert: (alertId: string, ticker: string) => void;
   onToggleAlert: (alertId: string, isActive: boolean) => void;
 }
 
@@ -49,8 +50,7 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
     setLoadingAi(true);
     setAiValuation(null);
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const res = await fetch(`${API_URL}/ai-valuation`, {
+      const res = await apiFetch('/ai-valuation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticker: symbol })
@@ -62,7 +62,7 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
         const err = await res.json();
         setAiValuation(`Error: ${err.detail || 'Failed to fetch valuation'}`);
       }
-    } catch (e) {
+    } catch {
       setAiValuation('Network error');
     } finally {
       setLoadingAi(false);
@@ -72,10 +72,11 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
   const handleAddSubmit = () => {
     const mElement = document.getElementById(`inline-m-${symbol}`) as HTMLSelectElement;
     const oElement = document.getElementById(`inline-o-${symbol}`) as HTMLSelectElement;
+    const typeElement = document.getElementById(`inline-type-${symbol}`) as HTMLSelectElement;
     const tElement = document.getElementById(`inline-t-${symbol}`) as HTMLInputElement;
 
     if (tElement && tElement.value) {
-      onAddInline(symbol, mElement.value, oElement.value, parseFloat(tElement.value));
+      onAddInline(symbol, mElement.value, oElement.value, parseFloat(tElement.value), typeElement.value);
       setAddingMetric(false);
     }
   };
@@ -113,9 +114,9 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {data.alerts && data.alerts.length > 0 ? (
               <div className="alerts-list" style={{ gap: '0.3rem' }}>
-                {data.alerts.map((alert, idx) => (
+                {data.alerts.map((alert) => (
                   <AlertItem
-                    key={`${alert.metric}-${idx}`}
+                    key={alert.id}
                     symbol={symbol}
                     alert={alert}
                     onUpdate={onUpdateAlert}
@@ -151,6 +152,10 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
                   <option value=">=">&gt;=</option>
                   <option value="==">==</option>
                   <option value="!=">!=</option>
+                </select>
+                <select id={`inline-type-${symbol}`} className="target-edit-input" style={{ width: 'auto', padding: '2px 4px' }}>
+                  <option value="absolute">Value</option>
+                  <option value="relative">Change %</option>
                 </select>
                 <input type="number" step="any" placeholder="Val" id={`inline-t-${symbol}`} className="target-edit-input" style={{ width: '60px', padding: '2px 4px' }} onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubmit(); if (e.key === 'Escape') setAddingMetric(false); }} />
                 <div style={{ display: 'flex', gap: '4px' }}>

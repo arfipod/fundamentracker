@@ -18,9 +18,9 @@ interface Props {
   watchlist: Watchlist | null;
   loading: boolean;
   onDeleteTicker: (ticker: string) => void;
-  onAddInline: (ticker: string, metric: string, operator: string, val: number) => void;
-  onUpdateAlert: (ticker: string, metric: string, val: number) => void;
-  onDeleteAlert: (ticker: string, metric: string) => void;
+  onAddInline: (ticker: string, metric: string, operator: string, val: number, alertType?: string) => void;
+  onUpdateAlert: (alertId: string, val: number) => void;
+  onDeleteAlert: (alertId: string, ticker: string) => void;
   onToggleAlert: (alertId: string, isActive: boolean) => void;
 }
 

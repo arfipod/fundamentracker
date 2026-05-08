@@ -1,0 +1,10 @@
+[Unit]
+Description=Run FundamenTracker watchdog periodically
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=fundamentracker-watchdog.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,64 @@
+from __future__ import annotations
+
+from typing import Any, Callable
+
+from fastapi import APIRouter, HTTPException
+
+from services import market as market_service
+
+
+def create_router(
+    *,
+    get_market_data_service: Callable[[], Any],
+    metrics_map: dict[str, Any],
+) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/search")
+    def search_ticker(q: str):
+        try:
+            return market_service.search_symbols(get_market_data_service(), q)
+        except Exception:
+            return []
+
+    @router.get("/data/providers/health")
+    def get_data_provider_health():
+        try:
+            return market_service.get_provider_health(get_market_data_service())
+        except Exception as error:
+            raise HTTPException(status_code=500, detail=str(error)) from error
+
+    @router.get("/metric-current")
+    def get_metric_current(ticker: str, metric: str):
+        try:
+            return market_service.get_metric_current(
+                get_market_data_service(),
+                ticker=ticker,
+                metric=metric,
+                metrics_map=metrics_map,
+            )
+        except Exception as error:
+            raise HTTPException(status_code=500, detail=str(error)) from error
+
+    @router.get("/history")
+    def get_history(ticker: str, metric: str, period: str = "1y"):
+        try:
+            return market_service.get_history(
+                get_market_data_service(),
+                ticker=ticker,
+                metric=metric,
+                period=period,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        except Exception as error:
+            raise HTTPException(status_code=500, detail=str(error)) from error
+
+    @router.get("/market-overview")
+    def get_market_overview():
+        try:
+            return market_service.get_market_overview(get_market_data_service())
+        except Exception as error:
+            raise HTTPException(status_code=500, detail=str(error)) from error
+
+    return router

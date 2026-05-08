@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MetricChart } from './MetricChart';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { apiFetch } from '../lib/apiClient';
 
 /**
  * ExplorerSection component allows users to search for any stock ticker
@@ -35,7 +34,7 @@ export function ExplorerSection() {
     const fetchSearch = async () => {
       if (ticker.trim().length > 0 && showDropdown) {
         try {
-          const res = await fetch(`${API_URL}/search?q=${ticker}`);
+          const res = await apiFetch(`/search?q=${ticker}`);
           if (res.ok) {
             const data = await res.json();
             setSearchResults(data);
@@ -63,7 +62,7 @@ export function ExplorerSection() {
     
     try {
       // Fetch current value
-      const metricRes = await fetch(`${API_URL}/metric-current?ticker=${ticker}&metric=${metric}`);
+      const metricRes = await apiFetch(`/metric-current?ticker=${ticker}&metric=${metric}`);
       if (metricRes.ok) {
         const metricData = await metricRes.json();
         setCurrentValue(metricData.value);

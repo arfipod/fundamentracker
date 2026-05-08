@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { apiFetch } from '../lib/apiClient';
 
 interface Props {
   onAdd: (ticker: string, metric: string, operator: string, targetValue: number, alertType: string) => Promise<boolean>;
@@ -31,7 +30,7 @@ export function AlertForm({ onAdd }: Props) {
     const fetchSearch = async () => {
       if (ticker.trim().length > 0 && showDropdown) {
         try {
-          const res = await fetch(`${API_URL}/search?q=${ticker}`);
+          const res = await apiFetch(`/search?q=${ticker}`);
           if (res.ok) {
             const data = await res.json();
             setSearchResults(data);

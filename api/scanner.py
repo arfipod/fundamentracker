@@ -1,17 +1,15 @@
-from config import OPERATORS_MAP
-try:
-    from watchlist import fetch_metric
-except Exception:
-    pass
-
+from alert_evaluator import calculate_relative_diff, evaluate_alert
 from db import client as db
+from market_data.service import MarketDataService, get_market_data_service
 
-def run_fundamental_scan(send_alert_func):
+
+def run_fundamental_scan(send_alert_func, market_data_service: MarketDataService | None = None):
     """
     1) Fetches watchlist from db
     2) Performs logic for each alert
     3) Triggers log & updates if condition met
     """
+    market_data = market_data_service or get_market_data_service()
     watchlist = db.get_watchlist()
     
     symbols = list(watchlist.keys())
@@ -26,22 +24,20 @@ def run_fundamental_scan(send_alert_func):
                 # Better left as is.
                 continue
                 
-            current_val = fetch_metric(ticker, alert["metric"])
+            try:
+                current_val = market_data.get_metric(ticker, alert["metric"])
+            except Exception:
+                current_val = None
             if current_val is None:
                 continue
                 
-            op_func = OPERATORS_MAP.get(alert["operator"])
-            if not op_func:
-                continue
-                
-            is_triggered = False
-            
-            # Relative vs Absolute logic
-            if alert.get("alert_type") == "relative" and alert.get("reference_value") is not None:
-                diff = ((current_val / alert["reference_value"]) - 1) * 100
-                is_triggered = op_func(diff, alert["target"])
-            else:
-                is_triggered = op_func(current_val, alert["target"])
+            is_triggered = evaluate_alert(
+                current_val,
+                alert["target"],
+                alert["operator"],
+                alert.get("alert_type"),
+                alert.get("reference_value"),
+            )
                 
             # Update DB with new value and trigger state
             db.update_alert_status(alert["id"], is_triggered, current_val)
@@ -53,7 +49,9 @@ def run_fundamental_scan(send_alert_func):
                 
                 # Format message
                 if alert.get("alert_type") == "relative":
-                    msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} changed by {alert['operator']} {alert['target']}% (Current: {current_val:.2f}, Ref: {alert['reference_value']:.2f})"
+                    diff = calculate_relative_diff(current_val, alert.get("reference_value"))
+                    diff_msg = f", Diff: {diff:.2f}%" if diff is not None else ""
+                    msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} changed by {alert['operator']} {alert['target']}% (Current: {current_val:.2f}, Ref: {alert['reference_value']:.2f}{diff_msg})"
                 else:    
                     msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} {alert['operator']} {alert['target']} (Current: {current_val:.2f})"
                     

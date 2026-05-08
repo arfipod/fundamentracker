@@ -1,19 +1,20 @@
 import { useState, useCallback } from 'react';
-import type { Watchlist } from '../types/watchlist';
+import { apiFetch } from '../lib/apiClient';
+import type { Alert, Watchlist } from '../types/watchlist';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+type UndoQueue = { ticker: string, name: string, alerts: Alert[], id: number };
 
 export function useWatchlist() {
   const [watchlist, setWatchlist] = useState<Watchlist | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [undoQueue, setUndoQueue] = useState<{ ticker: string, name: string, alerts: any[], id: number } | null>(null);
+  const [undoQueue, setUndoQueue] = useState<UndoQueue | null>(null);
 
   const fetchWatchlist = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/watchlist`);
+      const response = await apiFetch('/watchlist');
       if (!response.ok) throw new Error('Error loading the watchlist');
       const result = await response.json();
       setWatchlist(result);
@@ -29,7 +30,7 @@ export function useWatchlist() {
     }
   }, []);
 
-  const handleAddAlertInline = async (tickerToAdd: string, metricToAdd: string, operatorToAdd: string, targetValueToAdd: number) => {
+  const handleAddAlertInline = async (tickerToAdd: string, metricToAdd: string, operatorToAdd: string, targetValueToAdd: number, alertType: string = 'absolute') => {
     if (watchlist && watchlist[tickerToAdd]) {
       const hasMetric = watchlist[tickerToAdd].alerts.some(a => a.metric === metricToAdd);
       if (hasMetric) {
@@ -40,7 +41,7 @@ export function useWatchlist() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/add`, {
+      const response = await apiFetch('/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -48,7 +49,7 @@ export function useWatchlist() {
           metric: metricToAdd,
           operator: operatorToAdd,
           value: targetValueToAdd,
-          alert_type: "absolute"
+          alert_type: alertType
         }),
       });
       if (!response.ok) throw new Error('Error adding the alert');
@@ -62,16 +63,12 @@ export function useWatchlist() {
     }
   };
 
-  const handleUpdateTarget = async (tickerToUpdate: string, metricToUpdate: string, newValue: number) => {
+  const handleUpdateTarget = async (alertId: string, newValue: number) => {
     try {
-      const response = await fetch(`${API_URL}/update`, {
-        method: 'PUT',
+      const response = await apiFetch(`/alerts/${alertId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticker: tickerToUpdate,
-          metric: metricToUpdate,
-          value: newValue,
-        }),
+        body: JSON.stringify({ value: newValue }),
       });
       if (!response.ok) throw new Error('Error updating alert');
       await fetchWatchlist();
@@ -84,21 +81,32 @@ export function useWatchlist() {
     }
   };
 
-  const handleDeleteAlert = async (tickerToDelete: string, metricToDelete: string) => {
+  const handleDeleteAlert = async (alertId: string, tickerToDelete: string) => {
     try {
-      let alertToUndo = null;
+      let alertToUndo: Alert | undefined;
       if (watchlist && watchlist[tickerToDelete]) {
-        alertToUndo = watchlist[tickerToDelete].alerts.find(a => a.metric === metricToDelete);
+        alertToUndo = watchlist[tickerToDelete].alerts.find(a => a.id === alertId);
+      }
+      if (!alertToUndo && watchlist) {
+        for (const [symbol, data] of Object.entries(watchlist)) {
+          const alert = data.alerts.find(a => a.id === alertId);
+          if (alert) {
+            tickerToDelete = symbol;
+            alertToUndo = alert;
+            break;
+          }
+        }
       }
       
-      const response = await fetch(`${API_URL}/remove/${tickerToDelete}/${metricToDelete}`, {
+      const response = await apiFetch(`/alerts/${alertId}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Error removing the alert');
       
       if (alertToUndo) {
         const id = Date.now();
-        setUndoQueue({ ticker: tickerToDelete, name: watchlist![tickerToDelete].name, alerts: [alertToUndo], id });
+        const name = watchlist?.[tickerToDelete]?.name || tickerToDelete;
+        setUndoQueue({ ticker: tickerToDelete, name, alerts: [alertToUndo], id });
         setTimeout(() => setUndoQueue(prev => prev?.id === id ? null : prev), 6000);
       }
       
@@ -112,14 +120,14 @@ export function useWatchlist() {
 
   const handleDelete = async (tickerToDelete: string) => {
     try {
-      let alertsToUndo: any[] = [];
+      let alertsToUndo: Alert[] = [];
       let nameToUndo = "";
       if (watchlist && watchlist[tickerToDelete]) {
         alertsToUndo = watchlist[tickerToDelete].alerts;
         nameToUndo = watchlist[tickerToDelete].name;
       }
 
-      const response = await fetch(`${API_URL}/remove/${tickerToDelete}`, {
+      const response = await apiFetch(`/remove/${tickerToDelete}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Error removing the ticker');
@@ -140,7 +148,7 @@ export function useWatchlist() {
 
   const handleToggleAlert = async (alertId: string, isActive: boolean) => {
     try {
-      const response = await fetch(`${API_URL}/alerts/${alertId}/toggle`, {
+      const response = await apiFetch(`/alerts/${alertId}/toggle`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: isActive }),
@@ -159,7 +167,7 @@ export function useWatchlist() {
     
     // Add ticker and alerts back
     for (const alert of undoQueue.alerts) {
-      await fetch(`${API_URL}/add`, {
+      await apiFetch('/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

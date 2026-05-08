@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiFetch } from '../lib/apiClient';
 
 /**
  * Props for the DashboardHeader component.
@@ -51,8 +52,7 @@ export function DashboardHeader({
   useEffect(() => {
     const fetchMarketStats = async () => {
       try {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-        const res = await fetch(`${API_URL}/market-overview`);
+        const res = await apiFetch('/market-overview');
         if (res.ok) {
           const data = await res.json();
           setMarketStats(data);

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import yfinance as yf
-
 from config import METRICS_MAP, OPERATORS_MAP
+from market_data.service import get_market_data_service
 try:
     from watchlist import format_alerts_message, format_watchlist_message
 except Exception as e:
@@ -79,9 +78,9 @@ def process_telegram_commands(requests_client, api_base: str) -> None:
                 
                 name = ticker
                 try:
-                    t_info = yf.Ticker(ticker).info
-                    name = t_info.get("shortName", ticker)
-                except:
+                    quote = get_market_data_service().get_quote(ticker)
+                    name = quote.get("shortName", quote.get("name", ticker))
+                except Exception:
                     pass
                     
                 db.add_ticker_db(ticker, name)

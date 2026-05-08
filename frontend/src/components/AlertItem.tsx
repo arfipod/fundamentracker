@@ -14,8 +14,8 @@ import { MetricChart } from './MetricChart';
 interface Props {
   symbol: string;
   alert: Alert;
-  onUpdate: (ticker: string, metric: string, val: number) => void;
-  onDelete: (ticker: string, metric: string) => void;
+  onUpdate: (alertId: string, val: number) => void;
+  onDelete: (alertId: string, ticker: string) => void;
   onToggle?: (alertId: string, isActive: boolean) => void;
 }
 
@@ -35,16 +35,29 @@ export function AlertItem({ symbol, alert, onUpdate, onDelete, onToggle }: Props
   const handleSave = () => {
     const val = parseFloat(parseFloat(editingValue).toFixed(2));
     if (!isNaN(val)) {
-      onUpdate(symbol, alert.metric, val);
+      onUpdate(alert.id, val);
     }
     setIsEditing(false);
   };
 
   const isRelative = alert.alert_type === 'relative';
+  const relativeDiff =
+    isRelative &&
+    alert.current_value !== undefined &&
+    alert.current_value !== null &&
+    alert.reference_value !== undefined &&
+    alert.reference_value !== null &&
+    alert.reference_value !== 0
+      ? ((alert.current_value / alert.reference_value) - 1) * 100
+      : null;
   
   const isConditionMet = () => {
     if (alert.current_value === undefined || alert.current_value === null) return null;
-    const curr = alert.current_value;
+    let curr = alert.current_value;
+    if (isRelative) {
+      if (relativeDiff === null) return null;
+      curr = relativeDiff;
+    }
     const target = alert.target;
     switch (alert.operator) {
       case '<': return curr < target;
@@ -110,6 +123,11 @@ export function AlertItem({ symbol, alert, onUpdate, onDelete, onToggle }: Props
             (Ref: {alert.reference_value.toFixed(2)})
           </span>
         )}
+        {relativeDiff !== null && (
+          <span style={{ marginLeft: '4px', fontSize: '0.8em', color: valueColor }}>
+            (Diff: {relativeDiff >= 0 ? '+' : ''}{relativeDiff.toFixed(2)}%)
+          </span>
+        )}
         
         {alert.current_value !== undefined && alert.current_value !== null && (
           <span className="current-val" style={{ marginLeft: '6px', fontSize: '0.85em', color: valueColor, fontWeight: conditionMet !== null ? 'bold' : 'normal' }}>
@@ -152,7 +170,7 @@ export function AlertItem({ symbol, alert, onUpdate, onDelete, onToggle }: Props
             className="btn-delete-alert"
             onClick={() => {
               if (window.confirm(`Are you sure you want to delete the ${alert.metric.toUpperCase()} alert for ${symbol}?`)) {
-                onDelete(symbol, alert.metric);
+                onDelete(alert.id, symbol);
               }
             }}
             title="Eliminar alerta"
