@@ -6,9 +6,13 @@ import { DashboardHeader } from './components/DashboardHeader';
 import { AlertForm } from './components/AlertForm';
 import { WatchlistSection } from './components/WatchlistSection';
 import { ExplorerSection } from './components/ExplorerSection';
+import { apiFetch } from './lib/apiClient';
+import type { MetricCatalogItem } from './types/metrics';
 
 function App() {
   const [activeTab, setActiveTab] = useState<'watchlist' | 'explorer'>('watchlist');
+  const [metricCatalog, setMetricCatalog] = useState<MetricCatalogItem[]>([]);
+  const [metricCatalogError, setMetricCatalogError] = useState<string | null>(null);
   const {
     watchlist,
     loading,
@@ -36,6 +40,34 @@ function App() {
   } = useScanSettings(fetchWatchlist);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const fetchMetricCatalog = async () => {
+      try {
+        const response = await apiFetch('/metrics/catalog');
+        if (!response.ok) {
+          throw new Error('Failed to load metric catalog');
+        }
+        const catalog = await response.json();
+        if (!cancelled) {
+          setMetricCatalog(catalog);
+          setMetricCatalogError(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMetricCatalogError(error instanceof Error ? error.message : 'Failed to load metric catalog');
+        }
+      }
+    };
+
+    fetchMetricCatalog();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     fetchWatchlist();
     fetchScanSettings();
   }, [fetchWatchlist, fetchScanSettings]);
@@ -55,7 +87,7 @@ function App() {
     }
   };
 
-  const combinedError = error || scanError;
+  const combinedError = error || scanError || metricCatalogError;
 
   return (
     <div className="dashboard">
@@ -88,11 +120,12 @@ function App() {
 
       {activeTab === 'watchlist' ? (
         <>
-          <AlertForm onAdd={handleAddNewAlert} />
+          <AlertForm metrics={metricCatalog} onAdd={handleAddNewAlert} />
 
           <WatchlistSection
             watchlist={watchlist}
             loading={loading}
+            metrics={metricCatalog}
             onDeleteTicker={handleDelete}
             onAddInline={handleInlineAdd}
             onUpdateAlert={handleUpdateTarget}
@@ -101,7 +134,7 @@ function App() {
           />
         </>
       ) : (
-        <ExplorerSection />
+        <ExplorerSection metrics={metricCatalog} />
       )}
 
       {undoQueue && (

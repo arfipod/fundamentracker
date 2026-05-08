@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from market_data.metric_definitions import get_metric_catalog
+
 
 DEFAULT_MARKET_OVERVIEW_TICKERS = ["SPY", "QQQ", "DIA"]
 logger = logging.getLogger(__name__)
@@ -23,6 +25,10 @@ def get_provider_health(market_data_service: Any):
     return market_data_service.get_provider_health()
 
 
+def get_metrics_catalog() -> list[dict[str, Any]]:
+    return get_metric_catalog()
+
+
 def get_metric_current(
     market_data_service: Any,
     *,
@@ -31,11 +37,13 @@ def get_metric_current(
     metrics_map: dict[str, Any],
 ) -> dict[str, Any]:
     metric_name = metric.lower()
-    service_metric = metric_name if metric_name in metrics_map else "price"
-    snapshot = market_data_service.get_metric_snapshot(ticker.upper(), service_metric)
+    if metric_name not in metrics_map:
+        raise ValueError(f"Unsupported metric: {metric_name}")
+
+    snapshot = market_data_service.get_metric_snapshot(ticker.upper(), metric_name)
     return {
         "ticker": ticker.upper(),
-        "metric": metric,
+        "metric": metric_name,
         "value": snapshot.get("value"),
         "stale": snapshot.get("stale", False),
         "source": snapshot.get("source"),

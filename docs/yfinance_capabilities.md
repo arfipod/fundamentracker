@@ -38,22 +38,24 @@ the symbol, and adds fallback fields:
 ### Alert And Explorer Metrics
 
 Supported live metrics are defined in
-`api/market_data/metric_definitions.py`:
+`api/market_data/metric_definitions.py`. The same backend catalog is exposed to
+the frontend through public `GET /metrics/catalog`, sorted by category and
+label, so metric selectors do not maintain their own duplicated lists.
 
-| Metric | yfinance key | Display unit |
-| --- | --- | --- |
-| `pe` | `trailingPE` | ratio |
-| `fpe` | `forwardPE` | ratio |
-| `pb` | `priceToBook` | ratio |
-| `evebitda` | `enterpriseToEbitda` | ratio |
-| `roe` | `returnOnEquity` | percent |
-| `price` | `currentPrice` | currency |
-| `roic` | calculated fallback from quarterly statements when possible | percent |
-| `dividendyield` | `dividendYield` | percent |
-| `payoutratio` | `payoutRatio` | percent |
-| `debttoequity` | `debtToEquity` | ratio |
-| `profitmargins` | `profitMargins` | percent |
-| `operatingmargins` | `operatingMargins` | percent |
+| Metric | Label | yfinance key | Display unit |
+| --- | --- | --- | --- |
+| `pe` | Trailing P/E | `trailingPE` | ratio |
+| `fpe` | Forward P/E | `forwardPE` | ratio |
+| `pb` | Price to Book | `priceToBook` | ratio |
+| `evebitda` | EV/EBITDA | `enterpriseToEbitda` | ratio |
+| `roe` | Return on Equity | `returnOnEquity` | percent |
+| `price` | Price | `currentPrice` | currency |
+| `roic` | Return on Invested Capital | calculated fallback from quarterly statements when possible | percent |
+| `dividendyield` | Dividend Yield | `dividendYield` | percent |
+| `payoutratio` | Payout Ratio | `payoutRatio` | percent |
+| `debttoequity` | Debt to Equity | `debtToEquity` | ratio |
+| `profitmargins` | Profit Margins | `profitMargins` | percent |
+| `operatingmargins` | Operating Margins | `operatingMargins` | percent |
 
 Percent metrics are normalized by multiplying the yfinance ratio by `100` before
 returning or storing through `MarketDataService`.
@@ -97,6 +99,8 @@ Provider health is updated in `provider_health`.
 - Exchange suffixes matter, for example `.L`, `.PA`, or `.TO`.
 - Missing metrics return `None` or raise a controlled error depending on the
   call path.
+- Unsupported metric keys return a controlled validation error instead of
+  falling back to `price`.
 - Alert scans skip an alert when the current metric value cannot be fetched.
 - The app does not currently compare yfinance values against another live
   provider before selecting a value.
@@ -109,7 +113,7 @@ To add a new yfinance-backed alert metric:
 2. Add or update provider logic in
    `api/market_data/providers/yfinance_provider.py` if the value cannot be read
    directly from `Ticker.info`.
-3. Update frontend metric selectors in `AlertForm.tsx`, `TickerRow.tsx`,
-   `TickerCard.tsx`, and `ExplorerSection.tsx`.
+3. Confirm `GET /metrics/catalog` exposes the intended label, description,
+   category, directionality, and alert/history support flags.
 4. Add backend tests with fake provider data. Do not call live yfinance in tests.
 5. Update README and data-source docs.

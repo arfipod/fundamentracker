@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { TickerData } from '../types/watchlist';
+import type { MetricCatalogItem } from '../types/metrics';
 import { AlertItem } from './AlertItem';
+import { InlineAlertForm } from './InlineAlertForm';
 import { apiFetch } from '../lib/apiClient';
 
 /**
@@ -17,6 +19,7 @@ import { apiFetch } from '../lib/apiClient';
 interface Props {
   symbol: string;
   data: TickerData;
+  metrics: MetricCatalogItem[];
   onDeleteTicker: (ticker: string) => void;
   onAddInline: (ticker: string, metric: string, operator: string, val: number, alertType?: string) => void;
   onUpdateAlert: (alertId: string, val: number) => void;
@@ -32,7 +35,7 @@ interface Props {
  * @param {Props} props - The component props
  * @returns {JSX.Element} The rendered TickerCard component
  */
-export function TickerCard({ symbol, data, onDeleteTicker, onAddInline, onUpdateAlert, onDeleteAlert, onToggleAlert }: Props) {
+export function TickerCard({ symbol, data, metrics, onDeleteTicker, onAddInline, onUpdateAlert, onDeleteAlert, onToggleAlert }: Props) {
   const [addingMetric, setAddingMetric] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
   const [addingTag, setAddingTag] = useState(false);
@@ -85,18 +88,6 @@ export function TickerCard({ symbol, data, onDeleteTicker, onAddInline, onUpdate
       setAiValuation('Network error');
     } finally {
       setLoadingAi(false);
-    }
-  };
-
-  const handleAddSubmit = () => {
-    const mElement = document.getElementById(`inline-m-${symbol}`) as HTMLSelectElement;
-    const oElement = document.getElementById(`inline-o-${symbol}`) as HTMLSelectElement;
-    const typeElement = document.getElementById(`inline-type-${symbol}`) as HTMLSelectElement;
-    const tElement = document.getElementById(`inline-t-${symbol}`) as HTMLInputElement;
-
-    if (tElement && tElement.value) {
-      onAddInline(symbol, mElement.value, oElement.value, parseFloat(tElement.value), typeElement.value);
-      setAddingMetric(false);
     }
   };
 
@@ -169,39 +160,14 @@ export function TickerCard({ symbol, data, onDeleteTicker, onAddInline, onUpdate
         )}
 
         {addingMetric && (
-          <div style={{ padding: '0.5rem', background: 'var(--bg-color)', borderRadius: '6px', marginBottom: '0.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <select id={`inline-m-${symbol}`} className="target-edit-input" style={{ width: 'auto', padding: '2px 4px' }}>
-              <option value="pe">PE</option>
-              <option value="fpe">FPE</option>
-              <option value="pb">PB</option>
-              <option value="evebitda">EV/EBITDA</option>
-              <option value="roe">ROE</option>
-              <option value="price">Price</option>
-              <option value="roic">ROIC</option>
-              <option value="dividendyield">Dividend Yield</option>
-              <option value="payoutratio">Payout Ratio</option>
-              <option value="debttoequity">Debt to Equity</option>
-              <option value="profitmargins">Profit Margins</option>
-              <option value="operatingmargins">Operating Margins</option>
-            </select>
-            <select id={`inline-o-${symbol}`} className="target-edit-input" style={{ width: 'auto', padding: '2px 4px' }}>
-              <option value="<">&lt;</option>
-              <option value=">">&gt;</option>
-              <option value="<=">&lt;=</option>
-              <option value=">=">&gt;=</option>
-              <option value="==">==</option>
-              <option value="!=">!=</option>
-            </select>
-            <select id={`inline-type-${symbol}`} className="target-edit-input" style={{ width: 'auto', padding: '2px 4px' }}>
-              <option value="absolute">Value</option>
-              <option value="relative">Change %</option>
-            </select>
-            <input type="number" step="any" placeholder="Valor" id={`inline-t-${symbol}`} className="target-edit-input" style={{ width: '60px', padding: '2px 4px' }} onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubmit(); if (e.key === 'Escape') setAddingMetric(false); }} />
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <button className="btn-success" style={{ padding: '2px 6px', fontSize: '0.8rem' }} onClick={handleAddSubmit}>✓</button>
-              <button className="btn-danger" style={{ padding: '2px 6px', fontSize: '0.8rem' }} onClick={() => setAddingMetric(false)}>✕</button>
-            </div>
-          </div>
+          <InlineAlertForm
+            metrics={metrics}
+            onSubmit={(selectedMetric, selectedOperator, targetValue, alertType) => {
+              onAddInline(symbol, selectedMetric, selectedOperator, targetValue, alertType);
+              setAddingMetric(false);
+            }}
+            onCancel={() => setAddingMetric(false)}
+          />
         )}
 
         {data.alerts && data.alerts.length > 0 ? (

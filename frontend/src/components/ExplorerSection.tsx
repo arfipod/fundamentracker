@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MetricChart } from './MetricChart';
+import { MetricSelect } from './MetricSelect';
 import { apiFetch } from '../lib/apiClient';
+import { getMetricLabel, type MetricCatalogItem } from '../types/metrics';
+
+interface ExplorerSectionProps {
+  metrics: MetricCatalogItem[];
+}
 
 /**
  * ExplorerSection component allows users to search for any stock ticker
@@ -9,7 +15,7 @@ import { apiFetch } from '../lib/apiClient';
  * 
  * @returns {JSX.Element} The rendered ExplorerSection component
  */
-export function ExplorerSection() {
+export function ExplorerSection({ metrics }: ExplorerSectionProps) {
   const [ticker, setTicker] = useState('AAPL');
   const [metric, setMetric] = useState('price');
   
@@ -29,6 +35,13 @@ export function ExplorerSection() {
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
+
+  useEffect(() => {
+    const historyMetrics = metrics.filter(item => item.supported_for_history);
+    if (historyMetrics.length > 0 && !historyMetrics.some(item => item.key === metric)) {
+      setMetric(historyMetrics[0].key);
+    }
+  }, [metrics, metric]);
 
   useEffect(() => {
     const fetchSearch = async () => {
@@ -121,20 +134,7 @@ export function ExplorerSection() {
           </div>
           <div className="form-group">
             <label>Metric</label>
-            <select value={metric} onChange={e => setMetric(e.target.value)}>
-              <option value="pe">PE</option>
-              <option value="fpe">FPE</option>
-              <option value="pb">PB</option>
-              <option value="evebitda">EV/EBITDA</option>
-              <option value="roe">ROE</option>
-              <option value="price">Price</option>
-              <option value="roic">ROIC</option>
-              <option value="dividendyield">Dividend Yield</option>
-              <option value="payoutratio">Payout Ratio</option>
-              <option value="debttoequity">Debt to Equity</option>
-              <option value="profitmargins">Profit Margins</option>
-              <option value="operatingmargins">Operating Margins</option>
-            </select>
+            <MetricSelect metrics={metrics} value={metric} onChange={setMetric} support="history" />
           </div>
           <button type="submit" className="btn-primary" disabled={loading}>
             {loading ? 'Loading...' : 'Explore'}
@@ -144,7 +144,7 @@ export function ExplorerSection() {
 
       <div className="explorer-content">
         <div className="current-value-card">
-          <h3>Current {metric.toUpperCase()}</h3>
+          <h3>Current {getMetricLabel(metrics, metric)}</h3>
           <div className="value">
             {currentValue !== null && currentValue !== undefined 
               ? (typeof currentValue === 'number' ? currentValue.toLocaleString(undefined, { maximumFractionDigits: 4 }) : currentValue) 

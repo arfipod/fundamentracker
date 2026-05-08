@@ -52,6 +52,16 @@ def test_sensitive_read_endpoints_require_api_token(monkeypatch):
         assert response.status_code == 401, f"GET {path} should require auth"
 
 
+def test_metric_catalog_is_public(monkeypatch):
+    monkeypatch.setenv("API_AUTH_TOKEN", "test-token")
+    client = TestClient(app)
+
+    response = client.get("/metrics/catalog")
+
+    assert response.status_code == 200
+    assert any(metric["key"] == "price" for metric in response.json())
+
+
 def test_invalid_api_token_returns_401(monkeypatch):
     monkeypatch.setenv("API_AUTH_TOKEN", "test-token")
     client = TestClient(app)

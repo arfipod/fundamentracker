@@ -97,6 +97,7 @@ def test_registered_route_smoke_table():
         ("GET", "/server-time"),
         ("GET", "/search"),
         ("GET", "/data/providers/health"),
+        ("GET", "/metrics/catalog"),
         ("GET", "/metric-current"),
         ("GET", "/history"),
         ("GET", "/market-overview"),
@@ -135,6 +136,9 @@ def test_route_smoke_responses(monkeypatch):
     assert client.get("/data/providers/health", headers=AUTH_HEADER).json() == [
         {"provider": "fake", "status": "ok"}
     ]
+    catalog = client.get("/metrics/catalog").json()
+    assert {metric["key"] for metric in catalog} >= {"pe", "fpe", "pb", "evebitda", "roe", "price"}
+    assert catalog == sorted(catalog, key=lambda metric: (metric["category"], metric["label"]))
     assert client.get(
         "/metric-current?ticker=aapl&metric=roe",
         headers=AUTH_HEADER,

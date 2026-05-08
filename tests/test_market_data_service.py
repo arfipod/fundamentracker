@@ -281,6 +281,49 @@ def test_metric_current_endpoint_uses_market_data_service(monkeypatch):
     }
 
 
+def test_metric_current_endpoint_rejects_unsupported_metric(monkeypatch):
+    class FakeMarketDataService:
+        def get_metric_snapshot(self, symbol, metric):
+            raise AssertionError("Unsupported metrics must not call market data")
+
+    monkeypatch.setattr(api_module, "market_data_service", FakeMarketDataService())
+    monkeypatch.setenv("API_AUTH_TOKEN", "test-token")
+
+    client = TestClient(app)
+    response = client.get("/metric-current?ticker=aapl&metric=notreal", headers=AUTH_HEADER)
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Unsupported metric: notreal"}
+
+
+def test_metric_catalog_endpoint_returns_current_metrics(monkeypatch):
+    monkeypatch.setenv("API_AUTH_TOKEN", "test-token")
+
+    client = TestClient(app)
+    response = client.get("/metrics/catalog")
+
+    assert response.status_code == 200
+    catalog = response.json()
+    assert {metric["key"] for metric in catalog} == {
+        "pe",
+        "fpe",
+        "pb",
+        "evebitda",
+        "roe",
+        "price",
+        "roic",
+        "dividendyield",
+        "payoutratio",
+        "debttoequity",
+        "profitmargins",
+        "operatingmargins",
+    }
+    assert catalog == sorted(catalog, key=lambda metric: (metric["category"], metric["label"]))
+    assert all(metric["supported_for_alerts"] for metric in catalog)
+    assert all(metric["supported_for_history"] for metric in catalog)
+    assert next(metric for metric in catalog if metric["key"] == "pe")["label"] == "Trailing P/E"
+
+
 def test_provider_health_endpoint_uses_market_data_service(monkeypatch):
     class FakeMarketDataService:
         def get_provider_health(self):

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { Watchlist } from '../types/watchlist';
+import type { MetricCatalogItem } from '../types/metrics';
 import { TickerRow } from './TickerRow';
 import { TickerCard } from './TickerCard';
 
@@ -17,6 +18,7 @@ import { TickerCard } from './TickerCard';
 interface Props {
   watchlist: Watchlist | null;
   loading: boolean;
+  metrics: MetricCatalogItem[];
   onDeleteTicker: (ticker: string) => void;
   onAddInline: (ticker: string, metric: string, operator: string, val: number, alertType?: string) => void;
   onUpdateAlert: (alertId: string, val: number) => void;
@@ -38,6 +40,7 @@ type ViewMode = 'details' | 'grid';
 export function WatchlistSection({
   watchlist,
   loading,
+  metrics,
   onDeleteTicker,
   onAddInline,
   onUpdateAlert,
@@ -190,6 +193,7 @@ export function WatchlistSection({
                         key={symbol}
                         symbol={symbol}
                         data={data}
+                        metrics={metrics}
                         onDeleteTicker={onDeleteTicker}
                         onAddInline={onAddInline}
                         onUpdateAlert={onUpdateAlert}
@@ -207,6 +211,7 @@ export function WatchlistSection({
                     key={symbol}
                     symbol={symbol}
                     data={data}
+                    metrics={metrics}
                     onDeleteTicker={onDeleteTicker}
                     onAddInline={onAddInline}
                     onUpdateAlert={onUpdateAlert}

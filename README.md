@@ -193,7 +193,9 @@ docker compose -f docker-compose.dev.yml up --build api frontend
 ## Supported Alert Metrics
 
 The live yfinance metric catalog is defined in
-`api/market_data/metric_definitions.py`:
+`api/market_data/metric_definitions.py` and exposed to clients through public
+`GET /metrics/catalog`. API calls reject unsupported metric keys instead of
+falling back to price.
 
 - `pe` (Trailing P/E)
 - `fpe` (Forward P/E)
