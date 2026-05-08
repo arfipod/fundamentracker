@@ -49,6 +49,7 @@ def test_sensitive_read_endpoints_require_api_token(monkeypatch):
         "/tags",
         "/scan-settings",
         "/data/providers/health",
+        "/fundamentals/sec/AAPL",
         "/metric-current?ticker=AAPL&metric=pe",
         "/history?ticker=AAPL&metric=pe",
         "/health/ready",

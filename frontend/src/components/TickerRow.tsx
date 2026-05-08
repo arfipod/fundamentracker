@@ -5,8 +5,10 @@ import type { AiValuationResponse } from '../types/valuation';
 import { AlertItem } from './AlertItem';
 import { AiValuationPanel } from './AiValuationPanel';
 import { InlineAlertForm } from './InlineAlertForm';
+import { AuditedSecFactsPanel } from './AuditedSecFactsPanel';
 import { apiFetch } from '../lib/apiClient';
 import { parseAiValuationResponse } from '../lib/valuation';
+import { useSecFacts } from '../hooks/useSecFacts';
 
 interface Props {
   symbol: string;
@@ -28,6 +30,8 @@ export function TickerRow({ symbol, data, metrics, onDeleteTicker, onAddInline, 
   const [newTag, setNewTag] = useState('');
   const [aiValuation, setAiValuation] = useState<AiValuationResponse | string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [showSecFacts, setShowSecFacts] = useState(false);
+  const secFacts = useSecFacts(symbol);
 
   const handleAddTag = () => {
     const tag = newTag.trim().toLowerCase();
@@ -36,6 +40,14 @@ export function TickerRow({ symbol, data, metrics, onDeleteTicker, onAddInline, 
     }
     setNewTag('');
     setAddingTag(false);
+  };
+
+  const handleSecFacts = () => {
+    const nextVisible = !showSecFacts;
+    setShowSecFacts(nextVisible);
+    if (nextVisible) {
+      secFacts.load();
+    }
   };
 
   const handleAiValuation = async () => {
@@ -159,6 +171,16 @@ export function TickerRow({ symbol, data, metrics, onDeleteTicker, onAddInline, 
             >
               {loadingAi ? '...' : 'AI'}
             </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleSecFacts}
+              disabled={secFacts.loading}
+              title="Audited SEC Facts"
+              style={{ padding: '4px 8px', fontSize: '0.75rem', fontWeight: 'bold' }}
+            >
+              {secFacts.loading ? '...' : 'SEC'}
+            </button>
             <button 
               type="button"
               className="btn-danger" 
@@ -178,8 +200,19 @@ export function TickerRow({ symbol, data, metrics, onDeleteTicker, onAddInline, 
               </svg>
             </button>
           </div>
-        </td>
-      </tr>
+          </td>
+        </tr>
+      {showSecFacts && (
+        <tr className="sec-facts-row">
+          <td colSpan={4}>
+            <AuditedSecFactsPanel
+              data={secFacts.data}
+              loading={secFacts.loading}
+              error={secFacts.error}
+            />
+          </td>
+        </tr>
+      )}
       {aiValuation && (
         <tr className="ai-valuation-row">
           <td colSpan={4}>

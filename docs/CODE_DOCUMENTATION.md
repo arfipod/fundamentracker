@@ -43,8 +43,8 @@ Active route modules:
   alert listing, and alert history.
 - `scans.py`: manual scan, scan settings, and server time.
 - `signals.py`: Signal Inbox listing plus acknowledge and dismiss actions.
-- `market.py`: symbol search, provider health, current metrics, history, and
-  market overview.
+- `market.py`: symbol search, provider health, SEC audited fundamentals,
+  current metrics, history, and market overview.
 - `valuation.py`: Gemini valuation endpoint.
 - `ops.py`: protected operations status snapshot.
 
@@ -60,7 +60,8 @@ Service modules hold behavior that has been split out of routes:
   alert listing, and history reads.
 - `signals.py`: open/all signal reads and acknowledge/dismiss mutations.
 - `scans.py`: scan execution, scan interval loop, and Telegram polling startup.
-- `market.py`: market-data endpoint behavior.
+- `market.py`: market-data endpoint behavior, including direct SEC audited fact
+  retrieval, SEC snapshot caching, and SEC provider-health updates.
 - `health.py`: health payload formatting.
 - `ops.py`: operations status payload.
 - `valuation.py`: backend valuation data-pack assembly, Gemini JSON prompt,
@@ -101,8 +102,8 @@ Repository watchlist and alert-list reads exclude soft-deleted alerts.
 - `normalizers.py`: symbol, numeric, history, and calculated fundamental helpers.
 - `providers/yfinance_provider.py`: default live provider.
 - `providers/sec_edgar_provider.py`: SEC company facts provider for selected US
-  audited fundamentals. It is implemented and tested but not selected by the
-  default live service.
+  audited fundamentals. It is used directly by `GET /fundamentals/sec/{ticker}`
+  and is not selected by the default yfinance-backed live service.
 
 ### `api/scanner.py` and `api/alert_evaluator.py`
 

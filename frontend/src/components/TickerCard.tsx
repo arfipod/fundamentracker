@@ -5,8 +5,10 @@ import type { AiValuationResponse } from '../types/valuation';
 import { AlertItem } from './AlertItem';
 import { AiValuationPanel } from './AiValuationPanel';
 import { InlineAlertForm } from './InlineAlertForm';
+import { AuditedSecFactsPanel } from './AuditedSecFactsPanel';
 import { apiFetch } from '../lib/apiClient';
 import { parseAiValuationResponse } from '../lib/valuation';
+import { useSecFacts } from '../hooks/useSecFacts';
 
 /**
  * Props for the TickerCard component.
@@ -47,6 +49,8 @@ export function TickerCard({ symbol, data, metrics, onDeleteTicker, onAddInline,
   const [newTag, setNewTag] = useState('');
   const [aiValuation, setAiValuation] = useState<AiValuationResponse | string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [showSecFacts, setShowSecFacts] = useState(false);
+  const secFacts = useSecFacts(symbol);
 
   const handleAddTag = () => {
     const tag = newTag.trim().toLowerCase();
@@ -55,6 +59,14 @@ export function TickerCard({ symbol, data, metrics, onDeleteTicker, onAddInline,
     }
     setNewTag('');
     setAddingTag(false);
+  };
+
+  const handleSecFacts = () => {
+    const nextVisible = !showSecFacts;
+    setShowSecFacts(nextVisible);
+    if (nextVisible) {
+      secFacts.load();
+    }
   };
 
   const handleAiValuation = async () => {
@@ -160,9 +172,20 @@ export function TickerCard({ symbol, data, metrics, onDeleteTicker, onAddInline,
             <button type="button" onClick={handleAiValuation} disabled={loadingAi} style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', cursor: 'pointer', borderRadius: '4px', padding: '2px 8px', fontSize: '0.8rem', fontWeight: 'bold' }}>
               {loadingAi ? '...' : 'AI Valuation'}
             </button>
+            <button type="button" onClick={handleSecFacts} disabled={secFacts.loading} style={{ background: 'transparent', border: '1px solid rgba(148, 163, 184, 0.6)', color: '#cbd5e1', cursor: 'pointer', borderRadius: '4px', padding: '2px 8px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+              {secFacts.loading ? '...' : showSecFacts ? 'Hide SEC' : 'SEC Facts'}
+            </button>
             <button type="button" onClick={() => setAddingMetric(true)} style={{ background: 'transparent', border: '1px dashed var(--primary)', color: 'var(--primary)', cursor: 'pointer', borderRadius: '4px', padding: '2px 8px', fontSize: '0.8rem', fontWeight: 'bold' }}>+ Metric</button>
           </div>
         </div>
+
+        {showSecFacts && (
+          <AuditedSecFactsPanel
+            data={secFacts.data}
+            loading={secFacts.loading}
+            error={secFacts.error}
+          />
+        )}
 
         {aiValuation && (
           <AiValuationPanel

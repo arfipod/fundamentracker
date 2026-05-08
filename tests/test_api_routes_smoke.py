@@ -103,6 +103,7 @@ def test_registered_route_smoke_table():
         ("GET", "/search"),
         ("GET", "/data/providers/health"),
         ("GET", "/metrics/catalog"),
+        ("GET", "/fundamentals/sec/{ticker}"),
         ("GET", "/metric-current"),
         ("GET", "/history"),
         ("GET", "/market-overview"),
