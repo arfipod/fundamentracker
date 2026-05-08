@@ -91,6 +91,12 @@ CREATE TABLE IF NOT EXISTS alerts (
   reference_value NUMERIC,
   alert_type VARCHAR DEFAULT 'absolute',
   current_value NUMERIC,
+  current_source VARCHAR,
+  current_as_of_date DATE,
+  current_fetched_at TIMESTAMPTZ,
+  current_expires_at TIMESTAMPTZ,
+  current_stale BOOLEAN,
+  current_confidence NUMERIC,
   deleted_at TIMESTAMPTZ,
   restored_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -108,6 +114,9 @@ CREATE INDEX IF NOT EXISTS idx_alerts_deleted_at ON alerts(deleted_at);
 Normal watchlist and alert reads exclude rows with `deleted_at IS NOT NULL`.
 `POST /alerts/{alert_id}/restore` clears `deleted_at`, sets `restored_at`, and
 keeps the original alert ID, target, operator, alert type, and reference value.
+`current_*` columns store the last scanner-observed metric value and cache
+metadata from `MarketDataService.get_metric_snapshot()`, including source,
+freshness timestamps, stale state, and confidence.
 
 ### `alert_history`
 

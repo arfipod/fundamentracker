@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MetricChart } from './MetricChart';
 import { MetricSelect } from './MetricSelect';
+import { DataQualityBadge } from './DataQualityBadge';
 import { apiFetch } from '../lib/apiClient';
 import { getMetricLabel, type MetricCatalogItem } from '../types/metrics';
+import type { DataQualityMetadata } from '../types/watchlist';
 
 interface ExplorerSectionProps {
   metrics: MetricCatalogItem[];
+}
+
+interface CurrentMetric extends DataQualityMetadata {
+  value: number | null;
 }
 
 /**
@@ -24,6 +30,7 @@ export function ExplorerSection({ metrics }: ExplorerSectionProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [currentValue, setCurrentValue] = useState<number | null>(null);
+  const [currentMetric, setCurrentMetric] = useState<CurrentMetric | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -79,12 +86,23 @@ export function ExplorerSection({ metrics }: ExplorerSectionProps) {
       if (metricRes.ok) {
         const metricData = await metricRes.json();
         setCurrentValue(metricData.value);
+        setCurrentMetric({
+          value: metricData.value,
+          source: metricData.source,
+          as_of_date: metricData.as_of_date,
+          fetched_at: metricData.fetched_at,
+          expires_at: metricData.expires_at,
+          stale: metricData.stale,
+          confidence: metricData.confidence,
+        });
       } else {
         setCurrentValue(null);
+        setCurrentMetric(null);
       }
     } catch (err: any) {
       console.error(err.message || "An error occurred");
       setCurrentValue(null);
+      setCurrentMetric(null);
     } finally {
       setLoading(false);
     }
@@ -150,6 +168,18 @@ export function ExplorerSection({ metrics }: ExplorerSectionProps) {
               ? (typeof currentValue === 'number' ? currentValue.toLocaleString(undefined, { maximumFractionDigits: 4 }) : currentValue) 
               : 'N/A'}
           </div>
+          {currentMetric && (
+            <DataQualityBadge
+              metadata={{
+                source: currentMetric.source,
+                as_of_date: currentMetric.as_of_date,
+                fetched_at: currentMetric.fetched_at,
+                expires_at: currentMetric.expires_at,
+                stale: currentMetric.stale,
+                confidence: currentMetric.confidence,
+              }}
+            />
+          )}
         </div>
 
         <div className="chart-container">

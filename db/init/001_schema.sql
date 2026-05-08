@@ -38,6 +38,12 @@ CREATE TABLE IF NOT EXISTS alerts (
   reference_value NUMERIC,
   alert_type VARCHAR DEFAULT 'absolute',
   current_value NUMERIC,
+  current_source VARCHAR,
+  current_as_of_date DATE,
+  current_fetched_at TIMESTAMPTZ,
+  current_expires_at TIMESTAMPTZ,
+  current_stale BOOLEAN,
+  current_confidence NUMERIC,
   deleted_at TIMESTAMPTZ,
   restored_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()

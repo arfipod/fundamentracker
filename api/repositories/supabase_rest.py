@@ -27,6 +27,8 @@ class SupabaseRestRepository:
     ALERT_COLUMNS = (
         "id,ticker_symbol,metric,operator,target_value,is_active,"
         "is_triggered,reference_value,alert_type,current_value,"
+        "current_source,current_as_of_date,current_fetched_at,"
+        "current_expires_at,current_stale,current_confidence,"
         "deleted_at,restored_at,created_at"
     )
     TICKER_COLUMNS = (
@@ -438,10 +440,18 @@ class SupabaseRestRepository:
             or []
         )
 
-    def update_alert_status(self, alert_id, is_triggered, current_value=None):
+    def update_alert_status(self, alert_id, is_triggered, current_value=None, current_metadata=None):
+        current_metadata = current_metadata or {}
         payload = {"is_triggered": is_triggered}
         if current_value is not None:
             payload["current_value"] = float(current_value)
+            payload["current_source"] = current_metadata.get("source")
+            payload["current_as_of_date"] = serialize_value(current_metadata.get("as_of_date"))
+            payload["current_fetched_at"] = serialize_value(current_metadata.get("fetched_at"))
+            payload["current_expires_at"] = serialize_value(current_metadata.get("expires_at"))
+            payload["current_stale"] = current_metadata.get("stale")
+            payload["current_confidence"] = current_metadata.get("confidence")
+            payload = {key: value for key, value in payload.items() if value is not None}
         headers = {"Prefer": "return=representation"}
         return self._req(
             "PATCH",

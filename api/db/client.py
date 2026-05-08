@@ -164,8 +164,8 @@ def get_deleted_alerts_db():
     return _repository().get_deleted_alerts_db()
 
 
-def update_alert_status(alert_id, is_triggered, current_value=None):
-    return _repository().update_alert_status(alert_id, is_triggered, current_value)
+def update_alert_status(alert_id, is_triggered, current_value=None, current_metadata=None):
+    return _repository().update_alert_status(alert_id, is_triggered, current_value, current_metadata)
 
 
 def delete_alert_db(alert_id=None, symbol=None, metric=None):

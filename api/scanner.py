@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from alert_evaluator import calculate_relative_diff, evaluate_alert
 from market_data.service import MarketDataService, get_market_data_service
@@ -12,6 +13,19 @@ def _provider_source(market_data: MarketDataService) -> str | None:
     if provider is None:
         return None
     return getattr(provider, "source", provider.__class__.__name__)
+
+
+def _snapshot_metadata(snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    if not snapshot:
+        return {}
+    return {
+        "source": snapshot.get("source"),
+        "as_of_date": snapshot.get("as_of_date"),
+        "fetched_at": snapshot.get("fetched_at"),
+        "expires_at": snapshot.get("expires_at"),
+        "stale": snapshot.get("stale", False),
+        "confidence": snapshot.get("confidence"),
+    }
 
 
 def run_fundamental_scan(
@@ -42,8 +56,10 @@ def run_fundamental_scan(
                 # Better left as is.
                 continue
                 
+            metric_snapshot = None
             try:
-                current_val = market_data.get_metric(ticker, alert["metric"])
+                metric_snapshot = market_data.get_metric_snapshot(ticker, alert["metric"])
+                current_val = metric_snapshot.get("value")
             except Exception as error:
                 logger.warning(
                     "Failed to fetch metric for alert",
@@ -56,6 +72,7 @@ def run_fundamental_scan(
                     exc_info=error,
                 )
                 current_val = None
+            current_metadata = _snapshot_metadata(metric_snapshot)
             if current_val is None:
                 logger.info(
                     "Skipping alert because current metric value is missing",
@@ -77,7 +94,7 @@ def run_fundamental_scan(
             )
                 
             # Update DB with new value and trigger state
-            db.update_alert_status(alert["id"], is_triggered, current_val)
+            db.update_alert_status(alert["id"], is_triggered, current_val, current_metadata)
             logger.info(
                 "Alert evaluated",
                 extra={
@@ -112,7 +129,9 @@ def run_fundamental_scan(
                         "alert_type": alert.get("alert_type") or "absolute",
                         "reference_value": alert.get("reference_value"),
                         "current_value": current_val,
-                        "source": _provider_source(market_data),
+                        "source": current_metadata.get("source") or _provider_source(market_data),
+                        "as_of_date": current_metadata.get("as_of_date"),
+                        "fetched_at": current_metadata.get("fetched_at"),
                         "message": msg,
                     },
                 )

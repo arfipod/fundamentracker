@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Alert } from '../types/watchlist';
+import { DataQualityBadge } from './DataQualityBadge';
 import { MetricChart } from './MetricChart';
 
 /**
@@ -72,6 +73,22 @@ export function AlertItem({ symbol, alert, onUpdate, onDelete, onToggle }: Props
 
   const conditionMet = isConditionMet();
   const valueColor = conditionMet === true ? '#10b981' : conditionMet === false ? '#ef4444' : '#94a3b8';
+  const qualityMetadata = {
+    source: alert.current_source,
+    as_of_date: alert.current_as_of_date,
+    fetched_at: alert.current_fetched_at,
+    expires_at: alert.current_expires_at,
+    stale: alert.current_stale,
+    confidence: alert.current_confidence,
+  };
+  const hasQualityMetadata = Boolean(
+      qualityMetadata.source ||
+      qualityMetadata.as_of_date ||
+      qualityMetadata.fetched_at ||
+      qualityMetadata.expires_at ||
+      (qualityMetadata.stale !== undefined && qualityMetadata.stale !== null) ||
+      (qualityMetadata.confidence !== undefined && qualityMetadata.confidence !== null),
+  );
 
   return (
     <li style={{ 
@@ -134,6 +151,8 @@ export function AlertItem({ symbol, alert, onUpdate, onDelete, onToggle }: Props
             (Current: {alert.current_value.toFixed(2)})
           </span>
         )}
+
+        {hasQualityMetadata && <DataQualityBadge metadata={qualityMetadata} />}
         
         <div style={{ position: 'absolute', right: '0', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '4px' }}>
           <button

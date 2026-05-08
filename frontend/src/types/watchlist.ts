@@ -1,3 +1,12 @@
+export interface DataQualityMetadata {
+  source?: string | null;
+  as_of_date?: string | null;
+  fetched_at?: string | null;
+  expires_at?: string | null;
+  stale?: boolean | null;
+  confidence?: number | null;
+}
+
 export interface Alert {
   id: string;
   metric: string;
@@ -8,6 +17,12 @@ export interface Alert {
   reference_value?: number | null;
   alert_type?: string;
   current_value?: number | null;
+  current_source?: string | null;
+  current_as_of_date?: string | null;
+  current_fetched_at?: string | null;
+  current_expires_at?: string | null;
+  current_stale?: boolean | null;
+  current_confidence?: number | null;
 }
 
 export interface WatchlistTag {

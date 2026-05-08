@@ -22,6 +22,8 @@ class PostgresRepository:
     ALERT_COLUMNS = (
         "id, ticker_symbol, metric, operator, target_value, is_active, "
         "is_triggered, reference_value, alert_type, current_value, "
+        "current_source, current_as_of_date, current_fetched_at, "
+        "current_expires_at, current_stale, current_confidence, "
         "deleted_at, restored_at, created_at"
     )
     TICKER_COLUMNS = (
@@ -393,6 +395,8 @@ class PostgresRepository:
             VALUES (%s, %s, %s, %s, %s, %s, TRUE, FALSE)
             RETURNING id, ticker_symbol, metric, operator, target_value, is_active,
                       is_triggered, reference_value, alert_type, current_value,
+                      current_source, current_as_of_date, current_fetched_at,
+                      current_expires_at, current_stale, current_confidence,
                       deleted_at, restored_at, created_at
             """,
             (symbol, metric, operator, target_value, alert_type, reference_value),
@@ -407,6 +411,8 @@ class PostgresRepository:
               AND deleted_at IS NULL
             RETURNING id, ticker_symbol, metric, operator, target_value, is_active,
                       is_triggered, reference_value, alert_type, current_value,
+                      current_source, current_as_of_date, current_fetched_at,
+                      current_expires_at, current_stale, current_confidence,
                       deleted_at, restored_at, created_at
             """,
             (float(new_target), alert_id),
@@ -421,6 +427,8 @@ class PostgresRepository:
               AND deleted_at IS NULL
             RETURNING id, ticker_symbol, metric, operator, target_value, is_active,
                       is_triggered, reference_value, alert_type, current_value,
+                      current_source, current_as_of_date, current_fetched_at,
+                      current_expires_at, current_stale, current_confidence,
                       deleted_at, restored_at, created_at
             """,
             (is_active, alert_id),
@@ -434,6 +442,8 @@ class PostgresRepository:
             WHERE id = %s
             RETURNING id, ticker_symbol, metric, operator, target_value, is_active,
                       is_triggered, reference_value, alert_type, current_value,
+                      current_source, current_as_of_date, current_fetched_at,
+                      current_expires_at, current_stale, current_confidence,
                       deleted_at, restored_at, created_at
             """,
             (alert_id,),
@@ -449,7 +459,8 @@ class PostgresRepository:
             """
         )
 
-    def update_alert_status(self, alert_id, is_triggered, current_value=None):
+    def update_alert_status(self, alert_id, is_triggered, current_value=None, current_metadata=None):
+        current_metadata = current_metadata or {}
         if current_value is None:
             return self._query_all(
                 """
@@ -459,6 +470,8 @@ class PostgresRepository:
                   AND deleted_at IS NULL
                 RETURNING id, ticker_symbol, metric, operator, target_value, is_active,
                           is_triggered, reference_value, alert_type, current_value,
+                          current_source, current_as_of_date, current_fetched_at,
+                          current_expires_at, current_stale, current_confidence,
                           deleted_at, restored_at, created_at
                 """,
                 (is_triggered, alert_id),
@@ -467,14 +480,33 @@ class PostgresRepository:
         return self._query_all(
             """
             UPDATE alerts
-            SET is_triggered = %s, current_value = %s
+            SET is_triggered = %s,
+                current_value = %s,
+                current_source = %s,
+                current_as_of_date = %s,
+                current_fetched_at = %s,
+                current_expires_at = %s,
+                current_stale = %s,
+                current_confidence = %s
             WHERE id = %s
               AND deleted_at IS NULL
             RETURNING id, ticker_symbol, metric, operator, target_value, is_active,
                       is_triggered, reference_value, alert_type, current_value,
+                      current_source, current_as_of_date, current_fetched_at,
+                      current_expires_at, current_stale, current_confidence,
                       deleted_at, restored_at, created_at
             """,
-            (is_triggered, float(current_value), alert_id),
+            (
+                is_triggered,
+                float(current_value),
+                current_metadata.get("source"),
+                current_metadata.get("as_of_date"),
+                current_metadata.get("fetched_at"),
+                current_metadata.get("expires_at"),
+                current_metadata.get("stale"),
+                current_metadata.get("confidence"),
+                alert_id,
+            ),
         )
 
     def delete_alert_db(self, alert_id=None, symbol=None, metric=None):

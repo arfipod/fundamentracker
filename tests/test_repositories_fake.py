@@ -59,6 +59,12 @@ def alert_rows_from_watchlist(watchlist):
             "reference_value": alert["reference_value"],
             "alert_type": alert["alert_type"],
             "current_value": alert["current_value"],
+            "current_source": alert.get("current_source"),
+            "current_as_of_date": alert.get("current_as_of_date"),
+            "current_fetched_at": alert.get("current_fetched_at"),
+            "current_expires_at": alert.get("current_expires_at"),
+            "current_stale": alert.get("current_stale"),
+            "current_confidence": alert.get("current_confidence"),
             "deleted_at": alert.get("deleted_at"),
             "restored_at": alert.get("restored_at"),
         }

@@ -30,7 +30,9 @@ icons.
 - `src/components/TickerRow.tsx`: table-row ticker view.
 - `src/components/TickerCard.tsx`: card ticker view.
 - `src/components/AlertItem.tsx`: alert display, target edit, toggle, delete,
-  relative-diff display, and chart expansion.
+  relative-diff display, data-quality badge, and chart expansion.
+- `src/components/DataQualityBadge.tsx`: compact source, stale, timestamp, and
+  confidence display for current metric values.
 - `src/components/MetricChart.tsx`: historical metric chart using Recharts.
 - `src/components/ExplorerSection.tsx`: standalone ticker/metric explorer.
 - `src/components/DashboardHeader.tsx`: scan controls and timing display.
@@ -116,6 +118,9 @@ moment.
 
 - Tags and basic ticker metadata are persisted by the backend and returned in
   the watchlist response.
+- Alert current values and Explorer current metric values show data-quality
+  metadata from the backend, including source, stale status, fetched/as-of
+  timestamps, expiry, and confidence when available.
 - Watchlist reads and all mutable operations use `apiFetch`.
 - Alert update/delete/toggle calls use alert IDs.
 - The AI valuation UI expects the backend response shape

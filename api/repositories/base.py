@@ -101,6 +101,7 @@ class AlertRepository(Protocol):
         alert_id: str,
         is_triggered: bool,
         current_value: float | None = None,
+        current_metadata: dict[str, Any] | None = None,
     ) -> Any:
         ...
 
@@ -270,6 +271,12 @@ def build_watchlist(
                 "reference_value": to_float(alert.get("reference_value")),
                 "alert_type": alert.get("alert_type") or "absolute",
                 "current_value": to_float(alert.get("current_value")),
+                "current_source": alert.get("current_source"),
+                "current_as_of_date": serialize_value(alert.get("current_as_of_date")),
+                "current_fetched_at": serialize_value(alert.get("current_fetched_at")),
+                "current_expires_at": serialize_value(alert.get("current_expires_at")),
+                "current_stale": alert.get("current_stale"),
+                "current_confidence": to_float(alert.get("current_confidence")),
             }
         )
 
