@@ -22,7 +22,7 @@ def perform_scan(db_client: Any) -> None:
             return
         send_message(requests, telegram_api, chat_id, text)
 
-    run_fundamental_scan(send_telegram_alert)
+    run_fundamental_scan(send_telegram_alert, repository=db_client)
     db_client.update_scan_settings_db(last_scan_time=int(time.time()))
 
 

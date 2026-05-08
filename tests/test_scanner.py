@@ -20,25 +20,27 @@ class FakeMarketDataService:
         return self.values.get(key)
 
 
-def install_fake_scanner_db(monkeypatch, watchlist):
+class FakeScannerRepository:
+    def __init__(self, watchlist, updates, history):
+        self.watchlist = watchlist
+        self.updates = updates
+        self.history = history
+
+    def get_watchlist(self):
+        return deepcopy(self.watchlist)
+
+    def update_alert_status(self, alert_id, is_triggered, current_value):
+        self.updates.append((alert_id, is_triggered, current_value))
+
+    def log_alert_history(self, alert_id, current_value, target):
+        self.history.append((alert_id, current_value, target))
+
+
+def install_fake_scanner_db(watchlist):
     updates = []
     history = []
-
-    monkeypatch.setattr(scanner.db, "get_watchlist", lambda: deepcopy(watchlist))
-    monkeypatch.setattr(
-        scanner.db,
-        "update_alert_status",
-        lambda alert_id, is_triggered, current_value: updates.append(
-            (alert_id, is_triggered, current_value)
-        ),
-    )
-    monkeypatch.setattr(
-        scanner.db,
-        "log_alert_history",
-        lambda alert_id, current_value, target: history.append((alert_id, current_value, target)),
-    )
-
-    return updates, history
+    repository = FakeScannerRepository(watchlist, updates, history)
+    return repository, updates, history
 
 
 def test_scanner_triggers_absolute_alert_on_false_to_true_transition(monkeypatch):
@@ -59,12 +61,13 @@ def test_scanner_triggers_absolute_alert_on_false_to_true_transition(monkeypatch
             ],
         }
     }
-    updates, history = install_fake_scanner_db(monkeypatch, watchlist)
+    repository, updates, history = install_fake_scanner_db(watchlist)
     send_alert = Mock()
 
     scanner.run_fundamental_scan(
         send_alert,
         market_data_service=FakeMarketDataService({("AAPL", "pe"): 18.0}),
+        repository=repository,
     )
 
     assert updates == [("alert-1", True, 18.0)]
@@ -77,12 +80,13 @@ def test_scanner_evaluates_duplicate_same_metric_alerts_by_alert_id(
     monkeypatch,
     duplicate_pe_watchlist,
 ):
-    updates, history = install_fake_scanner_db(monkeypatch, duplicate_pe_watchlist)
+    repository, updates, history = install_fake_scanner_db(duplicate_pe_watchlist)
     send_alert = Mock()
 
     scanner.run_fundamental_scan(
         send_alert,
         market_data_service=FakeMarketDataService({("AAPL", "pe"): 45.0}),
+        repository=repository,
     )
 
     assert updates == [
@@ -112,12 +116,13 @@ def test_scanner_triggers_relative_alert_using_reference_value(monkeypatch):
             ],
         }
     }
-    updates, history = install_fake_scanner_db(monkeypatch, watchlist)
+    repository, updates, history = install_fake_scanner_db(watchlist)
     send_alert = Mock()
 
     scanner.run_fundamental_scan(
         send_alert,
         market_data_service=FakeMarketDataService({("AAPL", "price"): 115.0}),
+        repository=repository,
     )
 
     assert updates == [("relative-1", True, 115.0)]
@@ -146,12 +151,13 @@ def test_scanner_does_not_realert_when_alert_is_already_triggered(monkeypatch):
             ],
         }
     }
-    updates, history = install_fake_scanner_db(monkeypatch, watchlist)
+    repository, updates, history = install_fake_scanner_db(watchlist)
     send_alert = Mock()
 
     scanner.run_fundamental_scan(
         send_alert,
         market_data_service=FakeMarketDataService({("AAPL", "pe"): 18.0}),
+        repository=repository,
     )
 
     assert updates == [("alert-1", True, 18.0)]
@@ -177,12 +183,13 @@ def test_scanner_clears_triggered_state_without_logging_transition(monkeypatch):
             ],
         }
     }
-    updates, history = install_fake_scanner_db(monkeypatch, watchlist)
+    repository, updates, history = install_fake_scanner_db(watchlist)
     send_alert = Mock()
 
     scanner.run_fundamental_scan(
         send_alert,
         market_data_service=FakeMarketDataService({("AAPL", "pe"): 25.0}),
+        repository=repository,
     )
 
     assert updates == [("alert-1", False, 25.0)]
@@ -218,11 +225,11 @@ def test_scanner_skips_inactive_alerts_and_missing_provider_values(monkeypatch):
             ],
         }
     }
-    updates, history = install_fake_scanner_db(monkeypatch, watchlist)
+    repository, updates, history = install_fake_scanner_db(watchlist)
     send_alert = Mock()
     service = FakeMarketDataService(values={("AAPL", "price"): None})
 
-    scanner.run_fundamental_scan(send_alert, market_data_service=service)
+    scanner.run_fundamental_scan(send_alert, market_data_service=service, repository=repository)
 
     assert service.calls == [("AAPL", "price")]
     assert updates == []

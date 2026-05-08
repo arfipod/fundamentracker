@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from config import METRICS_MAP, OPERATORS_MAP
 from market_data.service import get_market_data_service
+
 try:
     from watchlist import format_alerts_message, format_watchlist_message
 except Exception as e:
     print(e)
-    
-from db import client as db
+
+from repositories.factory import get_repository
+
+db = get_repository()
 
 HELP_TEXT = """🛠 Commands:
 /add TICKER VALUE (defaults to pe < VALUE)

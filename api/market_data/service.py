@@ -6,11 +6,11 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from db import client as db
 from market_data.metric_definitions import get_metric_definition, is_supported_metric
 from market_data.normalizers import normalize_metric_value, normalize_symbol, to_float
 from market_data.providers.base import MarketDataProvider
 from market_data.providers.yfinance_provider import YFinanceProvider
+from repositories.factory import get_repository
 
 logger = logging.getLogger(__name__)
 DEFAULT_PROVIDER_CONFIDENCE = 0.8
@@ -28,7 +28,7 @@ class MarketDataService:
         from config import get_market_data_ttls
 
         self.provider = provider or YFinanceProvider()
-        self.snapshot_repository = snapshot_repository or db
+        self.snapshot_repository = snapshot_repository or get_repository()
         self.ttl_seconds = get_market_data_ttls()
         if ttl_seconds:
             self.ttl_seconds.update(ttl_seconds)

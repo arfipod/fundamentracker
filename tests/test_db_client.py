@@ -1,6 +1,7 @@
 import pytest
 
 from db import client as db
+from repositories.postgres import PostgresRepository
 
 
 def test_database_backend_defaults_to_supabase_rest(monkeypatch):
@@ -38,9 +39,6 @@ def test_postgres_health_requires_database_url(monkeypatch):
 
 
 def test_postgres_health_uses_connection_check(monkeypatch):
-    monkeypatch.setenv("DATABASE_BACKEND", "postgres")
-    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@postgres:5432/fundamentracker")
-
     class FakeCursor:
         def __enter__(self):
             return self
@@ -65,9 +63,12 @@ def test_postgres_health_uses_connection_check(monkeypatch):
         def cursor(self):
             return FakeCursor()
 
-    monkeypatch.setattr(db, "_connect_postgres", lambda: FakeConnection())
+    repository = PostgresRepository(
+        database_url="postgresql://user:pass@postgres:5432/fundamentracker"
+    )
+    monkeypatch.setattr(repository, "_connect", lambda: FakeConnection())
 
-    assert db.check_database_connectivity() == {"status": "ok", "backend": "postgres"}
+    assert repository.check_connectivity() == {"status": "ok", "backend": "postgres"}
 
 
 def test_wait_for_database_ready_retries_postgres(monkeypatch):

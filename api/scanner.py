@@ -1,15 +1,20 @@
 from alert_evaluator import calculate_relative_diff, evaluate_alert
-from db import client as db
 from market_data.service import MarketDataService, get_market_data_service
+from repositories.factory import get_repository
 
 
-def run_fundamental_scan(send_alert_func, market_data_service: MarketDataService | None = None):
+def run_fundamental_scan(
+    send_alert_func,
+    market_data_service: MarketDataService | None = None,
+    repository=None,
+):
     """
     1) Fetches watchlist from db
     2) Performs logic for each alert
     3) Triggers log & updates if condition met
     """
     market_data = market_data_service or get_market_data_service()
+    db = repository or get_repository()
     watchlist = db.get_watchlist()
     
     symbols = list(watchlist.keys())

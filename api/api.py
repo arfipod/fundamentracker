@@ -15,8 +15,8 @@ if str(SRC_DIR) not in sys.path:
     sys.path.append(str(SRC_DIR))
 
 from config import METRICS_MAP, OPERATORS_MAP, env_flag_enabled, get_cors_allowed_origins
-from db import client as db
 from market_data.service import get_market_data_service
+from repositories.factory import get_repository, is_postgres_backend, wait_for_database_ready
 from routes.alerts import create_router as create_alerts_router
 from routes.health import create_router as create_health_router
 from routes.market import create_router as create_market_router
@@ -47,6 +47,7 @@ app.add_middleware(
 SERVICE_NAME = "fundamentracker-api"
 SERVICE_VERSION = os.getenv("FUNDAMENTRACKER_VERSION") or os.getenv("APP_VERSION")
 bearer_scheme = HTTPBearer(auto_error=False)
+db = get_repository()
 market_data_service = get_market_data_service()
 background_tasks = set()
 
@@ -116,8 +117,8 @@ async def run_periodic_scan() -> None:
 
 @app.on_event("startup")
 async def startup_event():
-    if db.is_postgres_backend():
-        await asyncio.to_thread(db.wait_for_database_ready)
+    if is_postgres_backend():
+        await asyncio.to_thread(wait_for_database_ready)
 
     periodic_scan_task = asyncio.create_task(run_periodic_scan())
     background_tasks.add(periodic_scan_task)
