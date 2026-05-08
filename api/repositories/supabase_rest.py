@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from datetime import datetime
 from typing import Any
 from urllib.parse import quote
@@ -15,6 +16,8 @@ from repositories.base import (
     build_watchlist,
     serialize_value,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SupabaseRestRepository:
@@ -72,9 +75,19 @@ class SupabaseRestRepository:
                 return response.json()
             return True
         except requests.exceptions.RequestException as error:
-            print(f"DB Error: {method} {url} - {error}")
-            if hasattr(error, "response") and error.response is not None:
-                print("Details:", error.response.text)
+            status_code = error.response.status_code if error.response is not None else None
+            response_text = error.response.text[:500] if error.response is not None else None
+            logger.warning(
+                "Supabase REST request failed",
+                extra={
+                    "database_backend": self.backend,
+                    "method": method,
+                    "endpoint": endpoint.split("?")[0],
+                    "status_code": status_code,
+                    "response_text": response_text,
+                },
+                exc_info=error,
+            )
             return [] if method == "GET" else None
 
     def is_configured(self) -> bool:

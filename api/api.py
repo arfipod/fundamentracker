@@ -15,6 +15,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.append(str(SRC_DIR))
 
 from config import METRICS_MAP, OPERATORS_MAP, env_flag_enabled, get_cors_allowed_origins
+from core.logging import configure_logging
 from market_data.service import get_market_data_service
 from repositories.factory import get_repository, is_postgres_backend, wait_for_database_ready
 from routes.alerts import create_router as create_alerts_router
@@ -35,6 +36,9 @@ from services import alerts as alert_service
 from services import health as health_service
 from services import scans as scan_service
 
+SERVICE_NAME = "fundamentracker-api"
+configure_logging(service_name=SERVICE_NAME)
+
 app = FastAPI(title="FundamenTracker API")
 app.add_middleware(
     CORSMiddleware,
@@ -44,7 +48,6 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-SERVICE_NAME = "fundamentracker-api"
 SERVICE_VERSION = os.getenv("FUNDAMENTRACKER_VERSION") or os.getenv("APP_VERSION")
 bearer_scheme = HTTPBearer(auto_error=False)
 db = get_repository()

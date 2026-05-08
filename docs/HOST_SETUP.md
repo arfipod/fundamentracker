@@ -144,6 +144,7 @@ nano .env
 At minimum, change these values:
 
 ```env
+LOG_LEVEL=INFO
 API_AUTH_TOKEN=replace-with-a-long-random-token
 VITE_API_AUTH_TOKEN=replace-with-the-same-token-for-local-frontend-use
 PUBLIC_READY_HEALTH=false
@@ -460,6 +461,14 @@ Supabase users should use the Supabase dashboard for database administration. Th
 
 ## 10. View Logs
 
+The API writes JSON logs to stdout. Set `LOG_LEVEL` in `.env` to `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`, then restart the API after changing it:
+
+```bash
+cd /opt/fundamentracker
+grep '^LOG_LEVEL=' .env
+sudo systemctl restart fundamentracker.service
+```
+
 Docker Compose logs:
 
 ```bash
@@ -467,6 +476,13 @@ cd /opt/fundamentracker
 docker compose -f docker-compose.prod.yml logs --tail=100
 docker compose -f docker-compose.prod.yml logs -f api
 docker compose -f docker-compose.prod.yml logs -f postgres
+```
+
+Filter API logs with `jq` when reading Docker output:
+
+```bash
+docker compose -f docker-compose.prod.yml logs --no-log-prefix api \
+  | jq -r 'select(.ticker=="AAPL" or .alert_id=="alert-id" or .provider=="yfinance")'
 ```
 
 Optional service logs:

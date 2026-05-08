@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 
 DEFAULT_MARKET_OVERVIEW_TICKERS = ["SPY", "QQQ", "DIA"]
+logger = logging.getLogger(__name__)
+
+
+def _provider_source(market_data_service: Any) -> str | None:
+    provider = getattr(market_data_service, "provider", None)
+    if provider is None:
+        return None
+    return getattr(provider, "source", provider.__class__.__name__)
 
 
 def search_symbols(market_data_service: Any, query: str):
@@ -71,5 +80,13 @@ def get_market_overview(
                     }
                 )
         except Exception as error:
-            print(f"Error fetching {ticker}: {error}")
+            logger.warning(
+                "Failed to fetch market overview price history",
+                extra={
+                    "ticker": ticker,
+                    "metric": "price_history",
+                    "provider": _provider_source(market_data_service),
+                },
+                exc_info=error,
+            )
     return overview

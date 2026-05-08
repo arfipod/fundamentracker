@@ -1,6 +1,17 @@
+import logging
+
 from alert_evaluator import calculate_relative_diff, evaluate_alert
 from market_data.service import MarketDataService, get_market_data_service
 from repositories.factory import get_repository
+
+logger = logging.getLogger(__name__)
+
+
+def _provider_source(market_data: MarketDataService) -> str | None:
+    provider = getattr(market_data, "provider", None)
+    if provider is None:
+        return None
+    return getattr(provider, "source", provider.__class__.__name__)
 
 
 def run_fundamental_scan(
@@ -19,7 +30,9 @@ def run_fundamental_scan(
     
     symbols = list(watchlist.keys())
     if not symbols:
+        logger.info("Scan skipped because watchlist is empty")
         return
+    logger.info("Scan started", extra={"ticker_count": len(symbols)})
         
     for ticker, details in list(watchlist.items()):
         
@@ -31,9 +44,28 @@ def run_fundamental_scan(
                 
             try:
                 current_val = market_data.get_metric(ticker, alert["metric"])
-            except Exception:
+            except Exception as error:
+                logger.warning(
+                    "Failed to fetch metric for alert",
+                    extra={
+                        "ticker": ticker,
+                        "alert_id": alert.get("id"),
+                        "metric": alert.get("metric"),
+                        "provider": _provider_source(market_data),
+                    },
+                    exc_info=error,
+                )
                 current_val = None
             if current_val is None:
+                logger.info(
+                    "Skipping alert because current metric value is missing",
+                    extra={
+                        "ticker": ticker,
+                        "alert_id": alert.get("id"),
+                        "metric": alert.get("metric"),
+                        "provider": _provider_source(market_data),
+                    },
+                )
                 continue
                 
             is_triggered = evaluate_alert(
@@ -46,11 +78,31 @@ def run_fundamental_scan(
                 
             # Update DB with new value and trigger state
             db.update_alert_status(alert["id"], is_triggered, current_val)
+            logger.info(
+                "Alert evaluated",
+                extra={
+                    "ticker": ticker,
+                    "alert_id": alert.get("id"),
+                    "metric": alert.get("metric"),
+                    "is_triggered": is_triggered,
+                    "current_value": current_val,
+                },
+            )
             
             # If crossed from untriggered to triggered
             if is_triggered and not alert.get("is_triggered", False):
                 # Triggered! Log to history
                 db.log_alert_history(alert["id"], current_val, alert["target"])
+                logger.info(
+                    "Alert triggered",
+                    extra={
+                        "ticker": ticker,
+                        "alert_id": alert.get("id"),
+                        "metric": alert.get("metric"),
+                        "current_value": current_val,
+                        "target_value": alert.get("target"),
+                    },
+                )
                 
                 # Format message
                 if alert.get("alert_type") == "relative":

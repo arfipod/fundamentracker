@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import time
 from typing import Any, Callable
@@ -10,9 +11,11 @@ import requests
 from scanner import run_fundamental_scan
 from telegram_service import process_telegram_commands, send_message
 
+logger = logging.getLogger(__name__)
+
 
 def perform_scan(db_client: Any) -> None:
-    print("\n--- Executing Fundamental Scan ---", flush=True)
+    logger.info("Executing fundamental scan")
     token = os.getenv("TELEGRAM_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     telegram_api = f"https://api.telegram.org/bot{token}" if token else ""
@@ -24,20 +27,23 @@ def perform_scan(db_client: Any) -> None:
 
     run_fundamental_scan(send_telegram_alert, repository=db_client)
     db_client.update_scan_settings_db(last_scan_time=int(time.time()))
+    logger.info("Fundamental scan completed")
 
 
 async def run_telegram_polling() -> None:
     token = os.getenv("TELEGRAM_TOKEN")
     if not token:
+        logger.info("Telegram polling disabled")
         return
 
     telegram_api = f"https://api.telegram.org/bot{token}"
+    logger.info("Telegram polling started")
 
     while True:
         try:
             process_telegram_commands(requests, telegram_api)
         except Exception as error:
-            print(f"Telegram polling error: {error}")
+            logger.warning("Telegram polling failed", exc_info=error)
 
         await asyncio.sleep(5)
 
@@ -53,6 +59,6 @@ async def run_periodic_scan(db_client: Any, run_scan: Callable[[], None]) -> Non
                 if now - last_time >= interval:
                     run_scan()
         except Exception as error:
-            print(f"Error in background scan: {error}")
+            logger.warning("Background scan failed", exc_info=error)
 
         await asyncio.sleep(5)

@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import logging
+
 from config import METRICS_MAP, OPERATORS_MAP
 from market_data.service import get_market_data_service
 
 try:
     from watchlist import format_alerts_message, format_watchlist_message
-except Exception as e:
-    print(e)
+except Exception:
+    logging.getLogger(__name__).exception("Failed to import Telegram watchlist formatters")
 
 from repositories.factory import get_repository
 
+logger = logging.getLogger(__name__)
 db = get_repository()
 
 HELP_TEXT = """🛠 Commands:
@@ -22,6 +25,14 @@ HELP_TEXT = """🛠 Commands:
 
 LAST_UPDATE_ID = 0
 
+
+def _safe_telegram_error(error: Exception, api_base: str) -> str:
+    message = str(error)
+    if api_base:
+        message = message.replace(api_base, "https://api.telegram.org/bot<redacted>")
+    return message[:500]
+
+
 def send_message(requests_client, api_base: str, chat_id: str, text: str) -> None:
     try:
         requests_client.post(
@@ -29,8 +40,14 @@ def send_message(requests_client, api_base: str, chat_id: str, text: str) -> Non
             json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
             timeout=5
         )
-    except Exception as e:
-        print(f"Failed to send Telegram message: {e}")
+    except Exception as error:
+        logger.warning(
+            "Failed to send Telegram message",
+            extra={
+                "error_type": type(error).__name__,
+                "error": _safe_telegram_error(error, api_base),
+            },
+        )
 
 def get_updates(requests_client, api_base: str, last_update_id: int) -> list[dict]:
     try:
@@ -39,7 +56,14 @@ def get_updates(requests_client, api_base: str, last_update_id: int) -> list[dic
         if not response.ok:
             pass
         return res_json.get("result", [])
-    except Exception as e:
+    except Exception as error:
+        logger.warning(
+            "Failed to fetch Telegram updates",
+            extra={
+                "error_type": type(error).__name__,
+                "error": _safe_telegram_error(error, api_base),
+            },
+        )
         return []
 
 def process_telegram_commands(requests_client, api_base: str) -> None:
@@ -54,13 +78,18 @@ def process_telegram_commands(requests_client, api_base: str) -> None:
         if not sender_chat_id:
              continue
              
-        print(f"Processing command: {text}", flush=True)
         parts = text.strip().split()
 
         if not parts:
             continue
+        command = parts[0]
+        ticker = parts[1].upper() if len(parts) > 1 else None
+        logger.info(
+            "Processing Telegram command",
+            extra={"telegram_command": command, "ticker": ticker},
+        )
 
-        if parts[0] == "/add" and len(parts) >= 3:
+        if command == "/add" and len(parts) >= 3:
             try:
                 trigger = float(parts[-1])
                 ticker = parts[1].upper()
@@ -83,11 +112,23 @@ def process_telegram_commands(requests_client, api_base: str) -> None:
                 try:
                     quote = get_market_data_service().get_quote(ticker)
                     name = quote.get("shortName", quote.get("name", ticker))
-                except Exception:
-                    pass
+                except Exception as error:
+                    logger.warning(
+                        "Failed to fetch company name for Telegram add command",
+                        extra={
+                            "ticker": ticker,
+                            "metric": "quote",
+                            "provider": getattr(get_market_data_service().provider, "source", None),
+                        },
+                        exc_info=error,
+                    )
                     
                 db.add_ticker_db(ticker, name)
                 db.add_alert_db(ticker, metric, op, trigger)
+                logger.info(
+                    "Telegram command added alert",
+                    extra={"ticker": ticker, "metric": metric},
+                )
                 
                 send_message(
                     requests_client,
@@ -98,20 +139,21 @@ def process_telegram_commands(requests_client, api_base: str) -> None:
             except ValueError:
                 send_message(requests_client, api_base, sender_chat_id, "❌ Invalid value. Use a valid number.")
 
-        elif parts[0] == "/remove" and len(parts) == 2:
+        elif command == "/remove" and len(parts) == 2:
             res = db.delete_ticker_db(parts[1].upper())
+            logger.info("Telegram command removed ticker", extra={"ticker": parts[1].upper()})
             if res:
                 send_message(requests_client, api_base, sender_chat_id, f"🗑 Removed {parts[1].upper()}")
             else:
                 send_message(requests_client, api_base, sender_chat_id, "❌ Ticker not found.")
 
-        elif parts[0] == "/list":
+        elif command == "/list":
             send_message(requests_client, api_base, sender_chat_id, format_watchlist_message(db))
 
-        elif parts[0] == "/alerts":
+        elif command == "/alerts":
             send_message(requests_client, api_base, sender_chat_id, format_alerts_message(db))
 
-        elif parts[0] == "/help":
+        elif command == "/help":
             send_message(requests_client, api_base, sender_chat_id, HELP_TEXT)
 
         else:
