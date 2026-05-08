@@ -194,6 +194,18 @@ SEC_USER_AGENT=FundamenTracker contact@example.com
 
 Never commit `.env`.
 
+The watchdog defaults to recovering only the required API service:
+
+```env
+WATCHDOG_SERVICES=api
+```
+
+If this host uses the production Cloudflare Tunnel profile, opt in to recovering both services:
+
+```env
+WATCHDOG_SERVICES="api cloudflared"
+```
+
 ## 5. Start Development
 
 Development mode uses bind mounts, FastAPI reload, and the Vite development server.
@@ -276,6 +288,12 @@ Optional: include Cloudflare Tunnel after setting `TUNNEL_TOKEN`:
 
 ```bash
 docker compose -f docker-compose.prod.yml --profile tunnel up -d
+```
+
+Tunnel deployments should also set the watchdog service list so a failed public health check can recover the tunnel container:
+
+```env
+WATCHDOG_SERVICES="api cloudflared"
 ```
 
 Stop production containers without deleting data:
@@ -661,6 +679,7 @@ Check the configured health URL:
 ```bash
 cd /opt/fundamentracker
 grep '^PUBLIC_HEALTH_URL=' .env
+grep '^WATCHDOG_SERVICES=' .env
 sudo journalctl -u fundamentracker-watchdog.service -n 100 --no-pager
 health_url="$(grep '^PUBLIC_HEALTH_URL=' .env | cut -d= -f2-)"
 curl -v "${health_url:-http://127.0.0.1:8000/health/ready}"
@@ -671,6 +690,8 @@ If `PUBLIC_HEALTH_URL` is empty, the watchdog checks:
 ```text
 http://127.0.0.1:8000/health/ready
 ```
+
+If `WATCHDOG_SERVICES` is empty, the watchdog recovers only `api`. Set `WATCHDOG_SERVICES="api cloudflared"` only on hosts that run the production tunnel profile.
 
 Use `docs/WATCHDOG.md` for more watchdog-specific operations.
 

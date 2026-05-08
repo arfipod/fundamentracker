@@ -6,7 +6,7 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILE="${PROJECT_DIR}/.env"
 COMPOSE_FILE="${PROJECT_DIR}/docker-compose.prod.yml"
 DEFAULT_HEALTH_URL="http://127.0.0.1:8000/health/ready"
-SERVICES=(api cloudflared)
+DEFAULT_WATCHDOG_SERVICES="api"
 
 log() {
   printf '[fundamentracker-watchdog] %s\n' "$*"
@@ -65,8 +65,22 @@ wait_seconds="${wait_seconds:-30}"
 curl_timeout="${WATCHDOG_CURL_TIMEOUT_SECONDS:-$(read_env_value WATCHDOG_CURL_TIMEOUT_SECONDS "${ENV_FILE}")}"
 curl_timeout="${curl_timeout:-10}"
 
+services_value="${WATCHDOG_SERVICES:-$(read_env_value WATCHDOG_SERVICES "${ENV_FILE}")}"
+services_value="${services_value#"${services_value%%[![:space:]]*}"}"
+services_value="${services_value%"${services_value##*[![:space:]]}"}"
+services_value="${services_value:-${DEFAULT_WATCHDOG_SERVICES}}"
+read -r -a SERVICES <<< "${services_value}"
+
 [[ "${wait_seconds}" =~ ^[0-9]+$ ]] || fail "WATCHDOG_RECHECK_WAIT_SECONDS must be a non-negative integer."
 [[ "${curl_timeout}" =~ ^[0-9]+$ ]] || fail "WATCHDOG_CURL_TIMEOUT_SECONDS must be a non-negative integer."
+if [[ "${#SERVICES[@]}" -eq 0 ]]; then
+  fail "WATCHDOG_SERVICES must list at least one Docker Compose service."
+fi
+
+for service in "${SERVICES[@]}"; do
+  [[ "${service}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || fail "invalid service in WATCHDOG_SERVICES: ${service}"
+done
+
 [[ -f "${COMPOSE_FILE}" ]] || fail "missing production compose file: ${COMPOSE_FILE}"
 command -v docker >/dev/null 2>&1 || fail "docker is not installed or not available on PATH."
 command -v curl >/dev/null 2>&1 || fail "curl is not installed or not available on PATH."
@@ -76,6 +90,7 @@ check_health() {
 }
 
 log "checking health URL: ${health_url}"
+log "watchdog services: ${SERVICES[*]}"
 
 if check_health; then
   log "health check passed."
