@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from services import health as health_service
 
 
 def create_router(
     *,
+    require_ready_health_access: Callable[..., None],
     get_db: Callable[[], Any],
     service_name: str,
     service_version: str | None,
@@ -24,7 +25,7 @@ def create_router(
             timestamp_fn=timestamp_fn,
         )
 
-    @router.get("/health/ready")
+    @router.get("/health/ready", dependencies=[Depends(require_ready_health_access)])
     def health_ready():
         db_client = get_db()
         try:

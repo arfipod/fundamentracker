@@ -3,11 +3,11 @@
 FundamenTracker supports two persistence backends:
 
 ```env
-DATABASE_BACKEND=supabase_rest
 DATABASE_BACKEND=postgres
+DATABASE_BACKEND=supabase_rest
 ```
 
-Use `supabase_rest` to keep the existing Supabase REST behavior. Use `postgres` for the local PostgreSQL service in `docker-compose.prod.yml`.
+Production Compose defaults to `postgres` and starts the local PostgreSQL service by default. Use `supabase_rest` only when you explicitly want to keep existing Supabase REST persistence.
 
 ## Configure PostgreSQL
 
@@ -21,7 +21,7 @@ POSTGRES_PASSWORD=replace-with-a-strong-password
 DATABASE_URL=postgresql://fundamentracker:replace-with-a-strong-password@postgres:5432/fundamentracker
 ```
 
-URL-encode special characters in `POSTGRES_PASSWORD` when copying it into `DATABASE_URL`.
+`DATABASE_URL` must point to host `postgres` because the API connects from inside the Compose network. URL-encode special characters in `POSTGRES_PASSWORD` when copying it into `DATABASE_URL`.
 
 The production Compose file stores PostgreSQL data in:
 
@@ -39,19 +39,50 @@ The schema in `db/init/001_schema.sql` is applied automatically only when Postgr
 
 ## Apply Migrations
 
-For an existing PostgreSQL data directory, apply schema migrations without recreating the database:
+FundamenTracker uses a lightweight SQL migration runner. Migration files live in:
 
-```bash
-docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U "${POSTGRES_USER:-fundamentracker}" -d "${POSTGRES_DB:-fundamentracker}" \
-  < db/migrations/002_metric_cache_provider_health.sql
+```text
+db/migrations/*.sql
 ```
 
-If you are running `psql` from the repository on the host instead of inside the container:
+The runner creates a `schema_migrations` table, records each applied file name and checksum, skips files that were already applied, and stops on the first error without recording the failed migration.
+
+For an existing local PostgreSQL data directory, apply pending migrations without recreating the database:
 
 ```bash
-psql "$DATABASE_URL" -f db/migrations/002_metric_cache_provider_health.sql
+make db-migrate
 ```
+
+Equivalent direct command:
+
+```bash
+./scripts/migrate-db.sh
+```
+
+By default the script uses `docker-compose.prod.yml`, starts the local `postgres` service if needed, and runs the Python migration runner in a one-off API container on the same Compose network. This keeps `DATABASE_URL` pointed at the Compose host name `postgres`.
+
+To preview pending migrations without applying them:
+
+```bash
+./scripts/migrate-db.sh --dry-run
+```
+
+To run the migration runner directly from the host, install the Python requirements and provide a host-reachable PostgreSQL URL:
+
+```bash
+DATABASE_URL=postgresql://fundamentracker:replace-with-a-strong-password@127.0.0.1:5432/fundamentracker \
+  USE_DOCKER=false ./scripts/migrate-db.sh
+```
+
+Do not use `docker compose down -v` to retry migrations. That removes volumes and may delete local PostgreSQL data.
+
+Production startup does not run migrations automatically by default. If you intentionally want the API container to apply pending migrations before starting, set:
+
+```env
+RUN_MIGRATIONS_ON_START=true
+```
+
+Keep `RUN_MIGRATIONS_ON_START=false` for normal production operation and run `make db-migrate` explicitly during maintenance.
 
 Start the production stack:
 
@@ -68,7 +99,8 @@ docker compose -f docker-compose.prod.yml ps postgres
 Check API readiness:
 
 ```bash
-curl http://127.0.0.1:8000/health/ready
+source .env
+curl -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/health/ready
 ```
 
 When `DATABASE_BACKEND=postgres`, the API waits for PostgreSQL during startup before starting background scanners or Telegram polling.
@@ -129,7 +161,7 @@ Do not expose pgAdmin through a public Cloudflare Tunnel. If LAN access is neede
 
 ## Supabase Compatibility
 
-To keep using Supabase REST, leave:
+To keep using Supabase REST, set the backend explicitly:
 
 ```env
 DATABASE_BACKEND=supabase_rest
@@ -137,4 +169,4 @@ SUPABASE_URL=https://example-project.supabase.co
 SUPABASE_KEY=example-supabase-key
 ```
 
-The local PostgreSQL service can exist in the production Compose file without changing the API persistence mode. The API uses PostgreSQL only when `DATABASE_BACKEND=postgres`.
+The API uses Supabase only when `DATABASE_BACKEND=supabase_rest`. The local PostgreSQL service can still exist in the production Compose file; it is unused by the API in this mode.

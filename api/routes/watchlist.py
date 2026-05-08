@@ -47,15 +47,25 @@ def create_router(
 
     @router.delete("/remove/{ticker}/{metric}", dependencies=[Depends(require_api_token)], deprecated=True)
     def remove_watchlist_alert(ticker: str, metric: str):
-        if not watchlist_service.remove_watchlist_alert(get_db(), ticker, metric):
-            raise HTTPException(status_code=404, detail="Alert not found")
+        try:
+            if not watchlist_service.remove_watchlist_alert(get_db(), ticker, metric):
+                raise HTTPException(status_code=404, detail="Alert not found")
+        except watchlist_service.WatchlistAlertNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except watchlist_service.WatchlistAmbiguousAlertError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
         return {"message": "Alert removed"}
 
     @router.put("/update", dependencies=[Depends(require_api_token)], deprecated=True)
     def update_watchlist_alert(payload: UpdateAlertRequest):
-        if watchlist_service.update_watchlist_alert(get_db(), payload):
-            return {"message": "Alert updated"}
+        try:
+            if watchlist_service.update_watchlist_alert(get_db(), payload):
+                return {"message": "Alert updated"}
+        except watchlist_service.WatchlistAlertNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except watchlist_service.WatchlistAmbiguousAlertError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
         raise HTTPException(status_code=404, detail="Alert not found")
 

@@ -24,7 +24,7 @@ Minimum practical host:
 CPU: 2 cores
 RAM: 2 GB minimum, 4 GB recommended
 Disk: 10 GB minimum, more if keeping PostgreSQL backups locally
-Network: outbound HTTPS access for market data, Supabase, Gemini, Telegram, and Cloudflare Tunnel if enabled
+Network: outbound HTTPS access for yfinance/Yahoo Finance, SEC EDGAR if used, Supabase if used, Gemini if used, Telegram if used, and Cloudflare Tunnel if enabled
 ```
 
 Install baseline packages:
@@ -144,23 +144,15 @@ nano .env
 At minimum, change these values:
 
 ```env
+LOG_LEVEL=INFO
 API_AUTH_TOKEN=replace-with-a-long-random-token
 VITE_API_AUTH_TOKEN=replace-with-the-same-token-for-local-frontend-use
+PUBLIC_READY_HEALTH=false
 CORS_ALLOWED_ORIGINS=http://localhost:5173
 ALLOW_WILDCARD_CORS=false
 ```
 
-Choose one persistence backend.
-
-For existing Supabase REST persistence:
-
-```env
-DATABASE_BACKEND=supabase_rest
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-supabase-service-or-rest-key
-```
-
-For local PostgreSQL on the host:
+Production defaults to local PostgreSQL. Keep `DATABASE_BACKEND=postgres` unless you are intentionally using Supabase REST:
 
 ```env
 DATABASE_BACKEND=postgres
@@ -173,6 +165,14 @@ DATABASE_URL=postgresql://fundamentracker:replace-with-a-strong-password@postgre
 If the PostgreSQL password contains special URL characters, URL-encode it in `DATABASE_URL`.
 
 The local PostgreSQL schema in `db/init/001_schema.sql` is applied automatically when the production PostgreSQL container initializes an empty data directory.
+
+To keep using existing Supabase REST persistence instead, set the backend explicitly and provide Supabase credentials:
+
+```env
+DATABASE_BACKEND=supabase_rest
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-supabase-service-or-rest-key
+```
 
 For production exposure, keep the API bound to localhost unless you intentionally expose it through your LAN or a reverse proxy:
 
@@ -195,6 +195,18 @@ SEC_USER_AGENT=FundamenTracker contact@example.com
 ```
 
 Never commit `.env`.
+
+The watchdog defaults to recovering only the required API service:
+
+```env
+WATCHDOG_SERVICES=api
+```
+
+If this host uses the production Cloudflare Tunnel profile, opt in to recovering both services:
+
+```env
+WATCHDOG_SERVICES="api cloudflared"
+```
 
 ## 5. Start Development
 
@@ -280,6 +292,12 @@ Optional: include Cloudflare Tunnel after setting `TUNNEL_TOKEN`:
 docker compose -f docker-compose.prod.yml --profile tunnel up -d
 ```
 
+Tunnel deployments should also set the watchdog service list so a failed public health check can recover the tunnel container:
+
+```env
+WATCHDOG_SERVICES="api cloudflared"
+```
+
 Stop production containers without deleting data:
 
 ```bash
@@ -349,7 +367,8 @@ curl -fsS http://127.0.0.1:8000/health/live | jq
 Use `ready` to check API readiness and database connectivity:
 
 ```bash
-curl -fsS http://127.0.0.1:8000/health/ready | jq
+source .env
+curl -fsS -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/health/ready | jq
 ```
 
 Expected `live` shape:
@@ -379,6 +398,42 @@ Expected `ready` shape includes:
 ```
 
 If `live` works but `ready` fails, focus on `.env` and the configured database backend.
+
+Use `ops/status` for a consolidated protected operations snapshot:
+
+```bash
+source .env
+curl -fsS -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/ops/status | jq
+```
+
+Expected `ops/status` shape includes:
+
+```json
+{
+  "status": "ok",
+  "api": {
+    "status": "ok",
+    "service": "fundamentracker-api"
+  },
+  "database": {
+    "status": "ok",
+    "backend": "postgres",
+    "ready": true
+  },
+  "provider_health": {
+    "status": "unknown",
+    "providers": []
+  },
+  "scan": {
+    "interval_seconds": 3600,
+    "last_scan_time": 1778241600,
+    "last_scan_at": "2026-05-08T12:00:00+00:00"
+  },
+  "server_time": "2026-05-08T12:05:00+00:00"
+}
+```
+
+`GET /ops/status` requires `Authorization: Bearer <API_AUTH_TOKEN>` by default. It reports API status, optional app version, selected database backend and readiness, provider health, scanner timing, and current server time. Provider rows are summarized without raw upstream error text so secrets are not echoed from provider exception messages. If `provider_health` is empty, the endpoint still succeeds and reports `"status": "unknown"` with an empty provider list.
 
 Repository and compose sanity checks:
 
@@ -442,6 +497,14 @@ Supabase users should use the Supabase dashboard for database administration. Th
 
 ## 10. View Logs
 
+The API writes JSON logs to stdout. Set `LOG_LEVEL` in `.env` to `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`, then restart the API after changing it:
+
+```bash
+cd /opt/fundamentracker
+grep '^LOG_LEVEL=' .env
+sudo systemctl restart fundamentracker.service
+```
+
 Docker Compose logs:
 
 ```bash
@@ -449,6 +512,13 @@ cd /opt/fundamentracker
 docker compose -f docker-compose.prod.yml logs --tail=100
 docker compose -f docker-compose.prod.yml logs -f api
 docker compose -f docker-compose.prod.yml logs -f postgres
+```
+
+Filter API logs with `jq` when reading Docker output:
+
+```bash
+docker compose -f docker-compose.prod.yml logs --no-log-prefix api \
+  | jq -r 'select(.ticker=="AAPL" or .alert_id=="alert-id" or .provider=="yfinance")'
 ```
 
 Optional service logs:
@@ -609,7 +679,7 @@ PUBLIC_API_URL=https://your-api.example.com
 
 ### API returns 401
 
-Mutable endpoints require:
+Mutable endpoints and sensitive read endpoints require:
 
 ```text
 Authorization: Bearer <API_AUTH_TOKEN>
@@ -663,9 +733,11 @@ Check the configured health URL:
 ```bash
 cd /opt/fundamentracker
 grep '^PUBLIC_HEALTH_URL=' .env
+grep '^WATCHDOG_SERVICES=' .env
 sudo journalctl -u fundamentracker-watchdog.service -n 100 --no-pager
 health_url="$(grep '^PUBLIC_HEALTH_URL=' .env | cut -d= -f2-)"
-curl -v "${health_url:-http://127.0.0.1:8000/health/ready}"
+api_auth_token="$(grep '^API_AUTH_TOKEN=' .env | cut -d= -f2-)"
+curl -v -H "Authorization: Bearer ${api_auth_token}" "${health_url:-http://127.0.0.1:8000/health/ready}"
 ```
 
 If `PUBLIC_HEALTH_URL` is empty, the watchdog checks:
@@ -673,6 +745,8 @@ If `PUBLIC_HEALTH_URL` is empty, the watchdog checks:
 ```text
 http://127.0.0.1:8000/health/ready
 ```
+
+If `WATCHDOG_SERVICES` is empty, the watchdog recovers only `api`. Set `WATCHDOG_SERVICES="api cloudflared"` only on hosts that run the production tunnel profile.
 
 Use `docs/WATCHDOG.md` for more watchdog-specific operations.
 
@@ -685,7 +759,8 @@ cd /opt/fundamentracker
 git pull --ff-only
 docker compose -f docker-compose.prod.yml build
 sudo systemctl restart fundamentracker.service
-curl -fsS http://127.0.0.1:8000/health/ready | jq
+source .env
+curl -fsS -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/health/ready | jq
 ```
 
 If you are not using systemd:
@@ -694,5 +769,6 @@ If you are not using systemd:
 cd /opt/fundamentracker
 git pull --ff-only
 docker compose -f docker-compose.prod.yml up -d --build
-curl -fsS http://127.0.0.1:8000/health/ready | jq
+source .env
+curl -fsS -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/health/ready | jq
 ```

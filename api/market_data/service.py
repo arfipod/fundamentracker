@@ -6,11 +6,11 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from db import client as db
 from market_data.metric_definitions import get_metric_definition, is_supported_metric
 from market_data.normalizers import normalize_metric_value, normalize_symbol, to_float
 from market_data.providers.base import MarketDataProvider
 from market_data.providers.yfinance_provider import YFinanceProvider
+from repositories.factory import get_repository
 
 logger = logging.getLogger(__name__)
 DEFAULT_PROVIDER_CONFIDENCE = 0.8
@@ -28,7 +28,7 @@ class MarketDataService:
         from config import get_market_data_ttls
 
         self.provider = provider or YFinanceProvider()
-        self.snapshot_repository = snapshot_repository or db
+        self.snapshot_repository = snapshot_repository or get_repository()
         self.ttl_seconds = get_market_data_ttls()
         if ttl_seconds:
             self.ttl_seconds.update(ttl_seconds)
@@ -233,7 +233,15 @@ class MarketDataService:
         try:
             snapshot = self.snapshot_repository.get_fresh_metric_snapshot(symbol, metric, now)
         except Exception:
-            logger.warning("Metric cache read failed for %s %s", symbol, metric, exc_info=True)
+            logger.warning(
+                "Metric cache read failed",
+                extra={
+                    "ticker": symbol,
+                    "metric": metric,
+                    "provider": self._provider_source(),
+                },
+                exc_info=True,
+            )
             return None
         if not snapshot:
             return None
@@ -243,7 +251,15 @@ class MarketDataService:
         try:
             snapshot = self.snapshot_repository.get_latest_metric_snapshot(symbol, metric)
         except Exception:
-            logger.warning("Metric cache stale read failed for %s %s", symbol, metric, exc_info=True)
+            logger.warning(
+                "Metric cache stale read failed",
+                extra={
+                    "ticker": symbol,
+                    "metric": metric,
+                    "provider": self._provider_source(),
+                },
+                exc_info=True,
+            )
             return None
         if not snapshot:
             return None
@@ -260,9 +276,12 @@ class MarketDataService:
             saved = self.snapshot_repository.save_metric_snapshot(snapshot)
         except Exception:
             logger.warning(
-                "Metric cache write failed for %s %s",
-                snapshot.get("symbol"),
-                snapshot.get("metric"),
+                "Metric cache write failed",
+                extra={
+                    "ticker": snapshot.get("symbol"),
+                    "metric": snapshot.get("metric"),
+                    "provider": self._provider_source(),
+                },
                 exc_info=True,
             )
             return dict(snapshot)
@@ -277,7 +296,11 @@ class MarketDataService:
                 last_ok_at=checked_at,
             )
         except Exception:
-            logger.warning("Provider health update failed for %s", self._provider_source(), exc_info=True)
+            logger.warning(
+                "Provider health update failed",
+                extra={"provider": self._provider_source()},
+                exc_info=True,
+            )
 
     def _record_provider_error(
         self,
@@ -292,6 +315,11 @@ class MarketDataService:
             self._provider_source(),
             metric,
             symbol,
+            extra={
+                "ticker": symbol,
+                "metric": metric,
+                "provider": self._provider_source(),
+            },
         )
         try:
             self.snapshot_repository.upsert_provider_health(
@@ -301,7 +329,11 @@ class MarketDataService:
                 last_error=str(error),
             )
         except Exception:
-            logger.warning("Provider health update failed for %s", self._provider_source(), exc_info=True)
+            logger.warning(
+                "Provider health update failed",
+                extra={"provider": self._provider_source()},
+                exc_info=True,
+            )
 
     def _metric_value_from_snapshot(
         self,

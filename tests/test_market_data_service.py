@@ -15,6 +15,7 @@ from market_data.service import MarketDataService
 
 
 NOW = datetime(2026, 5, 8, 12, 0, tzinfo=timezone.utc)
+AUTH_HEADER = {"Authorization": "Bearer test-token"}
 
 
 class FakeSnapshotRepository:
@@ -261,9 +262,10 @@ def test_metric_current_endpoint_uses_market_data_service(monkeypatch):
             }
 
     monkeypatch.setattr(api_module, "market_data_service", FakeMarketDataService())
+    monkeypatch.setenv("API_AUTH_TOKEN", "test-token")
 
     client = TestClient(app)
-    response = client.get("/metric-current?ticker=aapl&metric=roe")
+    response = client.get("/metric-current?ticker=aapl&metric=roe", headers=AUTH_HEADER)
 
     assert response.status_code == 200
     assert response.json() == {
@@ -293,9 +295,10 @@ def test_provider_health_endpoint_uses_market_data_service(monkeypatch):
             ]
 
     monkeypatch.setattr(api_module, "market_data_service", FakeMarketDataService())
+    monkeypatch.setenv("API_AUTH_TOKEN", "test-token")
 
     client = TestClient(app)
-    response = client.get("/data/providers/health")
+    response = client.get("/data/providers/health", headers=AUTH_HEADER)
 
     assert response.status_code == 200
     assert response.json() == [

@@ -1,56 +1,122 @@
 # FundamenTracker Frontend
 
-This directory contains the React-based frontend for FundamenTracker, built with Vite and TypeScript. It serves as the primary user interface for monitoring stocks, managing alerts, and viewing AI valuations.
+This directory contains the current React/Vite frontend for FundamenTracker. It
+is the browser UI for managing watchlist alerts, running scans, exploring
+metrics, viewing charts, and requesting Gemini analysis through the backend.
 
 ## Tech Stack
 
-- **Framework:** React 18
-- **Build Tool:** Vite
-- **Language:** TypeScript
-- **Styling:** CSS Variables with Dark Mode by default.
-- **Charts:** Recharts for rendering historical fundamental metrics and price action.
-- **Icons:** Lucide React
+- React 19
+- Vite 8
+- TypeScript 6
+- Recharts
+- Plain CSS in `src/App.css` and `src/index.css`
 
-## Project Structure
+`package.json` currently lists no icon library. Some components use inline SVG
+icons.
 
-- `src/components/`: Modular React components.
-  - `WatchlistSection.tsx`: Manages the overall grid/table layout, market overview, and tags.
-  - `TickerCard.tsx`: Grid-view component for individual stocks.
-  - `TickerRow.tsx`: Table-view component for individual stocks.
-  - `LineChartModal.tsx` & `InlineChart.tsx`: Recharts-based components for rendering historical metrics.
-- `src/index.css`: Global styles, CSS tokens, and layout variables.
-- `src/App.tsx`: Main application entry point.
+## Structure
+
+- `src/App.tsx`: top-level Watchlist/Explorer tab layout.
+- `src/lib/apiClient.ts`: shared API fetch helper and bearer-token injection.
+- `src/types/watchlist.ts`: watchlist, alert, and alert-history TypeScript
+  types.
+- `src/hooks/useWatchlist.ts`: watchlist loading plus alert/ticker mutations and
+  undo behavior.
+- `src/hooks/useScanSettings.ts`: scan interval, manual scan, and server time.
+- `src/components/AlertForm.tsx`: add-alert form with ticker autocomplete.
+- `src/components/WatchlistSection.tsx`: table/grid watchlist display, sorting,
+  and local tag filtering.
+- `src/components/TickerRow.tsx`: table-row ticker view.
+- `src/components/TickerCard.tsx`: card ticker view.
+- `src/components/AlertItem.tsx`: alert display, target edit, toggle, delete,
+  relative-diff display, and chart expansion.
+- `src/components/MetricChart.tsx`: historical metric chart using Recharts.
+- `src/components/ExplorerSection.tsx`: standalone ticker/metric explorer.
+- `src/components/DashboardHeader.tsx`: scan controls and timing display.
 
 ## Environment Variables
 
-For the frontend to communicate with the backend, you must configure the API URL. In production (like Vercel), set this in your deployment dashboard. For local development, create a `.env.local` file in this directory:
+For local frontend development, create `frontend/.env.local` or use the root
+Compose `.env` values:
 
 ```env
 VITE_API_URL=http://localhost:8000
 VITE_API_AUTH_TOKEN=change-me-api-token
 ```
 
-*(Note: In Docker Compose, the backend runs on port 8000 by default).*
+`VITE_API_URL` defaults to `http://localhost:8000` in `apiClient.ts` when it is
+not set.
 
-`VITE_API_AUTH_TOKEN` is sent as `Authorization: Bearer <token>` for API requests. Because Vite embeds this value into browser assets, it is only a convenience for private/self-hosted frontends. For public Vercel production, use Cloudflare Access, a VPN, or real user authentication instead of relying on this token alone.
+`VITE_API_AUTH_TOKEN` is sent as:
+
+```text
+Authorization: Bearer <token>
+```
+
+Vite embeds `VITE_*` values into browser assets. This token is only a convenience
+for private deployments, local development, Cloudflare Access, or VPN-protected
+frontends. Do not rely on it as strong authentication for a public unprotected
+frontend.
+
+`apiClient.ts` also supports a runtime browser config object:
+
+```ts
+window.__FUNDAMENTRACKER_CONFIG__ = {
+  API_AUTH_TOKEN: "...",
+};
+```
+
+The current production Dockerfile does not generate that runtime config; it uses
+build arguments for `VITE_API_URL` and `VITE_API_AUTH_TOKEN`.
 
 ## Running Locally
 
-To run the frontend independently of Docker (e.g., for faster HMR during UI development):
+Install dependencies:
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+```bash
+npm ci
+```
 
-2. **Start the development server:**
-   ```bash
-   npm run dev
-   ```
+Start the Vite dev server:
 
-The application will be available at `http://localhost:5173`.
+```bash
+npm run dev
+```
 
-## UI/UX Notes
+The frontend will be available at:
 
-- **Dynamic Updates:** The UI listens for custom events (like `tagsUpdated`) to sync state across the application without requiring a full page refresh.
-- **AI Valuations:** Stock analysis is requested directly from the backend (which uses the Gemini API) and rendered dynamically below the ticker rows or inside the cards.
+```text
+http://localhost:5173
+```
+
+The backend must be reachable at `VITE_API_URL`.
+
+## Validation
+
+Build:
+
+```bash
+npm run build
+```
+
+Lint command:
+
+```bash
+npm run lint
+```
+
+Known current limitation: lint is not enforced in CI because it currently fails
+on existing React hooks and TypeScript lint issues.
+
+There is no `npm test` script and no committed frontend unit test suite at the
+moment.
+
+## Current Behavior Notes
+
+- Tags are stored in browser `localStorage` using keys like `tags_AAPL`; they
+  are not persisted by the backend.
+- Watchlist reads and all mutable operations use `apiFetch`.
+- Alert update/delete/toggle calls use alert IDs.
+- The AI valuation UI expects the backend response shape
+  `{"analysis": "..."}`.
