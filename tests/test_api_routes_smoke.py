@@ -89,6 +89,8 @@ def test_registered_route_smoke_table():
         ("PUT", "/update"),
         ("PATCH", "/alerts/{alert_id}"),
         ("DELETE", "/alerts/{alert_id}"),
+        ("GET", "/alerts/deleted"),
+        ("POST", "/alerts/{alert_id}/restore"),
         ("PATCH", "/alerts/{alert_id}/toggle"),
         ("GET", "/alert-history"),
         ("POST", "/scan"),
@@ -120,6 +122,11 @@ def test_route_smoke_responses(monkeypatch):
         "get_alert_history_db",
         lambda limit=50: [{"id": "history-1", "limit": limit}],
     )
+    monkeypatch.setattr(
+        api_module.db,
+        "get_deleted_alerts_db",
+        lambda: [{"id": "deleted-alert"}],
+    )
 
     client = TestClient(app)
 
@@ -133,6 +140,7 @@ def test_route_smoke_responses(monkeypatch):
     assert client.get("/alert-history?limit=1", headers=AUTH_HEADER).json() == [
         {"id": "history-1", "limit": 1}
     ]
+    assert client.get("/alerts/deleted", headers=AUTH_HEADER).json() == [{"id": "deleted-alert"}]
     assert client.get("/data/providers/health", headers=AUTH_HEADER).json() == [
         {"provider": "fake", "status": "ok"}
     ]

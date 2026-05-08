@@ -58,25 +58,44 @@ CREATE TABLE IF NOT EXISTS alerts (
   reference_value NUMERIC,
   alert_type VARCHAR DEFAULT 'absolute',
   current_value NUMERIC,
+  deleted_at TIMESTAMPTZ,
+  restored_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_alerts_ticker_symbol ON alerts(ticker_symbol);
 CREATE INDEX IF NOT EXISTS idx_alerts_active ON alerts(is_active);
+CREATE INDEX IF NOT EXISTS idx_alerts_deleted_at ON alerts(deleted_at);
 ```
 
 `alerts.id` is the canonical alert identity. Do not rely on
 `ticker_symbol + metric` as a unique identifier.
+
+`DELETE /alerts/{alert_id}` soft-deletes an alert by setting `deleted_at`.
+Normal watchlist and alert reads exclude rows with `deleted_at IS NOT NULL`.
+`POST /alerts/{alert_id}/restore` clears `deleted_at`, sets `restored_at`, and
+keeps the original alert ID, target, operator, alert type, and reference value.
 
 ### `alert_history`
 
 ```sql
 CREATE TABLE IF NOT EXISTS alert_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  alert_id UUID NOT NULL REFERENCES alerts(id) ON DELETE CASCADE,
+  alert_id UUID REFERENCES alerts(id) ON DELETE SET NULL,
   triggered_at TIMESTAMPTZ DEFAULT NOW(),
   trigger_value NUMERIC NOT NULL,
-  target_value NUMERIC NOT NULL
+  target_value NUMERIC NOT NULL,
+  ticker_symbol VARCHAR,
+  company_name VARCHAR,
+  metric VARCHAR,
+  operator VARCHAR,
+  alert_type VARCHAR,
+  reference_value NUMERIC,
+  current_value NUMERIC,
+  source VARCHAR,
+  as_of_date DATE,
+  fetched_at TIMESTAMPTZ,
+  message TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_alert_history_triggered_at
@@ -84,6 +103,12 @@ CREATE INDEX IF NOT EXISTS idx_alert_history_triggered_at
 CREATE INDEX IF NOT EXISTS idx_alert_history_alert_id
   ON alert_history(alert_id);
 ```
+
+Alert history is durable audit data. Scanner-created rows denormalize the alert
+and ticker context available at trigger time so history remains meaningful even
+if an alert is later soft-deleted or an older hard-delete path removes the alert
+row. Existing PostgreSQL databases are migrated from the old cascade foreign key
+to `ON DELETE SET NULL`.
 
 ### `scan_settings`
 
@@ -177,3 +202,7 @@ timestamp so already-applied migrations are skipped safely.
 - `db/migrations/002_metric_cache_provider_health.sql`: adds or updates
   `metric_snapshots` and `provider_health` for existing local PostgreSQL
   databases, including compatibility handling for older metric snapshot shapes.
+- `db/migrations/003_soft_delete_alert_history_durability.sql`: adds alert
+  soft-delete/restore timestamps, denormalized alert history columns, backfills
+  existing history from current alerts where possible, and changes alert history
+  to preserve rows if referenced alerts are hard-deleted.

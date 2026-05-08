@@ -19,6 +19,7 @@ def test_mutable_endpoints_require_api_token(monkeypatch):
         ("PUT", "/update", {"ticker": "AAPL", "metric": "pe", "value": 18}),
         ("PATCH", "/alerts/alert-1", {"value": 18}),
         ("DELETE", "/alerts/alert-1", None),
+        ("POST", "/alerts/alert-1/restore", None),
         ("POST", "/scan", None),
         ("PUT", "/scan-settings", {"interval_seconds": 3600}),
         ("PATCH", "/alerts/alert-1/toggle", {"is_active": False}),
@@ -38,6 +39,7 @@ def test_sensitive_read_endpoints_require_api_token(monkeypatch):
 
     protected_requests = [
         "/alert-history",
+        "/alerts/deleted",
         "/scan-settings",
         "/data/providers/health",
         "/metric-current?ticker=AAPL&metric=pe",

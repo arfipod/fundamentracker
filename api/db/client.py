@@ -140,6 +140,14 @@ def toggle_alert_active(alert_id, is_active):
     return _repository().toggle_alert_active(alert_id, is_active)
 
 
+def restore_alert_db(alert_id):
+    return _repository().restore_alert_db(alert_id)
+
+
+def get_deleted_alerts_db():
+    return _repository().get_deleted_alerts_db()
+
+
 def update_alert_status(alert_id, is_triggered, current_value=None):
     return _repository().update_alert_status(alert_id, is_triggered, current_value)
 
@@ -163,8 +171,8 @@ def update_scan_settings_db(interval=None, last_scan_time=None):
     )
 
 
-def log_alert_history(alert_id, trigger_val, target_val):
-    return _repository().log_alert_history(alert_id, trigger_val, target_val)
+def log_alert_history(alert_id, trigger_val, target_val, metadata=None):
+    return _repository().log_alert_history(alert_id, trigger_val, target_val, metadata)
 
 
 def get_alert_history_db(limit=50):

@@ -25,6 +25,7 @@ class FakeScannerRepository:
         self.watchlist = watchlist
         self.updates = updates
         self.history = history
+        self.history_metadata = []
 
     def get_watchlist(self):
         return deepcopy(self.watchlist)
@@ -32,8 +33,9 @@ class FakeScannerRepository:
     def update_alert_status(self, alert_id, is_triggered, current_value):
         self.updates.append((alert_id, is_triggered, current_value))
 
-    def log_alert_history(self, alert_id, current_value, target):
+    def log_alert_history(self, alert_id, current_value, target, metadata=None):
         self.history.append((alert_id, current_value, target))
+        self.history_metadata.append(metadata or {})
 
 
 def install_fake_scanner_db(watchlist):
@@ -127,6 +129,19 @@ def test_scanner_triggers_relative_alert_using_reference_value(monkeypatch):
 
     assert updates == [("relative-1", True, 115.0)]
     assert history == [("relative-1", 115.0, 10.0)]
+    assert repository.history_metadata == [
+        {
+            "ticker_symbol": "AAPL",
+            "company_name": "Apple Inc.",
+            "metric": "price",
+            "operator": ">=",
+            "alert_type": "relative",
+            "reference_value": 100.0,
+            "current_value": 115.0,
+            "source": None,
+            "message": send_alert.call_args.args[0],
+        }
+    ]
     send_alert.assert_called_once()
     message = send_alert.call_args.args[0]
     assert "PRICE changed by >= 10.0%" in message

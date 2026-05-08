@@ -39,7 +39,8 @@ Active route modules:
 - `health.py`: `GET /health/live`, `GET /health/ready`.
 - `watchlist.py`: `GET /watchlist`, `POST /add`,
   `DELETE /remove/{ticker}`, and deprecated ticker/metric compatibility routes.
-- `alerts.py`: ID-based alert update, delete, toggle, and alert history.
+- `alerts.py`: ID-based alert update, soft delete, restore, toggle, deleted
+  alert listing, and alert history.
 - `scans.py`: manual scan, scan settings, and server time.
 - `market.py`: symbol search, provider health, current metrics, history, and
   market overview.
@@ -54,7 +55,8 @@ Service modules hold behavior that has been split out of routes:
 
 - `watchlist.py`: add/remove watchlist items and alerts, duplicate ticker/metric
   compatibility checks, reference value capture for relative alerts.
-- `alerts.py`: ID-based alert mutation and history reads.
+- `alerts.py`: ID-based alert mutation, soft-delete/restore behavior, deleted
+  alert listing, and history reads.
 - `scans.py`: scan execution, scan interval loop, and Telegram polling startup.
 - `market.py`: market-data endpoint behavior.
 - `health.py`: health payload formatting.
@@ -77,6 +79,7 @@ when `DATABASE_BACKEND` is unset.
 
 The common data shape is defined in `base.py`, including `build_watchlist()`,
 which converts ticker and alert rows into the API watchlist response shape.
+Repository watchlist and alert-list reads exclude soft-deleted alerts.
 
 ### `api/db/`
 
@@ -101,6 +104,11 @@ which converts ticker and alert rows into the API watchlist response shape.
 through `MarketDataService`, evaluates alert conditions, updates alert state,
 logs newly triggered alerts, and sends a Telegram message through the provided
 callback.
+
+Alert history rows include denormalized ticker, company, metric, operator,
+alert type, reference value, current value, provider source, and alert message
+when those fields are available during scanning. This preserves investor audit
+context independently of later alert soft deletes.
 
 `alert_evaluator.py` owns absolute and relative alert logic. Relative alerts
 compare the percentage difference from the stored reference value:
@@ -136,7 +144,10 @@ Important files:
 - `src/lib/apiClient.ts`: shared fetch wrapper that adds bearer auth when a
   frontend token is configured.
 - `src/hooks/useWatchlist.ts`: watchlist loading, alert add/update/delete/toggle,
-  ticker delete, and undo queue.
+  ticker delete, and single-alert undo queue. Single-alert undo restores the
+  original alert ID through `POST /alerts/{alert_id}/restore`; ticker delete
+  still uses `DELETE /remove/{ticker}` and does not have reliable identity-
+  preserving undo yet.
 - `src/hooks/useScanSettings.ts`: scan interval, manual scan, and server-time
   offset.
 - `src/components/AlertForm.tsx`: add-alert form with ticker autocomplete.

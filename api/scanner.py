@@ -91,8 +91,31 @@ def run_fundamental_scan(
             
             # If crossed from untriggered to triggered
             if is_triggered and not alert.get("is_triggered", False):
-                # Triggered! Log to history
-                db.log_alert_history(alert["id"], current_val, alert["target"])
+                # Format message
+                if alert.get("alert_type") == "relative":
+                    diff = calculate_relative_diff(current_val, alert.get("reference_value"))
+                    diff_msg = f", Diff: {diff:.2f}%" if diff is not None else ""
+                    msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} changed by {alert['operator']} {alert['target']}% (Current: {current_val:.2f}, Ref: {alert['reference_value']:.2f}{diff_msg})"
+                else:
+                    msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} {alert['operator']} {alert['target']} (Current: {current_val:.2f})"
+
+                # Triggered! Log to history with denormalized alert context.
+                db.log_alert_history(
+                    alert["id"],
+                    current_val,
+                    alert["target"],
+                    {
+                        "ticker_symbol": ticker,
+                        "company_name": details.get("name"),
+                        "metric": alert.get("metric"),
+                        "operator": alert.get("operator"),
+                        "alert_type": alert.get("alert_type") or "absolute",
+                        "reference_value": alert.get("reference_value"),
+                        "current_value": current_val,
+                        "source": _provider_source(market_data),
+                        "message": msg,
+                    },
+                )
                 logger.info(
                     "Alert triggered",
                     extra={
@@ -103,13 +126,5 @@ def run_fundamental_scan(
                         "target_value": alert.get("target"),
                     },
                 )
-                
-                # Format message
-                if alert.get("alert_type") == "relative":
-                    diff = calculate_relative_diff(current_val, alert.get("reference_value"))
-                    diff_msg = f", Diff: {diff:.2f}%" if diff is not None else ""
-                    msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} changed by {alert['operator']} {alert['target']}% (Current: {current_val:.2f}, Ref: {alert['reference_value']:.2f}{diff_msg})"
-                else:    
-                    msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} {alert['operator']} {alert['target']} (Current: {current_val:.2f})"
                     
                 send_alert_func(msg)

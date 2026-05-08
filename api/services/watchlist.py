@@ -95,14 +95,10 @@ def _find_single_alert_by_symbol_metric(db_client: Any, ticker: str, metric: str
 
 
 def remove_watchlist_alert(db_client: Any, ticker: str, metric: str) -> bool:
-    symbol, alert = _find_single_alert_by_symbol_metric(db_client, ticker, metric)
+    _, alert = _find_single_alert_by_symbol_metric(db_client, ticker, metric)
     deleted = db_client.delete_alert_db(alert_id=alert["id"])
     if not deleted:
         return False
-
-    watchlist = db_client.get_watchlist()
-    if symbol in watchlist and len(watchlist[symbol]["alerts"]) == 0:
-        db_client.delete_ticker_db(symbol)
 
     return True
 

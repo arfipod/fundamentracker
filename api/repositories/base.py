@@ -69,6 +69,12 @@ class AlertRepository(Protocol):
     def toggle_alert_active(self, alert_id: str, is_active: bool) -> Any:
         ...
 
+    def restore_alert_db(self, alert_id: str) -> Any:
+        ...
+
+    def get_deleted_alerts_db(self) -> list[dict[str, Any]]:
+        ...
+
     def update_alert_status(
         self,
         alert_id: str,
@@ -87,7 +93,13 @@ class AlertRepository(Protocol):
 
 
 class AlertHistoryRepository(Protocol):
-    def log_alert_history(self, alert_id: str, trigger_val: float, target_val: float) -> Any:
+    def log_alert_history(
+        self,
+        alert_id: str,
+        trigger_val: float,
+        target_val: float,
+        metadata: dict[str, Any] | None = None,
+    ) -> Any:
         ...
 
     def get_alert_history_db(self, limit: int = 50) -> list[dict[str, Any]]:

@@ -17,18 +17,32 @@ CREATE TABLE IF NOT EXISTS alerts (
   reference_value NUMERIC,
   alert_type VARCHAR DEFAULT 'absolute',
   current_value NUMERIC,
+  deleted_at TIMESTAMPTZ,
+  restored_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_alerts_ticker_symbol ON alerts(ticker_symbol);
 CREATE INDEX IF NOT EXISTS idx_alerts_active ON alerts(is_active);
+CREATE INDEX IF NOT EXISTS idx_alerts_deleted_at ON alerts(deleted_at);
 
 CREATE TABLE IF NOT EXISTS alert_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  alert_id UUID NOT NULL REFERENCES alerts(id) ON DELETE CASCADE,
+  alert_id UUID REFERENCES alerts(id) ON DELETE SET NULL,
   triggered_at TIMESTAMPTZ DEFAULT NOW(),
   trigger_value NUMERIC NOT NULL,
-  target_value NUMERIC NOT NULL
+  target_value NUMERIC NOT NULL,
+  ticker_symbol VARCHAR,
+  company_name VARCHAR,
+  metric VARCHAR,
+  operator VARCHAR,
+  alert_type VARCHAR,
+  reference_value NUMERIC,
+  current_value NUMERIC,
+  source VARCHAR,
+  as_of_date DATE,
+  fetched_at TIMESTAMPTZ,
+  message TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_alert_history_triggered_at ON alert_history(triggered_at DESC);
