@@ -4,7 +4,7 @@ from typing import Any, Callable
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from schemas.valuation import ValuationRequest
+from schemas.valuation import ValuationRequest, ValuationResponse
 from services import valuation as valuation_service
 
 
@@ -15,7 +15,11 @@ def create_router(
 ) -> APIRouter:
     router = APIRouter()
 
-    @router.post("/ai-valuation", dependencies=[Depends(require_api_token)])
+    @router.post(
+        "/ai-valuation",
+        response_model=ValuationResponse,
+        dependencies=[Depends(require_api_token)],
+    )
     def ai_valuation(payload: ValuationRequest):
         try:
             return valuation_service.generate_ai_valuation(
@@ -26,6 +30,8 @@ def create_router(
             raise HTTPException(status_code=500, detail=str(error)) from error
         except valuation_service.GeminiApiKeyNotConfiguredError as error:
             raise HTTPException(status_code=500, detail=str(error)) from error
+        except valuation_service.InvalidAIValuationResponseError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
         except HTTPException:
             raise
         except Exception as error:

@@ -127,5 +127,5 @@ moment.
   timestamps, expiry, and confidence when available.
 - Watchlist reads and all mutable operations use `apiFetch`.
 - Alert update/delete/toggle calls use alert IDs.
-- The AI valuation UI expects the backend response shape
-  `{"analysis": "..."}`.
+- The AI valuation UI prefers the structured `/ai-valuation` response fields
+  and falls back to the temporary legacy `analysis` string when needed.

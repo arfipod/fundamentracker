@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import type { TickerData, WatchlistMetadata } from '../types/watchlist';
 import type { MetricCatalogItem } from '../types/metrics';
+import type { AiValuationResponse } from '../types/valuation';
 import { AlertItem } from './AlertItem';
+import { AiValuationPanel } from './AiValuationPanel';
 import { InlineAlertForm } from './InlineAlertForm';
 import { apiFetch } from '../lib/apiClient';
+import { parseAiValuationResponse } from '../lib/valuation';
 
 /**
  * Props for the TickerCard component.
@@ -42,7 +45,7 @@ export function TickerCard({ symbol, data, metrics, onDeleteTicker, onAddInline,
   const [addingMetric, setAddingMetric] = useState(false);
   const [addingTag, setAddingTag] = useState(false);
   const [newTag, setNewTag] = useState('');
-  const [aiValuation, setAiValuation] = useState<string | null>(null);
+  const [aiValuation, setAiValuation] = useState<AiValuationResponse | string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
 
   const handleAddTag = () => {
@@ -64,8 +67,8 @@ export function TickerCard({ symbol, data, metrics, onDeleteTicker, onAddInline,
         body: JSON.stringify({ ticker: symbol })
       });
       if (res.ok) {
-        const data = await res.json();
-        setAiValuation(data.analysis);
+        const responseData = await res.json();
+        setAiValuation(parseAiValuationResponse(responseData));
       } else {
         const err = await res.json();
         setAiValuation(`Error: ${err.detail || 'Failed to fetch valuation'}`);
@@ -162,11 +165,11 @@ export function TickerCard({ symbol, data, metrics, onDeleteTicker, onAddInline,
         </div>
 
         {aiValuation && (
-          <div style={{ padding: '0.75rem', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid var(--primary)', borderRadius: '6px', marginBottom: '1rem', fontSize: '0.85rem', position: 'relative' }}>
-            <button onClick={() => setAiValuation(null)} style={{ position: 'absolute', top: '4px', right: '4px', background: 'none', border: 'none', color: 'var(--text-color)', cursor: 'pointer' }}>✕</button>
-            <h5 style={{ margin: '0 0 0.5rem 0', color: 'var(--primary)' }}>✨ Gemini AI Analysis</h5>
-            <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{aiValuation}</p>
-          </div>
+          <AiValuationPanel
+            valuation={aiValuation}
+            metrics={metrics}
+            onClose={() => setAiValuation(null)}
+          />
         )}
 
         {addingMetric && (

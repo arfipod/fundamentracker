@@ -63,10 +63,14 @@ Service modules hold behavior that has been split out of routes:
 - `market.py`: market-data endpoint behavior.
 - `health.py`: health payload formatting.
 - `ops.py`: operations status payload.
-- `valuation.py`: Gemini prompt assembly and response call.
+- `valuation.py`: backend valuation data-pack assembly, Gemini JSON prompt,
+  structured response validation, and temporary legacy analysis text.
 
-The valuation service currently returns plain text in `{"analysis": "..."}`.
-Structured AI output is not implemented yet.
+The valuation service returns structured AI output with label, data quality,
+observations, risks, missing data, suggested read-only alerts, sources, and a
+disclaimer. It also includes a temporary `analysis` string for older frontend
+compatibility. The analysis is limited to the backend data pack and should not
+claim historical or sector comparisons unless those data are explicitly present.
 
 ### `api/repositories/`
 

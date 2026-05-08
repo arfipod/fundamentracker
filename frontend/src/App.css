@@ -404,6 +404,139 @@ body {
   text-align: center;
 }
 
+.ai-valuation-panel {
+  position: relative;
+  margin: 0 0 1rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(59, 130, 246, 0.65);
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.92);
+  color: var(--text-main);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.ai-valuation-row .ai-valuation-panel {
+  margin: 0 1rem 1rem;
+}
+
+.ai-valuation-close {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ai-valuation-close:hover {
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--text-main);
+}
+
+.ai-valuation-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding-right: 1.8rem;
+  margin-bottom: 0.55rem;
+}
+
+.ai-valuation-panel h5,
+.ai-valuation-panel h6 {
+  margin: 0;
+  color: #93c5fd;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ai-valuation-label,
+.ai-valuation-quality {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ai-valuation-label.cheap {
+  background: rgba(16, 185, 129, 0.16);
+  color: #86efac;
+}
+
+.ai-valuation-label.fair {
+  background: rgba(59, 130, 246, 0.16);
+  color: #93c5fd;
+}
+
+.ai-valuation-label.expensive {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fcd34d;
+}
+
+.ai-valuation-label.inconclusive {
+  background: rgba(148, 163, 184, 0.16);
+  color: #cbd5e1;
+}
+
+.ai-valuation-quality {
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+}
+
+.ai-valuation-summary,
+.ai-valuation-text,
+.ai-valuation-disclaimer {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.ai-valuation-section {
+  margin-top: 0.75rem;
+}
+
+.ai-valuation-section ul,
+.ai-suggested-alerts {
+  margin: 0.35rem 0 0;
+  padding-left: 1.15rem;
+}
+
+.ai-valuation-section li {
+  margin-bottom: 0.28rem;
+  color: #dbeafe;
+}
+
+.ai-suggested-alerts li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.ai-suggested-alerts code {
+  align-self: flex-start;
+  padding: 0.12rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.8);
+  color: #bfdbfe;
+}
+
+.ai-valuation-disclaimer {
+  margin-top: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
 .loading, .empty-message {
   text-align: center;
   padding: 4rem 2rem;
