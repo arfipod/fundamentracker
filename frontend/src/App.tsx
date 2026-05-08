@@ -6,13 +6,15 @@ import { DashboardHeader } from './components/DashboardHeader';
 import { AlertForm } from './components/AlertForm';
 import { WatchlistSection } from './components/WatchlistSection';
 import { ExplorerSection } from './components/ExplorerSection';
+import { SignalInbox } from './components/SignalInbox';
 import { apiFetch } from './lib/apiClient';
 import type { MetricCatalogItem } from './types/metrics';
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'watchlist' | 'explorer'>('watchlist');
+  const [activeTab, setActiveTab] = useState<'signals' | 'watchlist' | 'explorer'>('signals');
   const [metricCatalog, setMetricCatalog] = useState<MetricCatalogItem[]>([]);
   const [metricCatalogError, setMetricCatalogError] = useState<string | null>(null);
+  const [signalRefreshToken, setSignalRefreshToken] = useState(0);
   const {
     watchlist,
     loading,
@@ -40,7 +42,10 @@ function App() {
     fetchScanSettings,
     handleUpdateInterval,
     handleScan
-  } = useScanSettings(fetchWatchlist);
+  } = useScanSettings(async () => {
+    await fetchWatchlist();
+    setSignalRefreshToken((current) => current + 1);
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +111,12 @@ function App() {
 
       <div className="tabs-container">
         <button 
+          className={`tab-btn ${activeTab === 'signals' ? 'active' : ''}`}
+          onClick={() => setActiveTab('signals')}
+        >
+          Signals
+        </button>
+        <button 
           className={`tab-btn ${activeTab === 'watchlist' ? 'active' : ''}`}
           onClick={() => setActiveTab('watchlist')}
         >
@@ -121,7 +132,9 @@ function App() {
 
       {combinedError && <div className="error-message">{combinedError}</div>}
 
-      {activeTab === 'watchlist' ? (
+      {activeTab === 'signals' ? (
+        <SignalInbox refreshToken={signalRefreshToken} />
+      ) : activeTab === 'watchlist' ? (
         <>
           <AlertForm metrics={metricCatalog} onAdd={handleAddNewAlert} />
 
@@ -139,9 +152,9 @@ function App() {
             onUpdateMetadata={handleUpdateMetadata}
           />
         </>
-      ) : (
+      ) : activeTab === 'explorer' ? (
         <ExplorerSection metrics={metricCatalog} />
-      )}
+      ) : null}
 
       {undoQueue && (
         <div className="undo-toast" style={{

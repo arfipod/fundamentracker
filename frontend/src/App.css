@@ -47,7 +47,7 @@ body {
   letter-spacing: -0.02em;
 }
 
-.btn-primary, .btn-success, .btn-danger {
+.btn-primary, .btn-success, .btn-danger, .btn-secondary, .btn-danger-text {
   padding: 0.6rem 1.2rem;
   border: none;
   border-radius: 8px;
@@ -95,6 +95,32 @@ body {
   background-color: var(--danger);
   color: white;
   transform: scale(1.05);
+}
+
+.btn-secondary {
+  background-color: rgba(148, 163, 184, 0.12);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+
+.btn-secondary:hover {
+  background-color: rgba(148, 163, 184, 0.2);
+}
+
+.btn-secondary:disabled,
+.btn-danger-text:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn-danger-text {
+  background-color: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.btn-danger-text:hover {
+  background-color: rgba(239, 68, 68, 0.14);
 }
 
 .error-message {
@@ -585,6 +611,116 @@ body {
   background: linear-gradient(90deg, #60a5fa 0%, #3b82f6 100%);
   border-radius: 3px 3px 0 0;
   box-shadow: 0 -2px 10px rgba(59, 130, 246, 0.4);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: 1.45rem;
+}
+
+.section-subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+}
+
+.empty-state {
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-muted);
+  padding: 1.5rem;
+}
+
+.signal-inbox {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.signal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.signal-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.25rem;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--primary);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.signal-item.severity-warning {
+  border-left-color: #f59e0b;
+}
+
+.signal-item.severity-critical {
+  border-left-color: var(--danger);
+}
+
+.signal-main {
+  min-width: 0;
+}
+
+.signal-main h3 {
+  margin: 0.35rem 0;
+  font-size: 1.05rem;
+}
+
+.signal-main p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.signal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.signal-ticker,
+.signal-severity {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  color: var(--text-main);
+  text-transform: uppercase;
+}
+
+.signal-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .section-header,
+  .signal-item,
+  .signal-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .signal-actions button {
+    width: 100%;
+  }
 }
 
 /* Explorer Section Styling */

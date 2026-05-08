@@ -193,3 +193,19 @@ def log_alert_history(alert_id, trigger_val, target_val, metadata=None):
 
 def get_alert_history_db(limit=50):
     return _repository().get_alert_history_db(limit=limit)
+
+
+def create_signal(payload):
+    return _repository().create_signal(payload)
+
+
+def get_signals(status="open", limit=50):
+    return _repository().get_signals(status=status, limit=limit)
+
+
+def acknowledge_signal(signal_id):
+    return _repository().acknowledge_signal(signal_id)
+
+
+def dismiss_signal(signal_id):
+    return _repository().dismiss_signal(signal_id)

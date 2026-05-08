@@ -15,7 +15,7 @@ Active runtime:
 5. Services call repository implementations in `api/repositories/` and
    market-data code in `api/market_data/`.
 6. The scanner in `api/scanner.py` evaluates active alerts and writes alert
-   state/history through the repository boundary.
+   state, history, and Signal Inbox rows through the repository boundary.
 
 Production Docker starts the API through `scripts/start-api.sh`, which can run
 local PostgreSQL migrations first when `RUN_MIGRATIONS_ON_START=true`, then
@@ -42,6 +42,7 @@ Active route modules:
 - `alerts.py`: ID-based alert update, soft delete, restore, toggle, deleted
   alert listing, and alert history.
 - `scans.py`: manual scan, scan settings, and server time.
+- `signals.py`: Signal Inbox listing plus acknowledge and dismiss actions.
 - `market.py`: symbol search, provider health, current metrics, history, and
   market overview.
 - `valuation.py`: Gemini valuation endpoint.
@@ -57,6 +58,7 @@ Service modules hold behavior that has been split out of routes:
   compatibility checks, reference value capture for relative alerts.
 - `alerts.py`: ID-based alert mutation, soft-delete/restore behavior, deleted
   alert listing, and history reads.
+- `signals.py`: open/all signal reads and acknowledge/dismiss mutations.
 - `scans.py`: scan execution, scan interval loop, and Telegram polling startup.
 - `market.py`: market-data endpoint behavior.
 - `health.py`: health payload formatting.
@@ -110,6 +112,11 @@ alert type, reference value, current value, provider source, and alert message
 when those fields are available during scanning. This preserves investor audit
 context independently of later alert soft deletes.
 
+Newly triggered alerts also create `signals` rows with
+`signal_type = 'alert_triggered'`. The frontend Signal Inbox reads open signals
+from `GET /signals` and hides rows from the open view after acknowledge or
+dismiss.
+
 `alert_evaluator.py` owns absolute and relative alert logic. Relative alerts
 compare the percentage difference from the stored reference value:
 
@@ -140,7 +147,8 @@ The frontend is a React 19 + Vite + TypeScript app under `frontend/`.
 
 Important files:
 
-- `src/App.tsx`: top-level tabs for Watchlist and Explorer.
+- `src/App.tsx`: top-level tabs for Signals, Watchlist, and Explorer. Signals
+  is the default tab.
 - `src/lib/apiClient.ts`: shared fetch wrapper that adds bearer auth when a
   frontend token is configured.
 - `src/hooks/useWatchlist.ts`: watchlist loading, alert add/update/delete/toggle,
@@ -149,7 +157,9 @@ Important files:
   still uses `DELETE /remove/{ticker}` and does not have reliable identity-
   preserving undo yet.
 - `src/hooks/useScanSettings.ts`: scan interval, manual scan, and server-time
-  offset.
+  offset. Manual scan completion refreshes the watchlist and Signal Inbox.
+- `src/components/SignalInbox.tsx`: open signal list with acknowledge, dismiss,
+  and refresh controls.
 - `src/components/AlertForm.tsx`: add-alert form with ticker autocomplete.
 - `src/components/WatchlistSection.tsx`: table/grid views, sorting, and
   backend tag filtering.
@@ -176,6 +186,7 @@ Current app tables include:
 - `tickers`
 - `alerts`
 - `alert_history`
+- `signals`
 - `scan_settings`
 - `data_providers` (created by bootstrap schema, not actively used by current
   service selection)

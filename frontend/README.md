@@ -1,8 +1,9 @@
 # FundamenTracker Frontend
 
 This directory contains the current React/Vite frontend for FundamenTracker. It
-is the browser UI for managing watchlist alerts, running scans, exploring
-metrics, viewing charts, and requesting Gemini analysis through the backend.
+is the browser UI for reviewing signals, managing watchlist alerts, running
+scans, exploring metrics, viewing charts, and requesting Gemini analysis
+through the backend.
 
 ## Tech Stack
 
@@ -17,14 +18,17 @@ icons.
 
 ## Structure
 
-- `src/App.tsx`: top-level Watchlist/Explorer tab layout.
+- `src/App.tsx`: top-level Signals/Watchlist/Explorer tab layout.
 - `src/lib/apiClient.ts`: shared API fetch helper and bearer-token injection.
 - `src/types/watchlist.ts`: watchlist, alert, and alert-history TypeScript
   types.
+- `src/types/signals.ts`: Signal Inbox TypeScript types.
 - `src/hooks/useWatchlist.ts`: watchlist loading plus alert/ticker mutations and
   undo behavior.
 - `src/hooks/useScanSettings.ts`: scan interval, manual scan, and server time.
 - `src/components/AlertForm.tsx`: add-alert form with ticker autocomplete.
+- `src/components/SignalInbox.tsx`: open signal list with acknowledge, dismiss,
+  and refresh controls.
 - `src/components/WatchlistSection.tsx`: table/grid watchlist display, sorting,
   and backend tag filtering.
 - `src/components/TickerRow.tsx`: table-row ticker view.

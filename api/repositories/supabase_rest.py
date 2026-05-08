@@ -34,6 +34,11 @@ class SupabaseRestRepository:
     TICKER_COLUMNS = (
         "symbol,name,status,priority,notes,thesis,target_action,created_at,updated_at"
     )
+    SIGNAL_COLUMNS = (
+        "id,ticker_symbol,company_name,signal_type,severity,title,message,"
+        "metric,current_value,previous_value,target_value,source,as_of_date,"
+        "fetched_at,created_at,acknowledged_at,dismissed_at,raw_payload"
+    )
 
     def __init__(
         self,
@@ -526,3 +531,65 @@ class SupabaseRestRepository:
             )
             or []
         )
+
+    def create_signal(self, payload):
+        signal_payload = {
+            "ticker_symbol": payload.get("ticker_symbol"),
+            "company_name": payload.get("company_name"),
+            "signal_type": payload.get("signal_type"),
+            "severity": payload.get("severity"),
+            "title": payload.get("title"),
+            "message": payload.get("message"),
+            "metric": payload.get("metric"),
+            "current_value": payload.get("current_value"),
+            "previous_value": payload.get("previous_value"),
+            "target_value": payload.get("target_value"),
+            "source": payload.get("source"),
+            "as_of_date": serialize_value(payload.get("as_of_date")),
+            "fetched_at": serialize_value(payload.get("fetched_at")),
+            "raw_payload": payload.get("raw_payload"),
+        }
+        signal_payload = {key: value for key, value in signal_payload.items() if value is not None}
+        headers = {"Prefer": "return=representation"}
+        rows = self._req("POST", "signals", json=signal_payload, headers=headers) or []
+        return rows[0] if rows else None
+
+    def get_signals(self, status="open", limit=50):
+        endpoint = f"signals?select={self.SIGNAL_COLUMNS}&order=created_at.desc&limit={limit}"
+        if status == "open":
+            endpoint = (
+                f"signals?select={self.SIGNAL_COLUMNS}"
+                "&acknowledged_at=is.null"
+                "&dismissed_at=is.null"
+                "&order=created_at.desc"
+                f"&limit={limit}"
+            )
+        return self._req("GET", endpoint) or []
+
+    def acknowledge_signal(self, signal_id):
+        headers = {"Prefer": "return=representation"}
+        payload = {"acknowledged_at": datetime.now(timezone.utc).isoformat()}
+        rows = (
+            self._req(
+                "PATCH",
+                f"signals?id=eq.{self._encode_filter_value(signal_id)}&dismissed_at=is.null",
+                json=payload,
+                headers=headers,
+            )
+            or []
+        )
+        return rows[0] if rows else None
+
+    def dismiss_signal(self, signal_id):
+        headers = {"Prefer": "return=representation"}
+        payload = {"dismissed_at": datetime.now(timezone.utc).isoformat()}
+        rows = (
+            self._req(
+                "PATCH",
+                f"signals?id=eq.{self._encode_filter_value(signal_id)}",
+                json=payload,
+                headers=headers,
+            )
+            or []
+        )
+        return rows[0] if rows else None

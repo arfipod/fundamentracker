@@ -23,6 +23,8 @@ def test_mutable_endpoints_require_api_token(monkeypatch):
         ("PATCH", "/alerts/alert-1", {"value": 18}),
         ("DELETE", "/alerts/alert-1", None),
         ("POST", "/alerts/alert-1/restore", None),
+        ("PATCH", "/signals/signal-1/acknowledge", None),
+        ("PATCH", "/signals/signal-1/dismiss", None),
         ("POST", "/scan", None),
         ("PUT", "/scan-settings", {"interval_seconds": 3600}),
         ("PATCH", "/alerts/alert-1/toggle", {"is_active": False}),
@@ -43,6 +45,7 @@ def test_sensitive_read_endpoints_require_api_token(monkeypatch):
     protected_requests = [
         "/alert-history",
         "/alerts/deleted",
+        "/signals",
         "/tags",
         "/scan-settings",
         "/data/providers/health",

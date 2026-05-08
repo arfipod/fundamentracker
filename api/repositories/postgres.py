@@ -30,6 +30,11 @@ class PostgresRepository:
         "symbol, name, status, priority, notes, thesis, target_action, "
         "created_at, updated_at"
     )
+    SIGNAL_COLUMNS = (
+        "id, ticker_symbol, company_name, signal_type, severity, title, message, "
+        "metric, current_value, previous_value, target_value, source, as_of_date, "
+        "fetched_at, created_at, acknowledged_at, dismissed_at, raw_payload"
+    )
 
     def __init__(
         self,
@@ -661,3 +666,81 @@ class PostgresRepository:
                 }
             history.append(row)
         return history
+
+    def create_signal(self, payload):
+        rows = self._query_all(
+            """
+            INSERT INTO signals (
+                ticker_symbol, company_name, signal_type, severity, title, message,
+                metric, current_value, previous_value, target_value, source,
+                as_of_date, fetched_at, raw_payload
+            )
+            VALUES (
+                %s, %s, %s, COALESCE(%s, 'info'), %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s::jsonb
+            )
+            RETURNING id, ticker_symbol, company_name, signal_type, severity, title,
+                      message, metric, current_value, previous_value, target_value,
+                      source, as_of_date, fetched_at, created_at, acknowledged_at,
+                      dismissed_at, raw_payload
+            """,
+            (
+                payload.get("ticker_symbol"),
+                payload.get("company_name"),
+                payload.get("signal_type"),
+                payload.get("severity"),
+                payload.get("title"),
+                payload.get("message"),
+                payload.get("metric"),
+                payload.get("current_value"),
+                payload.get("previous_value"),
+                payload.get("target_value"),
+                payload.get("source"),
+                payload.get("as_of_date"),
+                payload.get("fetched_at"),
+                self._jsonb_param(payload.get("raw_payload")),
+            ),
+        )
+        return rows[0] if rows else None
+
+    def get_signals(self, status="open", limit=50):
+        where_clause = ""
+        if status == "open":
+            where_clause = "WHERE acknowledged_at IS NULL AND dismissed_at IS NULL"
+
+        return self._query_all(
+            f"""
+            SELECT {self.SIGNAL_COLUMNS}
+            FROM signals
+            {where_clause}
+            ORDER BY created_at DESC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+
+    def acknowledge_signal(self, signal_id):
+        rows = self._query_all(
+            f"""
+            UPDATE signals
+            SET acknowledged_at = COALESCE(acknowledged_at, NOW())
+            WHERE id = %s
+              AND dismissed_at IS NULL
+            RETURNING {self.SIGNAL_COLUMNS}
+            """,
+            (signal_id,),
+        )
+        return rows[0] if rows else None
+
+    def dismiss_signal(self, signal_id):
+        rows = self._query_all(
+            f"""
+            UPDATE signals
+            SET dismissed_at = COALESCE(dismissed_at, NOW())
+            WHERE id = %s
+            RETURNING {self.SIGNAL_COLUMNS}
+            """,
+            (signal_id,),
+        )
+        return rows[0] if rows else None

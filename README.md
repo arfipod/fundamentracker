@@ -17,6 +17,8 @@ implemented yet.
 - ID-based alert update, delete, and toggle routes so duplicate ticker/metric
   alerts can be managed safely.
 - Manual and periodic alert scanning.
+- Signal Inbox for open investor-relevant events created from newly triggered
+  alerts.
 - Market metric and history lookup through `MarketDataService`.
 - yfinance provider for quotes, metrics, symbol search, market overview, and
   historical chart data.

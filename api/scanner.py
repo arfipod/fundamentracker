@@ -28,6 +28,26 @@ def _snapshot_metadata(snapshot: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _signal_title(ticker: str, metric: str, operator: str, target: Any) -> str:
+    direction = {
+        "<": "crossed below",
+        "<=": "crossed at or below",
+        ">": "crossed above",
+        ">=": "crossed at or above",
+        "==": "matched",
+        "=": "matched",
+    }.get(operator, operator)
+    return f"{ticker} {metric.upper()} {direction} {target}"
+
+
+def _alert_signal_severity(alert: dict[str, Any]) -> str:
+    metric = str(alert.get("metric") or "").lower()
+    operator = alert.get("operator")
+    if metric in {"price", "market_cap"} and operator in {"<", "<="}:
+        return "critical"
+    return "warning"
+
+
 def run_fundamental_scan(
     send_alert_func,
     market_data_service: MarketDataService | None = None,
@@ -134,6 +154,35 @@ def run_fundamental_scan(
                         "fetched_at": current_metadata.get("fetched_at"),
                         "message": msg,
                     },
+                )
+                db.create_signal(
+                    {
+                        "ticker_symbol": ticker,
+                        "company_name": details.get("name"),
+                        "signal_type": "alert_triggered",
+                        "severity": _alert_signal_severity(alert),
+                        "title": _signal_title(
+                            ticker,
+                            alert.get("metric", ""),
+                            alert.get("operator", ""),
+                            alert.get("target"),
+                        ),
+                        "message": msg,
+                        "metric": alert.get("metric"),
+                        "current_value": current_val,
+                        "previous_value": alert.get("current_value"),
+                        "target_value": alert.get("target"),
+                        "source": current_metadata.get("source") or _provider_source(market_data),
+                        "as_of_date": current_metadata.get("as_of_date"),
+                        "fetched_at": current_metadata.get("fetched_at"),
+                        "raw_payload": {
+                            "alert_id": alert.get("id"),
+                            "operator": alert.get("operator"),
+                            "alert_type": alert.get("alert_type") or "absolute",
+                            "reference_value": alert.get("reference_value"),
+                            "current_metadata": current_metadata,
+                        },
+                    }
                 )
                 logger.info(
                     "Alert triggered",

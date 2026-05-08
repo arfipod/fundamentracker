@@ -128,6 +128,20 @@ class AlertHistoryRepository(Protocol):
         ...
 
 
+class SignalRepository(Protocol):
+    def create_signal(self, payload: dict[str, Any]) -> dict[str, Any] | None:
+        ...
+
+    def get_signals(self, status: str = "open", limit: int = 50) -> list[dict[str, Any]]:
+        ...
+
+    def acknowledge_signal(self, signal_id: str) -> dict[str, Any] | None:
+        ...
+
+    def dismiss_signal(self, signal_id: str) -> dict[str, Any] | None:
+        ...
+
+
 class ScanSettingsRepository(Protocol):
     def get_scan_settings_db(self) -> dict[str, Any]:
         ...
@@ -176,6 +190,7 @@ class FundamenTrackerRepository(
     TickerRepository,
     AlertRepository,
     AlertHistoryRepository,
+    SignalRepository,
     ScanSettingsRepository,
     MetricSnapshotRepository,
     ProviderHealthRepository,

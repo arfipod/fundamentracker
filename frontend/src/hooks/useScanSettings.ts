@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { apiFetch } from '../lib/apiClient';
 
-export function useScanSettings(onScanComplete?: () => void) {
+export function useScanSettings(onScanComplete?: () => void | Promise<void>) {
   const [scanInterval, setScanInterval] = useState<number>(0);
   const [lastScanTime, setLastScanTime] = useState<number>(0);
   const [isScanning, setIsScanning] = useState(false);
@@ -49,7 +49,7 @@ export function useScanSettings(onScanComplete?: () => void) {
       const response = await apiFetch('/scan', { method: 'POST' });
       if (!response.ok) throw new Error('Error scanning');
       await fetchScanSettings();
-      if (onScanComplete) onScanComplete();
+      if (onScanComplete) await onScanComplete();
     } catch (err: unknown) {
        if (err instanceof Error) {
         setScanError(err.message);

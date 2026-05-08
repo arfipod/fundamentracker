@@ -39,6 +39,7 @@ class FakeScannerRepository:
         self.updates = updates
         self.history = history
         self.history_metadata = []
+        self.signals = []
 
     def get_watchlist(self):
         return deepcopy(self.watchlist)
@@ -49,6 +50,11 @@ class FakeScannerRepository:
     def log_alert_history(self, alert_id, current_value, target, metadata=None):
         self.history.append((alert_id, current_value, target))
         self.history_metadata.append(metadata or {})
+
+    def create_signal(self, payload):
+        signal = {"id": f"signal-{len(self.signals) + 1}", **payload}
+        self.signals.append(signal)
+        return signal
 
 
 def install_fake_scanner_db(watchlist):
@@ -87,6 +93,31 @@ def test_scanner_triggers_absolute_alert_on_false_to_true_transition(monkeypatch
 
     assert updates == [("alert-1", True, 18.0, EMPTY_SNAPSHOT_METADATA)]
     assert history == [("alert-1", 18.0, 20.0)]
+    assert repository.signals == [
+        {
+            "id": "signal-1",
+            "ticker_symbol": "AAPL",
+            "company_name": "Apple Inc.",
+            "signal_type": "alert_triggered",
+            "severity": "warning",
+            "title": "AAPL PE crossed below 20.0",
+            "message": send_alert.call_args.args[0],
+            "metric": "pe",
+            "current_value": 18.0,
+            "previous_value": None,
+            "target_value": 20.0,
+            "source": None,
+            "as_of_date": None,
+            "fetched_at": None,
+            "raw_payload": {
+                "alert_id": "alert-1",
+                "operator": "<",
+                "alert_type": "absolute",
+                "reference_value": None,
+                "current_metadata": EMPTY_SNAPSHOT_METADATA,
+            },
+        }
+    ]
     send_alert.assert_called_once()
     assert "PE < 20.0" in send_alert.call_args.args[0]
 
@@ -192,6 +223,7 @@ def test_scanner_does_not_realert_when_alert_is_already_triggered(monkeypatch):
 
     assert updates == [("alert-1", True, 18.0, EMPTY_SNAPSHOT_METADATA)]
     assert history == []
+    assert repository.signals == []
     send_alert.assert_not_called()
 
 
