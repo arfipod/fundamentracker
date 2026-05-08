@@ -65,6 +65,8 @@ Only use this on a trusted network or behind another access layer. The watchlist
 
 `VITE_API_AUTH_TOKEN` is embedded into the browser bundle. It is convenient for a private bundled frontend, but it is not strong authentication for a public website. For internet-facing deployments, put the frontend and API behind Cloudflare Access, a VPN, or real user authentication.
 
+For deployment patterns and a public exposure checklist, see [`SECURITY_HARDENING.md`](SECURITY_HARDENING.md).
+
 ## CORS
 
 Use exact frontend origins:

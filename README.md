@@ -45,6 +45,8 @@ Authorization: Bearer <API_AUTH_TOKEN>
 
 By default, mutable endpoints and sensitive read endpoints are private. This includes `/watchlist`, `/alert-history`, `/scan-settings`, `/data/providers/health`, `/metric-current`, `/history`, scanning, alert writes, and AI valuation. The bundled frontend sends `VITE_API_AUTH_TOKEN` through its shared API client when configured.
 
+Important: `VITE_API_AUTH_TOKEN` is embedded into public Vite frontend builds. Anyone who can load an unprotected frontend can inspect and reuse it, so it is suitable only for trusted/private deployments. For internet-facing deployments, put the frontend and API behind Cloudflare Access, Tailscale/WireGuard/VPN, or future real login/session authentication.
+
 Public endpoints are intentionally narrow:
 
 - `GET /health/live` is always public for container liveness checks.
@@ -52,7 +54,7 @@ Public endpoints are intentionally narrow:
 - `GET /server-time`, `GET /search`, and `GET /market-overview` are currently public read endpoints.
 - `GET /watchlist` can be made public with `READONLY_PUBLIC=true`, but this exposes portfolio data and should stay `false` for internet-facing deployments.
 
-See [`docs/SECURITY.md`](docs/SECURITY.md) for the endpoint exposure model and deployment notes.
+See [`docs/SECURITY.md`](docs/SECURITY.md) for the endpoint exposure model and [`docs/SECURITY_HARDENING.md`](docs/SECURITY_HARDENING.md) for safe deployment modes.
 
 ## Common Commands
 
