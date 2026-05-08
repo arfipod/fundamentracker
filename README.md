@@ -35,6 +35,21 @@ ALLOW_WILDCARD_CORS=false
 
 The development compose stack sets `APP_ENV=development` and allows `http://localhost:5173` by default when no origins are configured. The production compose stack sets `APP_ENV=production`; production does not allow wildcard CORS unless `CORS_ALLOWED_ORIGINS=*` and `ALLOW_WILDCARD_CORS=true` are both set intentionally. If you run the API without Compose in production, set `APP_ENV=production` yourself.
 
+## Common Commands
+
+| Command | What it does |
+| --- | --- |
+| `make dev-up` | Builds and starts the development API and frontend with `docker-compose.dev.yml`. |
+| `make dev-down` | Stops the development compose stack. |
+| `make prod-up` | Builds and starts the default production services with `docker-compose.prod.yml`. |
+| `make prod-down` | Stops the production compose stack without removing persisted data. |
+| `make logs` | Follows production compose logs. Use `LOG_SERVICES=api` to focus one service. |
+| `make test` | Runs backend tests with `pytest`. |
+| `make frontend-build` | Builds the React/Vite frontend. |
+| `make health` | Checks the API readiness endpoint. Override with `HEALTH_URL=...` if needed. |
+| `make backup-db` | Writes a local PostgreSQL custom-format dump to `/srv/fundamentracker/backups`. Override with `BACKUP_DIR=...` if needed. |
+| `make install-systemd` | Runs `sudo ./scripts/install-systemd.sh` to install and start the systemd units. |
+
 ## Running Locally
 
 Use the development compose file for local work. It keeps FastAPI reload, bind mounts, and the Vite dev server.
