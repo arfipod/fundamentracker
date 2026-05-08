@@ -6,7 +6,7 @@ BACKUP_DIR ?= /srv/fundamentracker/backups
 HEALTH_URL ?= http://127.0.0.1:8000/health/ready
 LOG_SERVICES ?=
 
-.PHONY: dev-up dev-down prod-up prod-down logs test frontend-build health backup-db install-systemd
+.PHONY: dev-up dev-down prod-up prod-down logs test frontend-build health backup-db db-migrate install-systemd
 
 dev-up:
 	$(DEV_COMPOSE) up -d --build api frontend
@@ -43,6 +43,9 @@ health:
 
 backup-db:
 	BACKUP_DIR="$(BACKUP_DIR)" ./scripts/backup-db.sh
+
+db-migrate:
+	./scripts/migrate-db.sh
 
 install-systemd:
 	sudo ./scripts/install-systemd.sh
