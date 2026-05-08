@@ -40,9 +40,42 @@ The app currently uses these tables.
 CREATE TABLE IF NOT EXISTS tickers (
   symbol VARCHAR PRIMARY KEY,
   name VARCHAR NOT NULL,
+  status VARCHAR DEFAULT 'watching',
+  priority VARCHAR DEFAULT 'medium',
+  notes TEXT,
+  thesis TEXT,
+  target_action VARCHAR,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+Ticker metadata is returned from `GET /watchlist`. `status` and `priority` are
+editable from the frontend; `notes`, `thesis`, and `target_action` are available
+for investor workflow context.
+
+### `tags` and `ticker_tags`
+
+```sql
+CREATE TABLE IF NOT EXISTS tags (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR NOT NULL UNIQUE,
+  color VARCHAR,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ticker_tags (
+  ticker_symbol VARCHAR REFERENCES tickers(symbol) ON DELETE CASCADE,
+  tag_id UUID REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (ticker_symbol, tag_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ticker_tags_tag_id ON ticker_tags(tag_id);
+```
+
+Tags are shared by name and attached to tickers through `ticker_tags`.
+`GET /watchlist` includes each ticker's `tags` array. Deleting a ticker removes
+its tag links through `ON DELETE CASCADE`; the shared tag row remains.
 
 ### `alerts`
 
@@ -206,3 +239,6 @@ timestamp so already-applied migrations are skipped safely.
   soft-delete/restore timestamps, denormalized alert history columns, backfills
   existing history from current alerts where possible, and changes alert history
   to preserve rows if referenced alerts are hard-deleted.
+- `db/migrations/004_watchlist_metadata_tags.sql`: adds ticker metadata columns
+  and the `tags` / `ticker_tags` tables used by backend-persisted watchlist
+  tags.

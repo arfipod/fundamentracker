@@ -24,6 +24,10 @@ class PostgresRepository:
         "is_triggered, reference_value, alert_type, current_value, "
         "deleted_at, restored_at, created_at"
     )
+    TICKER_COLUMNS = (
+        "symbol, name, status, priority, notes, thesis, target_action, "
+        "created_at, updated_at"
+    )
 
     def __init__(
         self,
@@ -127,7 +131,7 @@ class PostgresRepository:
         return self.check_connectivity()
 
     def get_watchlist(self):
-        tickers = self._query_all("SELECT symbol, name, created_at FROM tickers ORDER BY symbol")
+        tickers = self._query_all(f"SELECT {self.TICKER_COLUMNS} FROM tickers ORDER BY symbol")
         alerts = self._query_all(
             f"""
             SELECT {self.ALERT_COLUMNS}
@@ -136,7 +140,15 @@ class PostgresRepository:
             ORDER BY created_at ASC
             """
         )
-        return build_watchlist(tickers, alerts)
+        ticker_tags = self._query_all(
+            """
+            SELECT tt.ticker_symbol, t.id AS tag_id, t.name AS tag_name, t.color AS tag_color
+            FROM ticker_tags tt
+            JOIN tags t ON t.id = tt.tag_id
+            ORDER BY lower(t.name) ASC
+            """
+        )
+        return build_watchlist(tickers, alerts, ticker_tags)
 
     def get_alerts(self):
         return self._query_all(
@@ -279,17 +291,88 @@ class PostgresRepository:
         )
 
     def get_tickers(self):
-        return self._query_all("SELECT symbol, name, created_at FROM tickers ORDER BY symbol")
+        return self._query_all(f"SELECT {self.TICKER_COLUMNS} FROM tickers ORDER BY symbol")
+
+    def get_tags(self):
+        return self._query_all("SELECT id, name, color, created_at FROM tags ORDER BY lower(name)")
 
     def add_ticker_db(self, symbol, company_name):
         return self._query_all(
             """
             INSERT INTO tickers (symbol, name)
             VALUES (%s, %s)
-            ON CONFLICT (symbol) DO UPDATE SET name = EXCLUDED.name
-            RETURNING symbol, name, created_at
+            ON CONFLICT (symbol) DO UPDATE SET
+                name = EXCLUDED.name,
+                updated_at = NOW()
+            RETURNING symbol, name, status, priority, notes, thesis,
+                      target_action, created_at, updated_at
             """,
             (symbol, company_name),
+        )
+
+    def update_ticker_metadata(self, symbol, metadata):
+        allowed_columns = ("status", "priority", "notes", "thesis", "target_action")
+        assignments = []
+        params = []
+        for column in allowed_columns:
+            if column in metadata:
+                assignments.append(f"{column} = %s")
+                params.append(metadata[column])
+
+        if not assignments:
+            rows = self._query_all(
+                f"SELECT {self.TICKER_COLUMNS} FROM tickers WHERE symbol = %s",
+                (symbol,),
+            )
+            return rows[0] if rows else None
+
+        assignments.append("updated_at = NOW()")
+        params.append(symbol)
+        rows = self._query_all(
+            f"""
+            UPDATE tickers
+            SET {', '.join(assignments)}
+            WHERE symbol = %s
+            RETURNING symbol, name, status, priority, notes, thesis,
+                      target_action, created_at, updated_at
+            """,
+            tuple(params),
+        )
+        return rows[0] if rows else None
+
+    def add_tag_to_ticker(self, symbol, name, color=None):
+        rows = self._query_all(
+            """
+            WITH tag_row AS (
+                INSERT INTO tags (name, color)
+                VALUES (%s, %s)
+                ON CONFLICT (name) DO UPDATE SET
+                    color = COALESCE(EXCLUDED.color, tags.color)
+                RETURNING id, name, color
+            ), linked AS (
+                INSERT INTO ticker_tags (ticker_symbol, tag_id)
+                SELECT %s, id
+                FROM tag_row
+                ON CONFLICT (ticker_symbol, tag_id) DO NOTHING
+                RETURNING tag_id
+            )
+            SELECT id, name, color
+            FROM tag_row
+            """,
+            (name, color, symbol),
+        )
+        return rows[0] if rows else None
+
+    def remove_tag_from_ticker(self, symbol, tag_name_or_id):
+        return self._execute(
+            """
+            DELETE FROM ticker_tags tt
+            USING tags t
+            WHERE tt.tag_id = t.id
+              AND tt.ticker_symbol = %s
+              AND (t.id::text = %s OR lower(t.name) = lower(%s))
+            """,
+            (symbol, tag_name_or_id, tag_name_or_id),
         )
 
     def add_alert_db(

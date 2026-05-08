@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import logging
+from uuid import UUID
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import quote
@@ -27,6 +28,9 @@ class SupabaseRestRepository:
         "id,ticker_symbol,metric,operator,target_value,is_active,"
         "is_triggered,reference_value,alert_type,current_value,"
         "deleted_at,restored_at,created_at"
+    )
+    TICKER_COLUMNS = (
+        "symbol,name,status,priority,notes,thesis,target_action,created_at,updated_at"
     )
 
     def __init__(
@@ -145,7 +149,7 @@ class SupabaseRestRepository:
         return self.check_connectivity()
 
     def get_watchlist(self):
-        tickers = self._req("GET", "tickers") or []
+        tickers = self._req("GET", f"tickers?select={self.TICKER_COLUMNS}&order=symbol.asc") or []
         alerts = (
             self._req(
                 "GET",
@@ -153,7 +157,14 @@ class SupabaseRestRepository:
             )
             or []
         )
-        return build_watchlist(tickers, alerts)
+        ticker_tags = (
+            self._req(
+                "GET",
+                "ticker_tags?select=ticker_symbol,tags(id,name,color)",
+            )
+            or []
+        )
+        return build_watchlist(tickers, alerts, ticker_tags)
 
     def get_alerts(self):
         return (
@@ -257,12 +268,116 @@ class SupabaseRestRepository:
         )
 
     def get_tickers(self):
-        return self._req("GET", "tickers") or []
+        return self._req("GET", f"tickers?select={self.TICKER_COLUMNS}&order=symbol.asc") or []
+
+    def get_tags(self):
+        return self._req("GET", "tags?select=id,name,color,created_at&order=name.asc") or []
 
     def add_ticker_db(self, symbol, company_name):
         headers = {"Prefer": "resolution=merge-duplicates, return=representation"}
         payload = {"symbol": symbol, "name": company_name}
-        return self._req("POST", "tickers", json=payload, headers=headers)
+        return self._req("POST", "tickers?on_conflict=symbol", json=payload, headers=headers)
+
+    def update_ticker_metadata(self, symbol, metadata):
+        allowed_columns = ("status", "priority", "notes", "thesis", "target_action")
+        payload = {key: metadata[key] for key in allowed_columns if key in metadata}
+        payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+        headers = {"Prefer": "return=representation"}
+        rows = self._req(
+            "PATCH",
+            f"tickers?symbol=eq.{self._encode_filter_value(symbol)}",
+            json=payload,
+            headers=headers,
+        )
+        return rows[0] if rows else None
+
+    def _get_tag_by_name_or_id(self, tag_name_or_id):
+        try:
+            UUID(str(tag_name_or_id))
+        except ValueError:
+            pass
+        else:
+            rows = (
+                self._req(
+                    "GET",
+                    "tags"
+                    "?select=id,name,color,created_at"
+                    f"&id=eq.{self._encode_filter_value(tag_name_or_id)}"
+                    "&limit=1",
+                )
+                or []
+            )
+            if rows:
+                return rows[0]
+
+        rows = (
+            self._req(
+                "GET",
+                "tags"
+                "?select=id,name,color,created_at"
+                f"&name=eq.{self._encode_filter_value(tag_name_or_id)}"
+                "&limit=1",
+            )
+            or []
+        )
+        return rows[0] if rows else None
+
+    def add_tag_to_ticker(self, symbol, name, color=None):
+        existing = self._get_tag_by_name_or_id(name)
+        if existing is None:
+            tag_payload = {"name": name}
+            if color is not None:
+                tag_payload["color"] = color
+            headers = {"Prefer": "resolution=merge-duplicates, return=representation"}
+            rows = (
+                self._req(
+                    "POST",
+                    "tags?on_conflict=name",
+                    json=tag_payload,
+                    headers=headers,
+                )
+                or []
+            )
+            tag = rows[0] if rows else None
+        else:
+            tag = existing
+            if color is not None and color != tag.get("color"):
+                headers = {"Prefer": "return=representation"}
+                rows = (
+                    self._req(
+                        "PATCH",
+                        f"tags?id=eq.{self._encode_filter_value(tag['id'])}",
+                        json={"color": color},
+                        headers=headers,
+                    )
+                    or []
+                )
+                tag = rows[0] if rows else tag
+
+        if tag is None:
+            return None
+
+        headers = {"Prefer": "resolution=ignore-duplicates"}
+        self._req(
+            "POST",
+            "ticker_tags?on_conflict=ticker_symbol,tag_id",
+            json={"ticker_symbol": symbol, "tag_id": tag["id"]},
+            headers=headers,
+        )
+        return tag
+
+    def remove_tag_from_ticker(self, symbol, tag_name_or_id):
+        tag = self._get_tag_by_name_or_id(tag_name_or_id)
+        if tag is None:
+            return False
+        return bool(
+            self._req(
+                "DELETE",
+                "ticker_tags"
+                f"?ticker_symbol=eq.{self._encode_filter_value(symbol)}"
+                f"&tag_id=eq.{self._encode_filter_value(tag['id'])}",
+            )
+        )
 
     def add_alert_db(
         self,

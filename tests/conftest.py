@@ -8,6 +8,12 @@ def duplicate_pe_watchlist():
     return {
         "AAPL": {
             "name": "Apple Inc.",
+            "status": "watching",
+            "priority": "medium",
+            "notes": None,
+            "thesis": None,
+            "target_action": None,
+            "tags": [],
             "alerts": [
                 {
                     "id": "alert-low",

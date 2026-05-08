@@ -26,7 +26,7 @@ icons.
 - `src/hooks/useScanSettings.ts`: scan interval, manual scan, and server time.
 - `src/components/AlertForm.tsx`: add-alert form with ticker autocomplete.
 - `src/components/WatchlistSection.tsx`: table/grid watchlist display, sorting,
-  and local tag filtering.
+  and backend tag filtering.
 - `src/components/TickerRow.tsx`: table-row ticker view.
 - `src/components/TickerCard.tsx`: card ticker view.
 - `src/components/AlertItem.tsx`: alert display, target edit, toggle, delete,
@@ -114,8 +114,8 @@ moment.
 
 ## Current Behavior Notes
 
-- Tags are stored in browser `localStorage` using keys like `tags_AAPL`; they
-  are not persisted by the backend.
+- Tags and basic ticker metadata are persisted by the backend and returned in
+  the watchlist response.
 - Watchlist reads and all mutable operations use `apiFetch`.
 - Alert update/delete/toggle calls use alert IDs.
 - The AI valuation UI expects the backend response shape

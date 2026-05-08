@@ -110,8 +110,24 @@ def get_tickers():
     return _repository().get_tickers()
 
 
+def get_tags():
+    return _repository().get_tags()
+
+
 def add_ticker_db(symbol, company_name):
     return _repository().add_ticker_db(symbol, company_name)
+
+
+def update_ticker_metadata(symbol, metadata):
+    return _repository().update_ticker_metadata(symbol, metadata)
+
+
+def add_tag_to_ticker(symbol, name, color=None):
+    return _repository().add_tag_to_ticker(symbol, name, color)
+
+
+def remove_tag_from_ticker(symbol, tag_name_or_id):
+    return _repository().remove_tag_from_ticker(symbol, tag_name_or_id)
 
 
 def add_alert_db(

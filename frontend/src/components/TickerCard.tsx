@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import type { TickerData } from '../types/watchlist';
+import { useState } from 'react';
+import type { TickerData, WatchlistMetadata } from '../types/watchlist';
 import type { MetricCatalogItem } from '../types/metrics';
 import { AlertItem } from './AlertItem';
 import { InlineAlertForm } from './InlineAlertForm';
@@ -25,6 +25,9 @@ interface Props {
   onUpdateAlert: (alertId: string, val: number) => void;
   onDeleteAlert: (alertId: string, ticker: string) => void;
   onToggleAlert: (alertId: string, isActive: boolean) => void;
+  onAddTag: (ticker: string, name: string) => void;
+  onRemoveTag: (ticker: string, tagNameOrId: string) => void;
+  onUpdateMetadata: (ticker: string, metadata: Partial<WatchlistMetadata>) => void;
 }
 
 /**
@@ -35,37 +38,20 @@ interface Props {
  * @param {Props} props - The component props
  * @returns {JSX.Element} The rendered TickerCard component
  */
-export function TickerCard({ symbol, data, metrics, onDeleteTicker, onAddInline, onUpdateAlert, onDeleteAlert, onToggleAlert }: Props) {
+export function TickerCard({ symbol, data, metrics, onDeleteTicker, onAddInline, onUpdateAlert, onDeleteAlert, onToggleAlert, onAddTag, onRemoveTag, onUpdateMetadata }: Props) {
   const [addingMetric, setAddingMetric] = useState(false);
-  const [tags, setTags] = useState<string[]>([]);
   const [addingTag, setAddingTag] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [aiValuation, setAiValuation] = useState<string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
 
-  useEffect(() => {
-    const savedTags = localStorage.getItem(`tags_${symbol}`);
-    if (savedTags) {
-      setTags(JSON.parse(savedTags));
-    }
-  }, [symbol]);
-
-  const saveTags = (newTags: string[]) => {
-    setTags(newTags);
-    localStorage.setItem(`tags_${symbol}`, JSON.stringify(newTags));
-    window.dispatchEvent(new Event('tagsUpdated'));
-  };
-
   const handleAddTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim().toLowerCase())) {
-      saveTags([...tags, newTag.trim().toLowerCase()]);
+    const tag = newTag.trim().toLowerCase();
+    if (tag && !data.tags.some(existing => existing.name === tag)) {
+      onAddTag(symbol, tag);
     }
     setNewTag('');
     setAddingTag(false);
-  };
-
-  const handleRemoveTag = (tag: string) => {
-    saveTags(tags.filter(t => t !== tag));
   };
 
   const handleAiValuation = async () => {
@@ -118,11 +104,35 @@ export function TickerCard({ symbol, data, metrics, onDeleteTicker, onAddInline,
         </button>
       </div>
       <div className="card-body">
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+          <select
+            value={data.status || 'watching'}
+            onChange={e => onUpdateMetadata(symbol, { status: e.target.value })}
+            style={{ padding: '4px 8px', fontSize: '0.78rem', borderRadius: '4px', background: 'var(--bg-color)', color: 'var(--text-color)', border: '1px solid var(--border-color)' }}
+            aria-label={`${symbol} status`}
+          >
+            <option value="watching">Watching</option>
+            <option value="researching">Researching</option>
+            <option value="ready">Ready</option>
+            <option value="holding">Holding</option>
+            <option value="passed">Passed</option>
+          </select>
+          <select
+            value={data.priority || 'medium'}
+            onChange={e => onUpdateMetadata(symbol, { priority: e.target.value })}
+            style={{ padding: '4px 8px', fontSize: '0.78rem', borderRadius: '4px', background: 'var(--bg-color)', color: 'var(--text-color)', border: '1px solid var(--border-color)' }}
+            aria-label={`${symbol} priority`}
+          >
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
-          {tags.map(tag => (
-            <span key={tag} style={{ background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              #{tag}
-              <button onClick={() => handleRemoveTag(tag)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.8rem', padding: 0, lineHeight: 1 }}>×</button>
+          {data.tags.map(tag => (
+            <span key={tag.id} style={{ background: tag.color || 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              #{tag.name}
+              <button type="button" onClick={() => onRemoveTag(symbol, tag.id)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.8rem', padding: 0, lineHeight: 1 }}>×</button>
             </span>
           ))}
           {addingTag ? (
@@ -137,7 +147,7 @@ export function TickerCard({ symbol, data, metrics, onDeleteTicker, onAddInline,
               placeholder="Tag..."
             />
           ) : (
-            <button onClick={() => setAddingTag(true)} style={{ background: 'transparent', border: '1px dashed var(--text-muted)', color: 'var(--text-muted)', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', cursor: 'pointer' }}>+ Tag</button>
+            <button type="button" onClick={() => setAddingTag(true)} style={{ background: 'transparent', border: '1px dashed var(--text-muted)', color: 'var(--text-muted)', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', cursor: 'pointer' }}>+ Tag</button>
           )}
         </div>
         

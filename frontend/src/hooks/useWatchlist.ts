@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { apiFetch } from '../lib/apiClient';
-import type { Alert, Watchlist } from '../types/watchlist';
+import type { Alert, Watchlist, WatchlistMetadata } from '../types/watchlist';
 
 type UndoQueue = { ticker: string, alerts: Alert[], id: number };
 
@@ -149,6 +149,58 @@ export function useWatchlist() {
     }
   };
 
+  const handleAddTag = async (ticker: string, name: string) => {
+    try {
+      const response = await apiFetch(`/watchlist/${ticker}/tags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!response.ok) throw new Error('Error adding tag');
+      await fetchWatchlist();
+      return true;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      }
+      return false;
+    }
+  };
+
+  const handleRemoveTag = async (ticker: string, tagNameOrId: string) => {
+    try {
+      const response = await apiFetch(`/watchlist/${ticker}/tags/${encodeURIComponent(tagNameOrId)}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Error removing tag');
+      await fetchWatchlist();
+      return true;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      }
+      return false;
+    }
+  };
+
+  const handleUpdateMetadata = async (ticker: string, metadata: Partial<WatchlistMetadata>) => {
+    try {
+      const response = await apiFetch(`/watchlist/${ticker}/metadata`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(metadata),
+      });
+      if (!response.ok) throw new Error('Error updating metadata');
+      await fetchWatchlist();
+      return true;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      }
+      return false;
+    }
+  };
+
   const handleUndo = async () => {
     if (!undoQueue) return;
     
@@ -181,6 +233,9 @@ export function useWatchlist() {
     handleDeleteAlert,
     handleDelete,
     handleToggleAlert,
+    handleAddTag,
+    handleRemoveTag,
+    handleUpdateMetadata,
     undoQueue,
     handleUndo
   };

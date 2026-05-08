@@ -10,8 +10,28 @@ export interface Alert {
   current_value?: number | null;
 }
 
+export interface WatchlistTag {
+  id: string;
+  name: string;
+  color?: string | null;
+}
+
+export interface WatchlistMetadata {
+  status: string;
+  priority: string;
+  notes?: string | null;
+  thesis?: string | null;
+  target_action?: string | null;
+}
+
 export interface TickerData {
   name: string;
+  status: string;
+  priority: string;
+  notes?: string | null;
+  thesis?: string | null;
+  target_action?: string | null;
+  tags: WatchlistTag[];
   alerts: Alert[];
 }
 

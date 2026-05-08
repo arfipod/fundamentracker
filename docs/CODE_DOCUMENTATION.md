@@ -152,9 +152,10 @@ Important files:
   offset.
 - `src/components/AlertForm.tsx`: add-alert form with ticker autocomplete.
 - `src/components/WatchlistSection.tsx`: table/grid views, sorting, and
-  localStorage tag filtering.
+  backend tag filtering.
 - `src/components/TickerRow.tsx` and `TickerCard.tsx`: ticker display,
-  inline metric add, local tags, delete controls, and AI valuation display.
+  inline metric add, persisted tags and metadata, delete controls, and AI
+  valuation display.
 - `src/components/AlertItem.tsx`: alert rendering, target editing, toggle,
   delete, relative-diff display, and chart toggle.
 - `src/components/ExplorerSection.tsx`: ticker/metric lookup outside the
@@ -162,8 +163,8 @@ Important files:
 - `src/components/MetricChart.tsx`: Recharts history chart with period and
   reference-line toggles.
 
-Current tags are stored in browser `localStorage` keys named `tags_<SYMBOL>`.
-They are UI preferences, not backend data.
+Current tags are backend data returned with `GET /watchlist`, along with basic
+ticker metadata such as status and priority.
 
 ## Database Schema
 

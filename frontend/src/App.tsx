@@ -23,6 +23,9 @@ function App() {
     handleDeleteAlert,
     handleDelete,
     handleToggleAlert,
+    handleAddTag,
+    handleRemoveTag,
+    handleUpdateMetadata,
     undoQueue,
     handleUndo
   } = useWatchlist();
@@ -131,6 +134,9 @@ function App() {
             onUpdateAlert={handleUpdateTarget}
             onDeleteAlert={handleDeleteAlert}
             onToggleAlert={handleToggleAlert}
+            onAddTag={handleAddTag}
+            onRemoveTag={handleRemoveTag}
+            onUpdateMetadata={handleUpdateMetadata}
           />
         </>
       ) : (

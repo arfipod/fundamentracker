@@ -3,8 +3,29 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS tickers (
   symbol VARCHAR PRIMARY KEY,
   name VARCHAR NOT NULL,
+  status VARCHAR DEFAULT 'watching',
+  priority VARCHAR DEFAULT 'medium',
+  notes TEXT,
+  thesis TEXT,
+  target_action VARCHAR,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS tags (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR NOT NULL UNIQUE,
+  color VARCHAR,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ticker_tags (
+  ticker_symbol VARCHAR REFERENCES tickers(symbol) ON DELETE CASCADE,
+  tag_id UUID REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (ticker_symbol, tag_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ticker_tags_tag_id ON ticker_tags(tag_id);
 
 CREATE TABLE IF NOT EXISTS alerts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

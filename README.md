@@ -34,8 +34,7 @@ implemented yet.
 - The Gemini endpoint is implemented as a service, but it currently returns
   `{"analysis": "..."}` text instead of a structured valuation object with
   explicit warnings and disclaimer fields.
-- Tags are frontend-only UI state stored in browser `localStorage`; they are not
-  persisted in the backend database.
+- Tags and basic watchlist metadata are persisted in the backend database.
 - The frontend has no committed Vitest test files and no `npm test` script.
 - The default live provider is yfinance. Multi-provider arbitration and provider
   disagreement reporting are planned, not implemented.
