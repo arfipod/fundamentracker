@@ -41,7 +41,7 @@ Use the development compose file for local work. It keeps FastAPI reload, bind m
 
 ```bash
 docker compose -f docker-compose.dev.yml config
-docker compose -f docker-compose.dev.yml up --build
+docker compose -f docker-compose.dev.yml up --build api frontend
 ```
 
 After startup, access the application:
@@ -49,6 +49,8 @@ After startup, access the application:
 - **Backend API:** `http://localhost:8000`
 
 `docker-compose.yml` is kept as a backwards-compatible development alias, but new commands should use `docker-compose.dev.yml` explicitly.
+
+For a complete clone-to-running-host walkthrough, including Docker installation, `/opt/fundamentracker` setup, `.env` configuration, dev/prod startup, systemd, health checks, pgAdmin, logs, backups, and troubleshooting, see **[`docs/HOST_SETUP.md`](docs/HOST_SETUP.md)**.
 
 ## Supported Metrics
 
@@ -95,11 +97,11 @@ For relative alerts, the target is a percentage. A target of `5` means `+5%`; a 
 
 Production uses `docker-compose.prod.yml`. It runs the API without `--reload`, does not bind mount source code, uses `restart: unless-stopped`, and health-checks `/health/live`.
 
-Validate and start the API:
+Validate and start the default production services (`postgres` and `api`):
 
 ```bash
 docker compose -f docker-compose.prod.yml config
-docker compose -f docker-compose.prod.yml up -d --build api
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 Optional production services:
@@ -114,4 +116,4 @@ docker compose -f docker-compose.prod.yml --profile tunnel up -d --build
 
 If your frontend is hosted on Vercel and your backend API runs on your local machine or Mini PC, the connection can be automated via Cloudflare Tunnels using your `TUNNEL_TOKEN`.
 
-For a full step-by-step guide on this setup, see **`docs/DEPLOYMENT_SEQUENCE.md`**.
+For a full host installation and operations guide, start with **[`docs/HOST_SETUP.md`](docs/HOST_SETUP.md)**. For the Cloudflare/Vercel-oriented deployment sequence, see **[`docs/DEPLOYMENT_SEQUENCE.md`](docs/DEPLOYMENT_SEQUENCE.md)**.
