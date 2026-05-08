@@ -23,6 +23,8 @@ Provider health is exposed at:
 GET /data/providers/health
 ```
 
+This endpoint is protected by default and requires `Authorization: Bearer <API_AUTH_TOKEN>` because it exposes operational provider status and recent failure details.
+
 Response rows include `provider`, `status`, `last_ok_at`, `last_error_at`, and `last_error`.
 
 ## SEC EDGAR Provider

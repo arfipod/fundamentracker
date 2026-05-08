@@ -105,7 +105,8 @@ def test_registered_route_smoke_table():
     assert expected <= actual
 
 
-def test_public_route_smoke_responses(monkeypatch):
+def test_route_smoke_responses(monkeypatch):
+    monkeypatch.setenv("API_AUTH_TOKEN", "test-token")
     monkeypatch.setattr(api_module, "market_data_service", FakeMarketDataService())
     monkeypatch.setattr(
         api_module.db,
@@ -121,13 +122,23 @@ def test_public_route_smoke_responses(monkeypatch):
     client = TestClient(app)
 
     assert client.get("/health/live").status_code == 200
-    assert client.get("/scan-settings").json() == {"interval_seconds": 0, "last_scan_time": 0}
     assert "server_time" in client.get("/server-time").json()
-    assert client.get("/alert-history?limit=1").json() == [{"id": "history-1", "limit": 1}]
     assert client.get("/search?q=aapl").json() == [{"symbol": "AAPL", "name": "Example Co"}]
-    assert client.get("/data/providers/health").json() == [{"provider": "fake", "status": "ok"}]
-    assert client.get("/metric-current?ticker=aapl&metric=roe").json()["ticker"] == "AAPL"
-    assert client.get("/history?ticker=aapl&metric=roe").json() == [
+    assert client.get("/scan-settings", headers=AUTH_HEADER).json() == {
+        "interval_seconds": 0,
+        "last_scan_time": 0,
+    }
+    assert client.get("/alert-history?limit=1", headers=AUTH_HEADER).json() == [
+        {"id": "history-1", "limit": 1}
+    ]
+    assert client.get("/data/providers/health", headers=AUTH_HEADER).json() == [
+        {"provider": "fake", "status": "ok"}
+    ]
+    assert client.get(
+        "/metric-current?ticker=aapl&metric=roe",
+        headers=AUTH_HEADER,
+    ).json()["ticker"] == "AAPL"
+    assert client.get("/history?ticker=aapl&metric=roe", headers=AUTH_HEADER).json() == [
         {"date": "2026-05-08", "value": 12.5}
     ]
     assert client.get("/market-overview").json() == [

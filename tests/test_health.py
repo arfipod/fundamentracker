@@ -17,6 +17,7 @@ def test_health_live():
 
 
 def test_health_ready_ok(monkeypatch):
+    monkeypatch.setenv("PUBLIC_READY_HEALTH", "true")
     client = TestClient(app)
 
     def fake_check_database_connectivity():
@@ -36,6 +37,7 @@ def test_health_ready_ok(monkeypatch):
 
 
 def test_health_ready_returns_503_for_database_failure(monkeypatch):
+    monkeypatch.setenv("PUBLIC_READY_HEALTH", "true")
     client = TestClient(app)
 
     def fake_check_database_connectivity():
@@ -62,6 +64,7 @@ def test_health_ready_returns_503_for_database_failure(monkeypatch):
 
 
 def test_health_ready_error_reports_selected_backend(monkeypatch):
+    monkeypatch.setenv("PUBLIC_READY_HEALTH", "true")
     client = TestClient(app)
 
     def fake_check_database_connectivity():

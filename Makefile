@@ -30,7 +30,16 @@ frontend-build:
 	cd frontend && npm run build
 
 health:
-	curl -fsS "$(HEALTH_URL)"
+	@token="$${API_AUTH_TOKEN:-$$(awk '/^[[:space:]]*(export[[:space:]]+)?API_AUTH_TOKEN=/{sub(/^[^=]*=/, ""); print}' .env 2>/dev/null | tail -n 1)}"; \
+	token="$${token%%#*}"; \
+	token="$$(printf '%s' "$${token}" | xargs)"; \
+	token="$${token%\"}"; token="$${token#\"}"; \
+	token="$${token%\'}"; token="$${token#\'}"; \
+	if [[ -n "$${token}" ]]; then \
+		curl -fsS -H "Authorization: Bearer $${token}" "$(HEALTH_URL)"; \
+	else \
+		curl -fsS "$(HEALTH_URL)"; \
+	fi
 
 backup-db:
 	BACKUP_DIR="$(BACKUP_DIR)" ./scripts/backup-db.sh

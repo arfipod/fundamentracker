@@ -35,6 +35,25 @@ ALLOW_WILDCARD_CORS=false
 
 The development compose stack sets `APP_ENV=development` and allows `http://localhost:5173` by default when no origins are configured. The production compose stack sets `APP_ENV=production`; production does not allow wildcard CORS unless `CORS_ALLOWED_ORIGINS=*` and `ALLOW_WILDCARD_CORS=true` are both set intentionally. If you run the API without Compose in production, set `APP_ENV=production` yourself.
 
+## API Security
+
+Set a long random `API_AUTH_TOKEN` and send it as:
+
+```text
+Authorization: Bearer <API_AUTH_TOKEN>
+```
+
+By default, mutable endpoints and sensitive read endpoints are private. This includes `/watchlist`, `/alert-history`, `/scan-settings`, `/data/providers/health`, `/metric-current`, `/history`, scanning, alert writes, and AI valuation. The bundled frontend sends `VITE_API_AUTH_TOKEN` through its shared API client when configured.
+
+Public endpoints are intentionally narrow:
+
+- `GET /health/live` is always public for container liveness checks.
+- `GET /health/ready` is protected by default; set `PUBLIC_READY_HEALTH=true` only when you intentionally want readiness details available without a token.
+- `GET /server-time`, `GET /search`, and `GET /market-overview` are currently public read endpoints.
+- `GET /watchlist` can be made public with `READONLY_PUBLIC=true`, but this exposes portfolio data and should stay `false` for internet-facing deployments.
+
+See [`docs/SECURITY.md`](docs/SECURITY.md) for the endpoint exposure model and deployment notes.
+
 ## Common Commands
 
 | Command | What it does |

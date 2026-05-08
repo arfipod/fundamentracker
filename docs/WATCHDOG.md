@@ -28,6 +28,8 @@ http://127.0.0.1:8000/health/ready
 
 Use the local URL when you only want to verify the API container on the host. Use the public Cloudflare URL when you also want to verify tunnel reachability.
 
+`GET /health/ready` is protected by default. The watchdog reads `API_AUTH_TOKEN` from the environment or `.env` and sends it as a bearer token when present. Keep this default for production. Set `PUBLIC_READY_HEALTH=true` only if an unauthenticated external monitor must call readiness directly.
+
 ## Optional Settings
 
 These can be placed in `.env`:

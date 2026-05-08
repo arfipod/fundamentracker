@@ -21,7 +21,7 @@ def create_router(
         run_scan()
         return {"message": "Scan completed"}
 
-    @router.get("/scan-settings")
+    @router.get("/scan-settings", dependencies=[Depends(require_api_token)])
     def get_scan_settings():
         return get_db().get_scan_settings_db()
 

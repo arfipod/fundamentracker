@@ -68,7 +68,8 @@ docker compose -f docker-compose.prod.yml ps postgres
 Check API readiness:
 
 ```bash
-curl http://127.0.0.1:8000/health/ready
+source .env
+curl -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/health/ready
 ```
 
 When `DATABASE_BACKEND=postgres`, the API waits for PostgreSQL during startup before starting background scanners or Telegram polling.

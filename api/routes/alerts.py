@@ -33,7 +33,7 @@ def create_router(
             raise HTTPException(status_code=404, detail="Alert not found or failed to update")
         return {"message": "Alert status updated"}
 
-    @router.get("/alert-history")
+    @router.get("/alert-history", dependencies=[Depends(require_api_token)])
     def get_alert_history(limit: int = 50):
         return alert_service.get_alert_history(get_db(), limit=limit)
 

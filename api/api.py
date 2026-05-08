@@ -85,6 +85,15 @@ def require_watchlist_access(
     require_api_token(credentials)
 
 
+def require_ready_health_access(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> None:
+    if env_flag_enabled(os.getenv("PUBLIC_READY_HEALTH")):
+        return
+
+    require_api_token(credentials)
+
+
 def utc_timestamp() -> str:
     return health_service.utc_timestamp()
 
@@ -119,6 +128,7 @@ async def startup_event():
 
 app.include_router(
     create_health_router(
+        require_ready_health_access=require_ready_health_access,
         get_db=lambda: db,
         service_name=SERVICE_NAME,
         service_version=SERVICE_VERSION,
@@ -157,6 +167,7 @@ app.include_router(
 )
 app.include_router(
     create_market_router(
+        require_api_token=require_api_token,
         get_market_data_service=lambda: market_data_service,
         metrics_map=METRICS_MAP,
     )

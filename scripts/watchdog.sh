@@ -65,6 +65,8 @@ wait_seconds="${wait_seconds:-30}"
 curl_timeout="${WATCHDOG_CURL_TIMEOUT_SECONDS:-$(read_env_value WATCHDOG_CURL_TIMEOUT_SECONDS "${ENV_FILE}")}"
 curl_timeout="${curl_timeout:-10}"
 
+api_auth_token="${API_AUTH_TOKEN:-$(read_env_value API_AUTH_TOKEN "${ENV_FILE}")}"
+
 services_value="${WATCHDOG_SERVICES:-$(read_env_value WATCHDOG_SERVICES "${ENV_FILE}")}"
 services_value="${services_value#"${services_value%%[![:space:]]*}"}"
 services_value="${services_value%"${services_value##*[![:space:]]}"}"
@@ -86,7 +88,18 @@ command -v docker >/dev/null 2>&1 || fail "docker is not installed or not availa
 command -v curl >/dev/null 2>&1 || fail "curl is not installed or not available on PATH."
 
 check_health() {
-  curl --fail --silent --show-error --max-time "${curl_timeout}" "${health_url}" >/dev/null
+  local curl_args=(
+    --fail
+    --silent
+    --show-error
+    --max-time "${curl_timeout}"
+  )
+
+  if [[ -n "${api_auth_token}" ]]; then
+    curl_args+=(--header "Authorization: Bearer ${api_auth_token}")
+  fi
+
+  curl "${curl_args[@]}" "${health_url}" >/dev/null
 }
 
 log "checking health URL: ${health_url}"

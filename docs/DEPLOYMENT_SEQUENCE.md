@@ -37,7 +37,7 @@ Development URLs:
 Health endpoints:
 
 - `GET /health/live` confirms the FastAPI process is running. It does not check yfinance, Gemini, Telegram, or the database, so it is suitable for container liveness checks.
-- `GET /health/ready` confirms required runtime configuration and minimum database connectivity for the selected `DATABASE_BACKEND` (`supabase_rest` or `postgres`). It returns HTTP 503 with non-sensitive failure details when the database is missing or unreachable.
+- `GET /health/ready` confirms required runtime configuration and minimum database connectivity for the selected `DATABASE_BACKEND` (`supabase_rest` or `postgres`). It is protected by default and returns HTTP 503 with non-sensitive failure details when the database is missing or unreachable.
 
 ---
 
@@ -75,6 +75,7 @@ CORS_ALLOWED_ORIGINS=https://your-frontend.example.com
 ALLOW_WILDCARD_CORS=false
 API_AUTH_TOKEN=generate-a-long-random-token
 READONLY_PUBLIC=false
+PUBLIC_READY_HEALTH=false
 GEMINI_API_KEY=your_google_gemini_api_key
 TELEGRAM_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_telegram_chat_id
@@ -89,7 +90,7 @@ TUNNEL_TOKEN=your_cloudflare_tunnel_token
 
 > **CORS:** `CORS_ALLOWED_ORIGINS` is a comma-separated list of exact browser origins allowed to call the API. The development stack allows `http://localhost:5173` by default. The production stack sets `APP_ENV=production` and does not allow `*` unless you explicitly set both `CORS_ALLOWED_ORIGINS=*` and `ALLOW_WILDCARD_CORS=true`; prefer exact frontend origins for public deployments.
 
-> **API auth:** Mutable API endpoints require `Authorization: Bearer <API_AUTH_TOKEN>`. `GET /health/live` remains public for health checks. `GET /watchlist` is protected by default; set `READONLY_PUBLIC=true` only if you intentionally want read-only watchlist data to be public.
+> **API auth:** Mutable endpoints and sensitive read endpoints require `Authorization: Bearer <API_AUTH_TOKEN>`. `GET /health/live` remains public for liveness checks. `GET /health/ready` is protected unless `PUBLIC_READY_HEALTH=true`. `GET /watchlist` is protected by default; set `READONLY_PUBLIC=true` only if you intentionally want read-only watchlist data to be public.
 
 ### 2.3 Configure Vercel (Hosted Frontend)
 In your Vercel project dashboard (or via Vercel CLI), go to the **Environment Variables** settings and add:
@@ -163,7 +164,7 @@ docker compose -f docker-compose.prod.yml logs -f api
 ```bash
 docker compose -f docker-compose.prod.yml ps
 curl http://127.0.0.1:8000/health/live
-curl http://127.0.0.1:8000/health/ready
+curl -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/health/ready
 ```
 
 **Call a protected endpoint locally:**
@@ -191,7 +192,7 @@ docker compose -f docker-compose.prod.yml down
 - Check that your `.env` file has the correct `SUPABASE_URL` and `SUPABASE_KEY`.
 - View the logs: `docker compose -f docker-compose.prod.yml logs -f api` to see the Python error trace.
 - Check the live endpoint locally: `curl http://127.0.0.1:8000/health/live`.
-- Check database readiness locally: `curl http://127.0.0.1:8000/health/ready`. A 503 response means the API process is running but database configuration or connectivity needs attention.
+- Check database readiness locally: `curl -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/health/ready`. A 503 response means the API process is running but database configuration or connectivity needs attention.
 
 ### SSL Error (ERR_SSL_VERSION_OR_CIPHER_MISMATCH)
 - This happens if you configure a sub-subdomain (like `api.fundamentracker.arfipod.org`) with Cloudflare's free Universal SSL. Use a single-level subdomain like `api-fundamentracker.arfipod.org` or `api.arfipod.org`.

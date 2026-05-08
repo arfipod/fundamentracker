@@ -146,6 +146,7 @@ At minimum, change these values:
 ```env
 API_AUTH_TOKEN=replace-with-a-long-random-token
 VITE_API_AUTH_TOKEN=replace-with-the-same-token-for-local-frontend-use
+PUBLIC_READY_HEALTH=false
 CORS_ALLOWED_ORIGINS=http://localhost:5173
 ALLOW_WILDCARD_CORS=false
 ```
@@ -365,7 +366,8 @@ curl -fsS http://127.0.0.1:8000/health/live | jq
 Use `ready` to check API readiness and database connectivity:
 
 ```bash
-curl -fsS http://127.0.0.1:8000/health/ready | jq
+source .env
+curl -fsS -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/health/ready | jq
 ```
 
 Expected `live` shape:
@@ -625,7 +627,7 @@ PUBLIC_API_URL=https://your-api.example.com
 
 ### API returns 401
 
-Mutable endpoints require:
+Mutable endpoints and sensitive read endpoints require:
 
 ```text
 Authorization: Bearer <API_AUTH_TOKEN>
@@ -682,7 +684,8 @@ grep '^PUBLIC_HEALTH_URL=' .env
 grep '^WATCHDOG_SERVICES=' .env
 sudo journalctl -u fundamentracker-watchdog.service -n 100 --no-pager
 health_url="$(grep '^PUBLIC_HEALTH_URL=' .env | cut -d= -f2-)"
-curl -v "${health_url:-http://127.0.0.1:8000/health/ready}"
+api_auth_token="$(grep '^API_AUTH_TOKEN=' .env | cut -d= -f2-)"
+curl -v -H "Authorization: Bearer ${api_auth_token}" "${health_url:-http://127.0.0.1:8000/health/ready}"
 ```
 
 If `PUBLIC_HEALTH_URL` is empty, the watchdog checks:
@@ -704,7 +707,8 @@ cd /opt/fundamentracker
 git pull --ff-only
 docker compose -f docker-compose.prod.yml build
 sudo systemctl restart fundamentracker.service
-curl -fsS http://127.0.0.1:8000/health/ready | jq
+source .env
+curl -fsS -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/health/ready | jq
 ```
 
 If you are not using systemd:
@@ -713,5 +717,6 @@ If you are not using systemd:
 cd /opt/fundamentracker
 git pull --ff-only
 docker compose -f docker-compose.prod.yml up -d --build
-curl -fsS http://127.0.0.1:8000/health/ready | jq
+source .env
+curl -fsS -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/health/ready | jq
 ```
