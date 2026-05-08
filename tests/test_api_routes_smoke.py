@@ -100,6 +100,7 @@ def test_registered_route_smoke_table():
         ("GET", "/metric-current"),
         ("GET", "/history"),
         ("GET", "/market-overview"),
+        ("GET", "/ops/status"),
     }
 
     assert expected <= actual

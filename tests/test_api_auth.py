@@ -43,6 +43,7 @@ def test_sensitive_read_endpoints_require_api_token(monkeypatch):
         "/metric-current?ticker=AAPL&metric=pe",
         "/history?ticker=AAPL&metric=pe",
         "/health/ready",
+        "/ops/status",
     ]
 
     for path in protected_requests:

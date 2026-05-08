@@ -399,6 +399,42 @@ Expected `ready` shape includes:
 
 If `live` works but `ready` fails, focus on `.env` and the configured database backend.
 
+Use `ops/status` for a consolidated protected operations snapshot:
+
+```bash
+source .env
+curl -fsS -H "Authorization: Bearer $API_AUTH_TOKEN" http://127.0.0.1:8000/ops/status | jq
+```
+
+Expected `ops/status` shape includes:
+
+```json
+{
+  "status": "ok",
+  "api": {
+    "status": "ok",
+    "service": "fundamentracker-api"
+  },
+  "database": {
+    "status": "ok",
+    "backend": "postgres",
+    "ready": true
+  },
+  "provider_health": {
+    "status": "unknown",
+    "providers": []
+  },
+  "scan": {
+    "interval_seconds": 3600,
+    "last_scan_time": 1778241600,
+    "last_scan_at": "2026-05-08T12:00:00+00:00"
+  },
+  "server_time": "2026-05-08T12:05:00+00:00"
+}
+```
+
+`GET /ops/status` requires `Authorization: Bearer <API_AUTH_TOKEN>` by default. It reports API status, optional app version, selected database backend and readiness, provider health, scanner timing, and current server time. Provider rows are summarized without raw upstream error text so secrets are not echoed from provider exception messages. If `provider_health` is empty, the endpoint still succeeds and reports `"status": "unknown"` with an empty provider list.
+
 Repository and compose sanity checks:
 
 ```bash
