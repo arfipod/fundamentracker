@@ -150,17 +150,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173
 ALLOW_WILDCARD_CORS=false
 ```
 
-Choose one persistence backend.
-
-For existing Supabase REST persistence:
-
-```env
-DATABASE_BACKEND=supabase_rest
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-supabase-service-or-rest-key
-```
-
-For local PostgreSQL on the host:
+Production defaults to local PostgreSQL. Keep `DATABASE_BACKEND=postgres` unless you are intentionally using Supabase REST:
 
 ```env
 DATABASE_BACKEND=postgres
@@ -173,6 +163,14 @@ DATABASE_URL=postgresql://fundamentracker:replace-with-a-strong-password@postgre
 If the PostgreSQL password contains special URL characters, URL-encode it in `DATABASE_URL`.
 
 The local PostgreSQL schema in `db/init/001_schema.sql` is applied automatically when the production PostgreSQL container initializes an empty data directory.
+
+To keep using existing Supabase REST persistence instead, set the backend explicitly and provide Supabase credentials:
+
+```env
+DATABASE_BACKEND=supabase_rest
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-supabase-service-or-rest-key
+```
 
 For production exposure, keep the API bound to localhost unless you intentionally expose it through your LAN or a reverse proxy:
 

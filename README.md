@@ -100,7 +100,7 @@ For relative alerts, the target is a percentage. A target of `5` means `+5%`; a 
 ## Project Structure
 
 - `api/api.py` — FastAPI REST API handling watchlist, scan, and AI endpoints.
-- `api/db/` — Database layer connecting to Supabase tables (`tickers`, `alerts`, `alert_history`, etc.).
+- `api/db/` — Database layer connecting to PostgreSQL or Supabase REST tables (`tickers`, `alerts`, `alert_history`, etc.).
 - `api/telegram_service.py` — Telegram API polling and command parsing.
 - `api/scanner.py` — Periodic evaluation of active alerts against live `yfinance` data.
 - `frontend/` — React frontend containing modular components (`TickerCard`, `TickerRow`, `WatchlistSection`).
@@ -110,13 +110,21 @@ For relative alerts, the target is a percentage. A target of `5` means `+5%`; a 
 
 ## Production Deployment
 
-Production uses `docker-compose.prod.yml`. It runs the API without `--reload`, does not bind mount source code, uses `restart: unless-stopped`, and health-checks `/health/live`.
+Production uses `docker-compose.prod.yml`. It runs the API without `--reload`, does not bind mount source code, uses `restart: unless-stopped`, and health-checks `/health/live`. The default production persistence mode is local PostgreSQL: `DATABASE_BACKEND` defaults to `postgres`, and `DATABASE_URL` defaults to the Compose `postgres` service.
 
 Validate and start the default production services (`postgres` and `api`):
 
 ```bash
 docker compose -f docker-compose.prod.yml config
 docker compose -f docker-compose.prod.yml up -d --build
+```
+
+To keep using Supabase REST instead, set these values explicitly in `.env` before starting the API:
+
+```env
+DATABASE_BACKEND=supabase_rest
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-supabase-service-or-rest-key
 ```
 
 Optional production services:

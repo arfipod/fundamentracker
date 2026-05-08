@@ -3,11 +3,11 @@
 FundamenTracker supports two persistence backends:
 
 ```env
-DATABASE_BACKEND=supabase_rest
 DATABASE_BACKEND=postgres
+DATABASE_BACKEND=supabase_rest
 ```
 
-Use `supabase_rest` to keep the existing Supabase REST behavior. Use `postgres` for the local PostgreSQL service in `docker-compose.prod.yml`.
+Production Compose defaults to `postgres` and starts the local PostgreSQL service by default. Use `supabase_rest` only when you explicitly want to keep existing Supabase REST persistence.
 
 ## Configure PostgreSQL
 
@@ -21,7 +21,7 @@ POSTGRES_PASSWORD=replace-with-a-strong-password
 DATABASE_URL=postgresql://fundamentracker:replace-with-a-strong-password@postgres:5432/fundamentracker
 ```
 
-URL-encode special characters in `POSTGRES_PASSWORD` when copying it into `DATABASE_URL`.
+`DATABASE_URL` must point to host `postgres` because the API connects from inside the Compose network. URL-encode special characters in `POSTGRES_PASSWORD` when copying it into `DATABASE_URL`.
 
 The production Compose file stores PostgreSQL data in:
 
@@ -129,7 +129,7 @@ Do not expose pgAdmin through a public Cloudflare Tunnel. If LAN access is neede
 
 ## Supabase Compatibility
 
-To keep using Supabase REST, leave:
+To keep using Supabase REST, set the backend explicitly:
 
 ```env
 DATABASE_BACKEND=supabase_rest
@@ -137,4 +137,4 @@ SUPABASE_URL=https://example-project.supabase.co
 SUPABASE_KEY=example-supabase-key
 ```
 
-The local PostgreSQL service can exist in the production Compose file without changing the API persistence mode. The API uses PostgreSQL only when `DATABASE_BACKEND=postgres`.
+The API uses Supabase only when `DATABASE_BACKEND=supabase_rest`. The local PostgreSQL service can still exist in the production Compose file; it is unused by the API in this mode.
