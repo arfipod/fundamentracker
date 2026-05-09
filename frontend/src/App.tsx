@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import './App.css';
 import { useWatchlist } from './hooks/useWatchlist';
 import { useScanSettings } from './hooks/useScanSettings';
 import { DashboardHeader } from './components/DashboardHeader';
 import { AlertForm } from './components/AlertForm';
-import { WatchlistSection } from './components/WatchlistSection';
-import { ExplorerSection } from './components/ExplorerSection';
 import { SignalInbox } from './components/SignalInbox';
 import { apiFetch } from './lib/apiClient';
 import type { MetricCatalogItem } from './types/metrics';
+
+const WatchlistSection = lazy(() =>
+  import('./components/WatchlistSection').then((module) => ({ default: module.WatchlistSection }))
+);
+const ExplorerSection = lazy(() =>
+  import('./components/ExplorerSection').then((module) => ({ default: module.ExplorerSection }))
+);
 
 function App() {
   const [activeTab, setActiveTab] = useState<'signals' | 'watchlist' | 'explorer'>('signals');
@@ -132,29 +137,31 @@ function App() {
 
       {combinedError && <div className="error-message">{combinedError}</div>}
 
-      {activeTab === 'signals' ? (
-        <SignalInbox refreshToken={signalRefreshToken} />
-      ) : activeTab === 'watchlist' ? (
-        <>
-          <AlertForm metrics={metricCatalog} onAdd={handleAddNewAlert} />
+      <Suspense fallback={<div className="loading">Loading view...</div>}>
+        {activeTab === 'signals' ? (
+          <SignalInbox refreshToken={signalRefreshToken} />
+        ) : activeTab === 'watchlist' ? (
+          <>
+            <AlertForm metrics={metricCatalog} onAdd={handleAddNewAlert} />
 
-          <WatchlistSection
-            watchlist={watchlist}
-            loading={loading}
-            metrics={metricCatalog}
-            onDeleteTicker={handleDelete}
-            onAddInline={handleInlineAdd}
-            onUpdateAlert={handleUpdateTarget}
-            onDeleteAlert={handleDeleteAlert}
-            onToggleAlert={handleToggleAlert}
-            onAddTag={handleAddTag}
-            onRemoveTag={handleRemoveTag}
-            onUpdateMetadata={handleUpdateMetadata}
-          />
-        </>
-      ) : activeTab === 'explorer' ? (
-        <ExplorerSection metrics={metricCatalog} />
-      ) : null}
+            <WatchlistSection
+              watchlist={watchlist}
+              loading={loading}
+              metrics={metricCatalog}
+              onDeleteTicker={handleDelete}
+              onAddInline={handleInlineAdd}
+              onUpdateAlert={handleUpdateTarget}
+              onDeleteAlert={handleDeleteAlert}
+              onToggleAlert={handleToggleAlert}
+              onAddTag={handleAddTag}
+              onRemoveTag={handleRemoveTag}
+              onUpdateMetadata={handleUpdateMetadata}
+            />
+          </>
+        ) : activeTab === 'explorer' ? (
+          <ExplorerSection metrics={metricCatalog} />
+        ) : null}
+      </Suspense>
 
       {undoQueue && (
         <div className="undo-toast" style={{
