@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import os
 import logging
-from datetime import datetime
+from uuid import UUID
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import quote
 
@@ -23,6 +24,21 @@ logger = logging.getLogger(__name__)
 class SupabaseRestRepository:
     DatabaseHealthError = DatabaseHealthError
     backend = "supabase_rest"
+    ALERT_COLUMNS = (
+        "id,ticker_symbol,metric,operator,target_value,is_active,"
+        "is_triggered,reference_value,alert_type,current_value,"
+        "current_source,current_as_of_date,current_fetched_at,"
+        "current_expires_at,current_stale,current_confidence,"
+        "deleted_at,restored_at,created_at"
+    )
+    TICKER_COLUMNS = (
+        "symbol,name,status,priority,notes,thesis,target_action,created_at,updated_at"
+    )
+    SIGNAL_COLUMNS = (
+        "id,ticker_symbol,company_name,signal_type,severity,title,message,"
+        "metric,current_value,previous_value,target_value,source,as_of_date,"
+        "fetched_at,created_at,acknowledged_at,dismissed_at,raw_payload"
+    )
 
     def __init__(
         self,
@@ -140,12 +156,31 @@ class SupabaseRestRepository:
         return self.check_connectivity()
 
     def get_watchlist(self):
-        tickers = self._req("GET", "tickers") or []
-        alerts = self._req("GET", "alerts") or []
-        return build_watchlist(tickers, alerts)
+        tickers = self._req("GET", f"tickers?select={self.TICKER_COLUMNS}&order=symbol.asc") or []
+        alerts = (
+            self._req(
+                "GET",
+                f"alerts?select={self.ALERT_COLUMNS}&deleted_at=is.null&order=created_at.asc",
+            )
+            or []
+        )
+        ticker_tags = (
+            self._req(
+                "GET",
+                "ticker_tags?select=ticker_symbol,tags(id,name,color)",
+            )
+            or []
+        )
+        return build_watchlist(tickers, alerts, ticker_tags)
 
     def get_alerts(self):
-        return self._req("GET", "alerts") or []
+        return (
+            self._req(
+                "GET",
+                f"alerts?select={self.ALERT_COLUMNS}&deleted_at=is.null&order=created_at.asc",
+            )
+            or []
+        )
 
     def get_fresh_metric_snapshot(
         self,
@@ -240,12 +275,116 @@ class SupabaseRestRepository:
         )
 
     def get_tickers(self):
-        return self._req("GET", "tickers") or []
+        return self._req("GET", f"tickers?select={self.TICKER_COLUMNS}&order=symbol.asc") or []
+
+    def get_tags(self):
+        return self._req("GET", "tags?select=id,name,color,created_at&order=name.asc") or []
 
     def add_ticker_db(self, symbol, company_name):
         headers = {"Prefer": "resolution=merge-duplicates, return=representation"}
         payload = {"symbol": symbol, "name": company_name}
-        return self._req("POST", "tickers", json=payload, headers=headers)
+        return self._req("POST", "tickers?on_conflict=symbol", json=payload, headers=headers)
+
+    def update_ticker_metadata(self, symbol, metadata):
+        allowed_columns = ("status", "priority", "notes", "thesis", "target_action")
+        payload = {key: metadata[key] for key in allowed_columns if key in metadata}
+        payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+        headers = {"Prefer": "return=representation"}
+        rows = self._req(
+            "PATCH",
+            f"tickers?symbol=eq.{self._encode_filter_value(symbol)}",
+            json=payload,
+            headers=headers,
+        )
+        return rows[0] if rows else None
+
+    def _get_tag_by_name_or_id(self, tag_name_or_id):
+        try:
+            UUID(str(tag_name_or_id))
+        except ValueError:
+            pass
+        else:
+            rows = (
+                self._req(
+                    "GET",
+                    "tags"
+                    "?select=id,name,color,created_at"
+                    f"&id=eq.{self._encode_filter_value(tag_name_or_id)}"
+                    "&limit=1",
+                )
+                or []
+            )
+            if rows:
+                return rows[0]
+
+        rows = (
+            self._req(
+                "GET",
+                "tags"
+                "?select=id,name,color,created_at"
+                f"&name=eq.{self._encode_filter_value(tag_name_or_id)}"
+                "&limit=1",
+            )
+            or []
+        )
+        return rows[0] if rows else None
+
+    def add_tag_to_ticker(self, symbol, name, color=None):
+        existing = self._get_tag_by_name_or_id(name)
+        if existing is None:
+            tag_payload = {"name": name}
+            if color is not None:
+                tag_payload["color"] = color
+            headers = {"Prefer": "resolution=merge-duplicates, return=representation"}
+            rows = (
+                self._req(
+                    "POST",
+                    "tags?on_conflict=name",
+                    json=tag_payload,
+                    headers=headers,
+                )
+                or []
+            )
+            tag = rows[0] if rows else None
+        else:
+            tag = existing
+            if color is not None and color != tag.get("color"):
+                headers = {"Prefer": "return=representation"}
+                rows = (
+                    self._req(
+                        "PATCH",
+                        f"tags?id=eq.{self._encode_filter_value(tag['id'])}",
+                        json={"color": color},
+                        headers=headers,
+                    )
+                    or []
+                )
+                tag = rows[0] if rows else tag
+
+        if tag is None:
+            return None
+
+        headers = {"Prefer": "resolution=ignore-duplicates"}
+        self._req(
+            "POST",
+            "ticker_tags?on_conflict=ticker_symbol,tag_id",
+            json={"ticker_symbol": symbol, "tag_id": tag["id"]},
+            headers=headers,
+        )
+        return tag
+
+    def remove_tag_from_ticker(self, symbol, tag_name_or_id):
+        tag = self._get_tag_by_name_or_id(tag_name_or_id)
+        if tag is None:
+            return False
+        return bool(
+            self._req(
+                "DELETE",
+                "ticker_tags"
+                f"?ticker_symbol=eq.{self._encode_filter_value(symbol)}"
+                f"&tag_id=eq.{self._encode_filter_value(tag['id'])}",
+            )
+        )
 
     def add_alert_db(
         self,
@@ -272,25 +411,72 @@ class SupabaseRestRepository:
     def update_alert_target(self, alert_id, new_target):
         payload = {"target_value": float(new_target)}
         headers = {"Prefer": "return=representation"}
-        return self._req("PATCH", f"alerts?id=eq.{alert_id}", json=payload, headers=headers)
+        return self._req(
+            "PATCH",
+            f"alerts?id=eq.{alert_id}&deleted_at=is.null",
+            json=payload,
+            headers=headers,
+        )
 
     def toggle_alert_active(self, alert_id, is_active):
         payload = {"is_active": is_active}
         headers = {"Prefer": "return=representation"}
-        return self._req("PATCH", f"alerts?id=eq.{alert_id}", json=payload, headers=headers)
+        return self._req(
+            "PATCH",
+            f"alerts?id=eq.{alert_id}&deleted_at=is.null",
+            json=payload,
+            headers=headers,
+        )
 
-    def update_alert_status(self, alert_id, is_triggered, current_value=None):
-        payload = {"is_triggered": is_triggered}
-        if current_value is not None:
-            payload["current_value"] = float(current_value)
+    def restore_alert_db(self, alert_id):
+        payload = {
+            "deleted_at": None,
+            "restored_at": datetime.now(timezone.utc).isoformat(),
+        }
         headers = {"Prefer": "return=representation"}
         return self._req("PATCH", f"alerts?id=eq.{alert_id}", json=payload, headers=headers)
 
+    def get_deleted_alerts_db(self):
+        return (
+            self._req(
+                "GET",
+                f"alerts?select={self.ALERT_COLUMNS}&deleted_at=not.is.null&order=deleted_at.desc",
+            )
+            or []
+        )
+
+    def update_alert_status(self, alert_id, is_triggered, current_value=None, current_metadata=None):
+        current_metadata = current_metadata or {}
+        payload = {"is_triggered": is_triggered}
+        if current_value is not None:
+            payload["current_value"] = float(current_value)
+            payload["current_source"] = current_metadata.get("source")
+            payload["current_as_of_date"] = serialize_value(current_metadata.get("as_of_date"))
+            payload["current_fetched_at"] = serialize_value(current_metadata.get("fetched_at"))
+            payload["current_expires_at"] = serialize_value(current_metadata.get("expires_at"))
+            payload["current_stale"] = current_metadata.get("stale")
+            payload["current_confidence"] = current_metadata.get("confidence")
+            payload = {key: value for key, value in payload.items() if value is not None}
+        headers = {"Prefer": "return=representation"}
+        return self._req(
+            "PATCH",
+            f"alerts?id=eq.{alert_id}&deleted_at=is.null",
+            json=payload,
+            headers=headers,
+        )
+
     def delete_alert_db(self, alert_id=None, symbol=None, metric=None):
+        payload = {"deleted_at": datetime.now(timezone.utc).isoformat()}
+        headers = {"Prefer": "return=representation"}
         if alert_id:
-            return self._req("DELETE", f"alerts?id=eq.{alert_id}")
+            return self._req("PATCH", f"alerts?id=eq.{alert_id}", json=payload, headers=headers)
         if symbol and metric:
-            return self._req("DELETE", f"alerts?ticker_symbol=eq.{symbol}&metric=eq.{metric}")
+            return self._req(
+                "PATCH",
+                f"alerts?ticker_symbol=eq.{symbol}&metric=eq.{metric}&deleted_at=is.null",
+                json=payload,
+                headers=headers,
+            )
         return False
 
     def delete_ticker_db(self, symbol):
@@ -315,12 +501,25 @@ class SupabaseRestRepository:
             return res[0]
         return {}
 
-    def log_alert_history(self, alert_id, trigger_val, target_val):
+    def log_alert_history(self, alert_id, trigger_val, target_val, metadata=None):
+        metadata = metadata or {}
         payload = {
             "alert_id": alert_id,
             "trigger_value": trigger_val,
             "target_value": target_val,
+            "ticker_symbol": metadata.get("ticker_symbol"),
+            "company_name": metadata.get("company_name"),
+            "metric": metadata.get("metric"),
+            "operator": metadata.get("operator"),
+            "alert_type": metadata.get("alert_type"),
+            "reference_value": metadata.get("reference_value"),
+            "current_value": metadata.get("current_value", trigger_val),
+            "source": metadata.get("source"),
+            "as_of_date": serialize_value(metadata.get("as_of_date")),
+            "fetched_at": serialize_value(metadata.get("fetched_at")),
+            "message": metadata.get("message"),
         }
+        payload = {key: value for key, value in payload.items() if value is not None}
         headers = {"Prefer": "return=representation"}
         return self._req("POST", "alert_history", json=payload, headers=headers)
 
@@ -332,3 +531,65 @@ class SupabaseRestRepository:
             )
             or []
         )
+
+    def create_signal(self, payload):
+        signal_payload = {
+            "ticker_symbol": payload.get("ticker_symbol"),
+            "company_name": payload.get("company_name"),
+            "signal_type": payload.get("signal_type"),
+            "severity": payload.get("severity"),
+            "title": payload.get("title"),
+            "message": payload.get("message"),
+            "metric": payload.get("metric"),
+            "current_value": payload.get("current_value"),
+            "previous_value": payload.get("previous_value"),
+            "target_value": payload.get("target_value"),
+            "source": payload.get("source"),
+            "as_of_date": serialize_value(payload.get("as_of_date")),
+            "fetched_at": serialize_value(payload.get("fetched_at")),
+            "raw_payload": payload.get("raw_payload"),
+        }
+        signal_payload = {key: value for key, value in signal_payload.items() if value is not None}
+        headers = {"Prefer": "return=representation"}
+        rows = self._req("POST", "signals", json=signal_payload, headers=headers) or []
+        return rows[0] if rows else None
+
+    def get_signals(self, status="open", limit=50):
+        endpoint = f"signals?select={self.SIGNAL_COLUMNS}&order=created_at.desc&limit={limit}"
+        if status == "open":
+            endpoint = (
+                f"signals?select={self.SIGNAL_COLUMNS}"
+                "&acknowledged_at=is.null"
+                "&dismissed_at=is.null"
+                "&order=created_at.desc"
+                f"&limit={limit}"
+            )
+        return self._req("GET", endpoint) or []
+
+    def acknowledge_signal(self, signal_id):
+        headers = {"Prefer": "return=representation"}
+        payload = {"acknowledged_at": datetime.now(timezone.utc).isoformat()}
+        rows = (
+            self._req(
+                "PATCH",
+                f"signals?id=eq.{self._encode_filter_value(signal_id)}&dismissed_at=is.null",
+                json=payload,
+                headers=headers,
+            )
+            or []
+        )
+        return rows[0] if rows else None
+
+    def dismiss_signal(self, signal_id):
+        headers = {"Prefer": "return=representation"}
+        payload = {"dismissed_at": datetime.now(timezone.utc).isoformat()}
+        rows = (
+            self._req(
+                "PATCH",
+                f"signals?id=eq.{self._encode_filter_value(signal_id)}",
+                json=payload,
+                headers=headers,
+            )
+            or []
+        )
+        return rows[0] if rows else None

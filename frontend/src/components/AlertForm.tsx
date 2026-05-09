@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../lib/apiClient';
+import { MetricSelect } from './MetricSelect';
+import type { MetricCatalogItem } from '../types/metrics';
 
 interface Props {
+  metrics: MetricCatalogItem[];
   onAdd: (ticker: string, metric: string, operator: string, targetValue: number, alertType: string) => Promise<boolean>;
 }
 
-export function AlertForm({ onAdd }: Props) {
+export function AlertForm({ metrics, onAdd }: Props) {
   const [ticker, setTicker] = useState('');
   const [metric, setMetric] = useState('pe');
   const [operator, setOperator] = useState('<');
@@ -25,6 +28,13 @@ export function AlertForm({ onAdd }: Props) {
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
+
+  useEffect(() => {
+    const alertMetrics = metrics.filter(item => item.supported_for_alerts);
+    if (alertMetrics.length > 0 && !alertMetrics.some(item => item.key === metric)) {
+      setMetric(alertMetrics[0].key);
+    }
+  }, [metrics, metric]);
 
   useEffect(() => {
     const fetchSearch = async () => {
@@ -94,20 +104,7 @@ export function AlertForm({ onAdd }: Props) {
         </div>
         <div className="form-group">
           <label>Metric</label>
-          <select value={metric} onChange={e => setMetric(e.target.value)}>
-            <option value="pe">PE</option>
-            <option value="fpe">FPE</option>
-            <option value="pb">PB</option>
-            <option value="evebitda">EV/EBITDA</option>
-            <option value="roe">ROE</option>
-            <option value="price">Price</option>
-            <option value="roic">ROIC</option>
-            <option value="dividendyield">Dividend Yield</option>
-            <option value="payoutratio">Payout Ratio</option>
-            <option value="debttoequity">Debt to Equity</option>
-            <option value="profitmargins">Profit Margins</option>
-            <option value="operatingmargins">Operating Margins</option>
-          </select>
+          <MetricSelect metrics={metrics} value={metric} onChange={setMetric} support="alerts" />
         </div>
         <div className="form-group">
           <label>Operator</label>

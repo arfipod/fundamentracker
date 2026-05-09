@@ -1,8 +1,9 @@
 # FundamenTracker Frontend
 
 This directory contains the current React/Vite frontend for FundamenTracker. It
-is the browser UI for managing watchlist alerts, running scans, exploring
-metrics, viewing charts, and requesting Gemini analysis through the backend.
+is the browser UI for reviewing signals, managing watchlist alerts, running
+scans, exploring metrics, viewing charts, and requesting Gemini analysis
+through the backend.
 
 ## Tech Stack
 
@@ -17,20 +18,25 @@ icons.
 
 ## Structure
 
-- `src/App.tsx`: top-level Watchlist/Explorer tab layout.
+- `src/App.tsx`: top-level Signals/Watchlist/Explorer tab layout.
 - `src/lib/apiClient.ts`: shared API fetch helper and bearer-token injection.
 - `src/types/watchlist.ts`: watchlist, alert, and alert-history TypeScript
   types.
+- `src/types/signals.ts`: Signal Inbox TypeScript types.
 - `src/hooks/useWatchlist.ts`: watchlist loading plus alert/ticker mutations and
   undo behavior.
 - `src/hooks/useScanSettings.ts`: scan interval, manual scan, and server time.
 - `src/components/AlertForm.tsx`: add-alert form with ticker autocomplete.
+- `src/components/SignalInbox.tsx`: open signal list with acknowledge, dismiss,
+  and refresh controls.
 - `src/components/WatchlistSection.tsx`: table/grid watchlist display, sorting,
-  and local tag filtering.
+  and backend tag filtering.
 - `src/components/TickerRow.tsx`: table-row ticker view.
 - `src/components/TickerCard.tsx`: card ticker view.
 - `src/components/AlertItem.tsx`: alert display, target edit, toggle, delete,
-  relative-diff display, and chart expansion.
+  relative-diff display, data-quality badge, and chart expansion.
+- `src/components/DataQualityBadge.tsx`: compact source, stale, timestamp, and
+  confidence display for current metric values.
 - `src/components/MetricChart.tsx`: historical metric chart using Recharts.
 - `src/components/ExplorerSection.tsx`: standalone ticker/metric explorer.
 - `src/components/DashboardHeader.tsx`: scan controls and timing display.
@@ -114,9 +120,12 @@ moment.
 
 ## Current Behavior Notes
 
-- Tags are stored in browser `localStorage` using keys like `tags_AAPL`; they
-  are not persisted by the backend.
+- Tags and basic ticker metadata are persisted by the backend and returned in
+  the watchlist response.
+- Alert current values and Explorer current metric values show data-quality
+  metadata from the backend, including source, stale status, fetched/as-of
+  timestamps, expiry, and confidence when available.
 - Watchlist reads and all mutable operations use `apiFetch`.
 - Alert update/delete/toggle calls use alert IDs.
-- The AI valuation UI expects the backend response shape
-  `{"analysis": "..."}`.
+- The AI valuation UI prefers the structured `/ai-valuation` response fields
+  and falls back to the temporary legacy `analysis` string when needed.

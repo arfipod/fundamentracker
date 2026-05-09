@@ -8,6 +8,12 @@ def duplicate_pe_watchlist():
     return {
         "AAPL": {
             "name": "Apple Inc.",
+            "status": "watching",
+            "priority": "medium",
+            "notes": None,
+            "thesis": None,
+            "target_action": None,
+            "tags": [],
             "alerts": [
                 {
                     "id": "alert-low",
@@ -19,6 +25,12 @@ def duplicate_pe_watchlist():
                     "reference_value": None,
                     "alert_type": "absolute",
                     "current_value": None,
+                    "current_source": None,
+                    "current_as_of_date": None,
+                    "current_fetched_at": None,
+                    "current_expires_at": None,
+                    "current_stale": None,
+                    "current_confidence": None,
                 },
                 {
                     "id": "alert-high",
@@ -30,6 +42,12 @@ def duplicate_pe_watchlist():
                     "reference_value": None,
                     "alert_type": "absolute",
                     "current_value": None,
+                    "current_source": None,
+                    "current_as_of_date": None,
+                    "current_fetched_at": None,
+                    "current_expires_at": None,
+                    "current_stale": None,
+                    "current_confidence": None,
                 },
             ],
         }

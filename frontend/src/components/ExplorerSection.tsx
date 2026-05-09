@@ -1,6 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MetricChart } from './MetricChart';
+import { MetricSelect } from './MetricSelect';
+import { DataQualityBadge } from './DataQualityBadge';
 import { apiFetch } from '../lib/apiClient';
+import { getMetricLabel, type MetricCatalogItem } from '../types/metrics';
+import type { DataQualityMetadata } from '../types/watchlist';
+
+interface ExplorerSectionProps {
+  metrics: MetricCatalogItem[];
+}
+
+interface CurrentMetric extends DataQualityMetadata {
+  value: number | null;
+}
 
 /**
  * ExplorerSection component allows users to search for any stock ticker
@@ -9,7 +21,7 @@ import { apiFetch } from '../lib/apiClient';
  * 
  * @returns {JSX.Element} The rendered ExplorerSection component
  */
-export function ExplorerSection() {
+export function ExplorerSection({ metrics }: ExplorerSectionProps) {
   const [ticker, setTicker] = useState('AAPL');
   const [metric, setMetric] = useState('price');
   
@@ -18,6 +30,7 @@ export function ExplorerSection() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [currentValue, setCurrentValue] = useState<number | null>(null);
+  const [currentMetric, setCurrentMetric] = useState<CurrentMetric | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -29,6 +42,13 @@ export function ExplorerSection() {
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
+
+  useEffect(() => {
+    const historyMetrics = metrics.filter(item => item.supported_for_history);
+    if (historyMetrics.length > 0 && !historyMetrics.some(item => item.key === metric)) {
+      setMetric(historyMetrics[0].key);
+    }
+  }, [metrics, metric]);
 
   useEffect(() => {
     const fetchSearch = async () => {
@@ -66,12 +86,23 @@ export function ExplorerSection() {
       if (metricRes.ok) {
         const metricData = await metricRes.json();
         setCurrentValue(metricData.value);
+        setCurrentMetric({
+          value: metricData.value,
+          source: metricData.source,
+          as_of_date: metricData.as_of_date,
+          fetched_at: metricData.fetched_at,
+          expires_at: metricData.expires_at,
+          stale: metricData.stale,
+          confidence: metricData.confidence,
+        });
       } else {
         setCurrentValue(null);
+        setCurrentMetric(null);
       }
     } catch (err: any) {
       console.error(err.message || "An error occurred");
       setCurrentValue(null);
+      setCurrentMetric(null);
     } finally {
       setLoading(false);
     }
@@ -121,20 +152,7 @@ export function ExplorerSection() {
           </div>
           <div className="form-group">
             <label>Metric</label>
-            <select value={metric} onChange={e => setMetric(e.target.value)}>
-              <option value="pe">PE</option>
-              <option value="fpe">FPE</option>
-              <option value="pb">PB</option>
-              <option value="evebitda">EV/EBITDA</option>
-              <option value="roe">ROE</option>
-              <option value="price">Price</option>
-              <option value="roic">ROIC</option>
-              <option value="dividendyield">Dividend Yield</option>
-              <option value="payoutratio">Payout Ratio</option>
-              <option value="debttoequity">Debt to Equity</option>
-              <option value="profitmargins">Profit Margins</option>
-              <option value="operatingmargins">Operating Margins</option>
-            </select>
+            <MetricSelect metrics={metrics} value={metric} onChange={setMetric} support="history" />
           </div>
           <button type="submit" className="btn-primary" disabled={loading}>
             {loading ? 'Loading...' : 'Explore'}
@@ -144,12 +162,24 @@ export function ExplorerSection() {
 
       <div className="explorer-content">
         <div className="current-value-card">
-          <h3>Current {metric.toUpperCase()}</h3>
+          <h3>Current {getMetricLabel(metrics, metric)}</h3>
           <div className="value">
             {currentValue !== null && currentValue !== undefined 
               ? (typeof currentValue === 'number' ? currentValue.toLocaleString(undefined, { maximumFractionDigits: 4 }) : currentValue) 
               : 'N/A'}
           </div>
+          {currentMetric && (
+            <DataQualityBadge
+              metadata={{
+                source: currentMetric.source,
+                as_of_date: currentMetric.as_of_date,
+                fetched_at: currentMetric.fetched_at,
+                expires_at: currentMetric.expires_at,
+                stale: currentMetric.stale,
+                confidence: currentMetric.confidence,
+              }}
+            />
+          )}
         </div>
 
         <div className="chart-container">

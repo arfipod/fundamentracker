@@ -3,8 +3,9 @@
 FundamenTracker currently uses `yfinance` as the default live provider for
 quotes, alert metrics, ticker search, market overview, and historical chart
 data. A SEC EDGAR provider module also exists for selected audited US issuer
-fundamentals through the SEC company facts XBRL API, but it is not selected by
-the default live `MarketDataService`.
+fundamentals through the SEC company facts XBRL API. SEC data is exposed through
+a separate audited-facts endpoint and frontend panel; it does not replace
+`yfinance` as the default live `MarketDataService` provider.
 
 Provider arbitration, provider disagreement reporting, Alpha Vantage support,
 and FMP support are planned/future work. Do not document them as implemented.
@@ -61,10 +62,42 @@ The provider supports:
 
 Returned metric snapshots include `source="sec"` plus SEC filing metadata such as CIK, concept, unit, form, filing date, fiscal year/period, accession number, and `as_of_date`.
 
-Current integration limitation: the live API's default `MarketDataService`
-constructs `YFinanceProvider()`. The SEC provider is available for direct use,
-tests, and future service wiring, but current alert scans and Explorer calls do
-not automatically prefer SEC data for audited fundamentals.
+Live API integration:
+
+```text
+GET /fundamentals/sec/{ticker}
+```
+
+This endpoint is protected by default and requires `Authorization: Bearer <API_AUTH_TOKEN>`. It uses `SecEdgarProvider` directly, returns the supported audited facts that are available for the ticker, caches each returned fact in `metric_snapshots` with `source="sec"` where repository writes are available, and updates `provider_health` for SEC success or failure.
+
+Response shape:
+
+```json
+{
+  "ticker": "AAPL",
+  "cik": "0000320193",
+  "company_name": "Apple Inc.",
+  "facts": [
+    {
+      "metric": "revenue",
+      "value": 383285000000.0,
+      "unit": "USD",
+      "concept": "Revenues",
+      "label": "Revenue",
+      "fiscal_year": 2023,
+      "fiscal_period": "FY",
+      "form": "10-K",
+      "as_of_date": "2023-09-30",
+      "filed_at": "2023-11-03",
+      "accession": "0000320193-23-000106",
+      "source": "sec"
+    }
+  ],
+  "errors": []
+}
+```
+
+Missing optional facts are reported in `errors` and do not fail the whole endpoint. Missing SEC ticker mappings, common for non-US issuers, return an empty `facts` array with an explanatory error. Alert scans, Explorer metrics, quotes, and market overview still use the default yfinance-backed service unless separately changed.
 
 ## yfinance Provider
 

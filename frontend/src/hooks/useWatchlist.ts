@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
 import { apiFetch } from '../lib/apiClient';
-import type { Alert, Watchlist } from '../types/watchlist';
+import type { Alert, Watchlist, WatchlistMetadata } from '../types/watchlist';
 
-type UndoQueue = { ticker: string, name: string, alerts: Alert[], id: number };
+type UndoQueue = { ticker: string, alerts: Alert[], id: number };
 
 export function useWatchlist() {
   const [watchlist, setWatchlist] = useState<Watchlist | null>(null);
@@ -105,8 +105,7 @@ export function useWatchlist() {
       
       if (alertToUndo) {
         const id = Date.now();
-        const name = watchlist?.[tickerToDelete]?.name || tickerToDelete;
-        setUndoQueue({ ticker: tickerToDelete, name, alerts: [alertToUndo], id });
+        setUndoQueue({ ticker: tickerToDelete, alerts: [alertToUndo], id });
         setTimeout(() => setUndoQueue(prev => prev?.id === id ? null : prev), 6000);
       }
       
@@ -120,23 +119,11 @@ export function useWatchlist() {
 
   const handleDelete = async (tickerToDelete: string) => {
     try {
-      let alertsToUndo: Alert[] = [];
-      let nameToUndo = "";
-      if (watchlist && watchlist[tickerToDelete]) {
-        alertsToUndo = watchlist[tickerToDelete].alerts;
-        nameToUndo = watchlist[tickerToDelete].name;
-      }
-
       const response = await apiFetch(`/remove/${tickerToDelete}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Error removing the ticker');
-      
-      if (alertsToUndo.length >= 0) {
-        const id = Date.now();
-        setUndoQueue({ ticker: tickerToDelete, name: nameToUndo, alerts: alertsToUndo, id });
-        setTimeout(() => setUndoQueue(prev => prev?.id === id ? null : prev), 6000);
-      }
+      setUndoQueue(null);
       
       await fetchWatchlist();
     } catch (err: unknown) {
@@ -162,25 +149,77 @@ export function useWatchlist() {
     }
   };
 
+  const handleAddTag = async (ticker: string, name: string) => {
+    try {
+      const response = await apiFetch(`/watchlist/${ticker}/tags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!response.ok) throw new Error('Error adding tag');
+      await fetchWatchlist();
+      return true;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      }
+      return false;
+    }
+  };
+
+  const handleRemoveTag = async (ticker: string, tagNameOrId: string) => {
+    try {
+      const response = await apiFetch(`/watchlist/${ticker}/tags/${encodeURIComponent(tagNameOrId)}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Error removing tag');
+      await fetchWatchlist();
+      return true;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      }
+      return false;
+    }
+  };
+
+  const handleUpdateMetadata = async (ticker: string, metadata: Partial<WatchlistMetadata>) => {
+    try {
+      const response = await apiFetch(`/watchlist/${ticker}/metadata`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(metadata),
+      });
+      if (!response.ok) throw new Error('Error updating metadata');
+      await fetchWatchlist();
+      return true;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      }
+      return false;
+    }
+  };
+
   const handleUndo = async () => {
     if (!undoQueue) return;
     
-    // Add ticker and alerts back
-    for (const alert of undoQueue.alerts) {
-      await apiFetch('/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticker: undoQueue.ticker,
-          metric: alert.metric,
-          operator: alert.operator,
-          value: alert.target,
-          alert_type: alert.alert_type
-        }),
-      });
+    try {
+      for (const alert of undoQueue.alerts) {
+        const response = await apiFetch(`/alerts/${alert.id}/restore`, {
+          method: 'POST',
+        });
+        if (!response.ok) {
+          throw new Error('Error restoring the alert');
+        }
+      }
+      setUndoQueue(null);
+      await fetchWatchlist();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      }
     }
-    setUndoQueue(null);
-    await fetchWatchlist();
   };
 
   return {
@@ -194,6 +233,9 @@ export function useWatchlist() {
     handleDeleteAlert,
     handleDelete,
     handleToggleAlert,
+    handleAddTag,
+    handleRemoveTag,
+    handleUpdateMetadata,
     undoQueue,
     handleUndo
   };

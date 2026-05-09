@@ -17,6 +17,8 @@ implemented yet.
 - ID-based alert update, delete, and toggle routes so duplicate ticker/metric
   alerts can be managed safely.
 - Manual and periodic alert scanning.
+- Signal Inbox for open investor-relevant events created from newly triggered
+  alerts.
 - Market metric and history lookup through `MarketDataService`.
 - yfinance provider for quotes, metrics, symbol search, market overview, and
   historical chart data.
@@ -24,18 +26,19 @@ implemented yet.
 - SEC EDGAR provider module for selected audited US fundamentals. It exists and
   has tests, but it is not the default provider selected by the live API.
 - Optional Telegram notifications and command polling.
-- Gemini valuation endpoint that returns a plain text analysis string.
+- Gemini valuation endpoint that builds a backend data pack and returns
+  structured analysis with sources, missing data, suggested alert ideas, a
+  disclaimer, and a temporary legacy `analysis` string.
 - Local PostgreSQL and Supabase REST repository implementations.
 - Development and production Docker Compose files.
 - systemd units, watchdog script, migration runner, and PostgreSQL backup script.
 
 ## Known Limitations
 
-- The Gemini endpoint is implemented as a service, but it currently returns
-  `{"analysis": "..."}` text instead of a structured valuation object with
-  explicit warnings and disclaimer fields.
-- Tags are frontend-only UI state stored in browser `localStorage`; they are not
-  persisted in the backend database.
+- The Gemini endpoint is limited to the quote and supported current metrics in
+  its backend data pack. It must not claim historical-norm or sector-relative
+  valuation support unless those data points are explicitly present.
+- Tags and basic watchlist metadata are persisted in the backend database.
 - The frontend has no committed Vitest test files and no `npm test` script.
 - The default live provider is yfinance. Multi-provider arbitration and provider
   disagreement reporting are planned, not implemented.
@@ -193,7 +196,9 @@ docker compose -f docker-compose.dev.yml up --build api frontend
 ## Supported Alert Metrics
 
 The live yfinance metric catalog is defined in
-`api/market_data/metric_definitions.py`:
+`api/market_data/metric_definitions.py` and exposed to clients through public
+`GET /metrics/catalog`. API calls reject unsupported metric keys instead of
+falling back to price.
 
 - `pe` (Trailing P/E)
 - `fpe` (Forward P/E)

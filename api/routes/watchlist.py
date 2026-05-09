@@ -5,6 +5,7 @@ from typing import Any, Callable
 from fastapi import APIRouter, Depends, HTTPException
 
 from schemas.alerts import AddAlertRequest, UpdateAlertRequest
+from schemas.watchlist import AddTickerTagRequest, WatchlistMetadataRequest
 from services import watchlist as watchlist_service
 
 
@@ -23,6 +24,41 @@ def create_router(
     @router.get("/watchlist", dependencies=[Depends(require_watchlist_access)])
     def get_watchlist():
         return watchlist_service.get_watchlist(get_db())
+
+    @router.get("/tags", dependencies=[Depends(require_watchlist_access)])
+    def get_tags():
+        return watchlist_service.get_tags(get_db())
+
+    @router.patch("/watchlist/{ticker}/metadata", dependencies=[Depends(require_api_token)])
+    def update_ticker_metadata(ticker: str, payload: WatchlistMetadataRequest):
+        try:
+            return watchlist_service.update_ticker_metadata(get_db(), ticker, payload)
+        except watchlist_service.WatchlistAlertNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @router.post("/watchlist/{ticker}/tags", dependencies=[Depends(require_api_token)])
+    def add_ticker_tag(ticker: str, payload: AddTickerTagRequest):
+        try:
+            return watchlist_service.add_ticker_tag(get_db(), ticker, payload)
+        except watchlist_service.WatchlistAlertNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except watchlist_service.WatchlistValidationError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @router.delete(
+        "/watchlist/{ticker}/tags/{tag_name_or_id}",
+        dependencies=[Depends(require_api_token)],
+    )
+    def remove_ticker_tag(ticker: str, tag_name_or_id: str):
+        try:
+            if not watchlist_service.remove_ticker_tag(get_db(), ticker, tag_name_or_id):
+                raise HTTPException(status_code=404, detail="Tag not found")
+        except watchlist_service.WatchlistAlertNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except watchlist_service.WatchlistValidationError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+        return {"message": "Tag removed"}
 
     @router.post("/add", dependencies=[Depends(require_api_token)])
     def add_watchlist_alert(payload: AddAlertRequest):

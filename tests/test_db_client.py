@@ -104,6 +104,12 @@ def test_build_watchlist_serializes_alert_values():
                 "reference_value": None,
                 "alert_type": "absolute",
                 "current_value": "21.7",
+                "current_source": "yfinance",
+                "current_as_of_date": "2026-05-08",
+                "current_fetched_at": "2026-05-08T12:00:00+00:00",
+                "current_expires_at": "2026-05-08T12:05:00+00:00",
+                "current_stale": False,
+                "current_confidence": "0.8",
             }
         ],
     )
@@ -119,5 +125,11 @@ def test_build_watchlist_serializes_alert_values():
             "reference_value": None,
             "alert_type": "absolute",
             "current_value": 21.7,
+            "current_source": "yfinance",
+            "current_as_of_date": "2026-05-08",
+            "current_fetched_at": "2026-05-08T12:00:00+00:00",
+            "current_expires_at": "2026-05-08T12:05:00+00:00",
+            "current_stale": False,
+            "current_confidence": 0.8,
         }
     ]

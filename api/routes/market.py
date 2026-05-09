@@ -4,6 +4,7 @@ from typing import Any, Callable
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from schemas.sec_facts import SecFundamentalsResponse
 from services import market as market_service
 
 
@@ -29,6 +30,21 @@ def create_router(
         except Exception as error:
             raise HTTPException(status_code=500, detail=str(error)) from error
 
+    @router.get("/metrics/catalog")
+    def get_metrics_catalog():
+        return market_service.get_metrics_catalog()
+
+    @router.get(
+        "/fundamentals/sec/{ticker}",
+        response_model=SecFundamentalsResponse,
+        dependencies=[Depends(require_api_token)],
+    )
+    def get_sec_fundamentals(ticker: str):
+        try:
+            return market_service.get_sec_fundamentals(ticker)
+        except Exception as error:
+            raise HTTPException(status_code=500, detail=str(error)) from error
+
     @router.get("/metric-current", dependencies=[Depends(require_api_token)])
     def get_metric_current(ticker: str, metric: str):
         try:
@@ -38,6 +54,8 @@ def create_router(
                 metric=metric,
                 metrics_map=metrics_map,
             )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
         except Exception as error:
             raise HTTPException(status_code=500, detail=str(error)) from error
 

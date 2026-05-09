@@ -1,49 +1,53 @@
-import { useState, useEffect } from 'react';
-import type { TickerData } from '../types/watchlist';
+import { useState } from 'react';
+import type { TickerData, WatchlistMetadata } from '../types/watchlist';
+import type { MetricCatalogItem } from '../types/metrics';
+import type { AiValuationResponse } from '../types/valuation';
 import { AlertItem } from './AlertItem';
+import { AiValuationPanel } from './AiValuationPanel';
+import { InlineAlertForm } from './InlineAlertForm';
+import { AuditedSecFactsPanel } from './AuditedSecFactsPanel';
 import { apiFetch } from '../lib/apiClient';
+import { parseAiValuationResponse } from '../lib/valuation';
+import { useSecFacts } from '../hooks/useSecFacts';
 
 interface Props {
   symbol: string;
   data: TickerData;
+  metrics: MetricCatalogItem[];
   onDeleteTicker: (ticker: string) => void;
   onAddInline: (ticker: string, metric: string, operator: string, val: number, alertType?: string) => void;
   onUpdateAlert: (alertId: string, val: number) => void;
   onDeleteAlert: (alertId: string, ticker: string) => void;
   onToggleAlert: (alertId: string, isActive: boolean) => void;
+  onAddTag: (ticker: string, name: string) => void;
+  onRemoveTag: (ticker: string, tagNameOrId: string) => void;
+  onUpdateMetadata: (ticker: string, metadata: Partial<WatchlistMetadata>) => void;
 }
 
-export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateAlert, onDeleteAlert, onToggleAlert }: Props) {
+export function TickerRow({ symbol, data, metrics, onDeleteTicker, onAddInline, onUpdateAlert, onDeleteAlert, onToggleAlert, onAddTag, onRemoveTag, onUpdateMetadata }: Props) {
   const [addingMetric, setAddingMetric] = useState(false);
-  const [tags, setTags] = useState<string[]>([]);
   const [addingTag, setAddingTag] = useState(false);
   const [newTag, setNewTag] = useState('');
-  const [aiValuation, setAiValuation] = useState<string | null>(null);
+  const [aiValuation, setAiValuation] = useState<AiValuationResponse | string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
-
-  useEffect(() => {
-    const savedTags = localStorage.getItem(`tags_${symbol}`);
-    if (savedTags) {
-      setTags(JSON.parse(savedTags));
-    }
-  }, [symbol]);
-
-  const saveTags = (newTags: string[]) => {
-    setTags(newTags);
-    localStorage.setItem(`tags_${symbol}`, JSON.stringify(newTags));
-    window.dispatchEvent(new Event('tagsUpdated'));
-  };
+  const [showSecFacts, setShowSecFacts] = useState(false);
+  const secFacts = useSecFacts(symbol);
 
   const handleAddTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim().toLowerCase())) {
-      saveTags([...tags, newTag.trim().toLowerCase()]);
+    const tag = newTag.trim().toLowerCase();
+    if (tag && !data.tags.some(existing => existing.name === tag)) {
+      onAddTag(symbol, tag);
     }
     setNewTag('');
     setAddingTag(false);
   };
 
-  const handleRemoveTag = (tag: string) => {
-    saveTags(tags.filter(t => t !== tag));
+  const handleSecFacts = () => {
+    const nextVisible = !showSecFacts;
+    setShowSecFacts(nextVisible);
+    if (nextVisible) {
+      secFacts.load();
+    }
   };
 
   const handleAiValuation = async () => {
@@ -56,8 +60,8 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
         body: JSON.stringify({ ticker: symbol })
       });
       if (res.ok) {
-        const data = await res.json();
-        setAiValuation(data.analysis);
+        const responseData = await res.json();
+        setAiValuation(parseAiValuationResponse(responseData));
       } else {
         const err = await res.json();
         setAiValuation(`Error: ${err.detail || 'Failed to fetch valuation'}`);
@@ -69,29 +73,41 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
     }
   };
 
-  const handleAddSubmit = () => {
-    const mElement = document.getElementById(`inline-m-${symbol}`) as HTMLSelectElement;
-    const oElement = document.getElementById(`inline-o-${symbol}`) as HTMLSelectElement;
-    const typeElement = document.getElementById(`inline-type-${symbol}`) as HTMLSelectElement;
-    const tElement = document.getElementById(`inline-t-${symbol}`) as HTMLInputElement;
-
-    if (tElement && tElement.value) {
-      onAddInline(symbol, mElement.value, oElement.value, parseFloat(tElement.value), typeElement.value);
-      setAddingMetric(false);
-    }
-  };
-
   return (
     <>
       <tr className="ticker-row">
         <td style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{symbol}</td>
         <td style={{ color: '#64748b', fontSize: '0.9rem' }}>
           <div style={{ marginBottom: '0.5rem' }}>{data.name}</div>
+          <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+            <select
+              value={data.status || 'watching'}
+              onChange={e => onUpdateMetadata(symbol, { status: e.target.value })}
+              style={{ padding: '2px 6px', fontSize: '0.72rem', borderRadius: '4px', background: 'var(--bg-color)', color: 'var(--text-color)', border: '1px solid var(--border-color)' }}
+              aria-label={`${symbol} status`}
+            >
+              <option value="watching">Watching</option>
+              <option value="researching">Researching</option>
+              <option value="ready">Ready</option>
+              <option value="holding">Holding</option>
+              <option value="passed">Passed</option>
+            </select>
+            <select
+              value={data.priority || 'medium'}
+              onChange={e => onUpdateMetadata(symbol, { priority: e.target.value })}
+              style={{ padding: '2px 6px', fontSize: '0.72rem', borderRadius: '4px', background: 'var(--bg-color)', color: 'var(--text-color)', border: '1px solid var(--border-color)' }}
+              aria-label={`${symbol} priority`}
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-            {tags.map(tag => (
-              <span key={tag} style={{ background: 'var(--primary)', color: 'white', padding: '1px 6px', borderRadius: '8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                #{tag}
-                <button onClick={() => handleRemoveTag(tag)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.75rem', padding: 0, lineHeight: 1 }}>×</button>
+            {data.tags.map(tag => (
+              <span key={tag.id} style={{ background: tag.color || 'var(--primary)', color: 'white', padding: '1px 6px', borderRadius: '8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                #{tag.name}
+                <button type="button" onClick={() => onRemoveTag(symbol, tag.id)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.75rem', padding: 0, lineHeight: 1 }}>×</button>
               </span>
             ))}
             {addingTag ? (
@@ -106,7 +122,7 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
                 placeholder="Tag..."
               />
             ) : (
-              <button onClick={() => setAddingTag(true)} style={{ background: 'transparent', border: '1px dashed var(--text-muted)', color: 'var(--text-muted)', padding: '1px 6px', borderRadius: '8px', fontSize: '0.7rem', cursor: 'pointer' }}>+ Tag</button>
+              <button type="button" onClick={() => setAddingTag(true)} style={{ background: 'transparent', border: '1px dashed var(--text-muted)', color: 'var(--text-muted)', padding: '1px 6px', borderRadius: '8px', fontSize: '0.7rem', cursor: 'pointer' }}>+ Tag</button>
             )}
           </div>
         </td>
@@ -130,39 +146,14 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
             )}
 
             {addingMetric ? (
-              <div style={{ padding: '0.5rem', background: 'var(--bg-color)', borderRadius: '6px', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-                <select id={`inline-m-${symbol}`} className="target-edit-input" style={{ width: 'auto', padding: '2px 4px' }}>
-                  <option value="pe">PE</option>
-                  <option value="fpe">FPE</option>
-                  <option value="pb">PB</option>
-                  <option value="evebitda">EV/EBITDA</option>
-                  <option value="roe">ROE</option>
-                  <option value="price">Price</option>
-                  <option value="roic">ROIC</option>
-                  <option value="dividendyield">Dividend Yield</option>
-                  <option value="payoutratio">Payout Ratio</option>
-                  <option value="debttoequity">Debt to Equity</option>
-                  <option value="profitmargins">Profit Margins</option>
-                  <option value="operatingmargins">Operating Margins</option>
-                </select>
-                <select id={`inline-o-${symbol}`} className="target-edit-input" style={{ width: 'auto', padding: '2px 4px' }}>
-                  <option value="<">&lt;</option>
-                  <option value=">">&gt;</option>
-                  <option value="<=">&lt;=</option>
-                  <option value=">=">&gt;=</option>
-                  <option value="==">==</option>
-                  <option value="!=">!=</option>
-                </select>
-                <select id={`inline-type-${symbol}`} className="target-edit-input" style={{ width: 'auto', padding: '2px 4px' }}>
-                  <option value="absolute">Value</option>
-                  <option value="relative">Change %</option>
-                </select>
-                <input type="number" step="any" placeholder="Val" id={`inline-t-${symbol}`} className="target-edit-input" style={{ width: '60px', padding: '2px 4px' }} onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubmit(); if (e.key === 'Escape') setAddingMetric(false); }} />
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <button className="btn-success" style={{ padding: '2px 6px', fontSize: '0.8rem' }} onClick={handleAddSubmit}>✓</button>
-                  <button className="btn-danger" style={{ padding: '2px 6px', fontSize: '0.8rem' }} onClick={() => setAddingMetric(false)}>✕</button>
-                </div>
-              </div>
+              <InlineAlertForm
+                metrics={metrics}
+                onSubmit={(selectedMetric, selectedOperator, targetValue, alertType) => {
+                  onAddInline(symbol, selectedMetric, selectedOperator, targetValue, alertType);
+                  setAddingMetric(false);
+                }}
+                onCancel={() => setAddingMetric(false)}
+              />
             ) : (
               <button type="button" onClick={() => setAddingMetric(true)} style={{ background: 'transparent', border: '1px dashed var(--primary)', color: 'var(--primary)', cursor: 'pointer', borderRadius: '4px', padding: '2px 8px', fontSize: '0.8rem', fontWeight: 'bold', alignSelf: 'flex-start', marginTop: '0.5rem' }}>+ Metric</button>
             )}
@@ -179,6 +170,16 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
               style={{ padding: '4px 8px', fontSize: '0.75rem', fontWeight: 'bold' }}
             >
               {loadingAi ? '...' : 'AI'}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleSecFacts}
+              disabled={secFacts.loading}
+              title="Audited SEC Facts"
+              style={{ padding: '4px 8px', fontSize: '0.75rem', fontWeight: 'bold' }}
+            >
+              {secFacts.loading ? '...' : 'SEC'}
             </button>
             <button 
               type="button"
@@ -199,16 +200,27 @@ export function TickerRow({ symbol, data, onDeleteTicker, onAddInline, onUpdateA
               </svg>
             </button>
           </div>
-        </td>
-      </tr>
+          </td>
+        </tr>
+      {showSecFacts && (
+        <tr className="sec-facts-row">
+          <td colSpan={4}>
+            <AuditedSecFactsPanel
+              data={secFacts.data}
+              loading={secFacts.loading}
+              error={secFacts.error}
+            />
+          </td>
+        </tr>
+      )}
       {aiValuation && (
         <tr className="ai-valuation-row">
           <td colSpan={4}>
-            <div style={{ padding: '0.75rem', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid var(--primary)', borderRadius: '6px', margin: '0 1rem 1rem 1rem', fontSize: '0.85rem', position: 'relative' }}>
-              <button onClick={() => setAiValuation(null)} style={{ position: 'absolute', top: '4px', right: '4px', background: 'none', border: 'none', color: 'var(--text-color)', cursor: 'pointer' }}>✕</button>
-              <h5 style={{ margin: '0 0 0.5rem 0', color: 'var(--primary)' }}>✨ Gemini AI Analysis</h5>
-              <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{aiValuation}</p>
-            </div>
+            <AiValuationPanel
+              valuation={aiValuation}
+              metrics={metrics}
+              onClose={() => setAiValuation(null)}
+            />
           </td>
         </tr>
       )}

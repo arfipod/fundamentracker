@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from alert_evaluator import calculate_relative_diff, evaluate_alert
 from market_data.service import MarketDataService, get_market_data_service
@@ -12,6 +13,39 @@ def _provider_source(market_data: MarketDataService) -> str | None:
     if provider is None:
         return None
     return getattr(provider, "source", provider.__class__.__name__)
+
+
+def _snapshot_metadata(snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    if not snapshot:
+        return {}
+    return {
+        "source": snapshot.get("source"),
+        "as_of_date": snapshot.get("as_of_date"),
+        "fetched_at": snapshot.get("fetched_at"),
+        "expires_at": snapshot.get("expires_at"),
+        "stale": snapshot.get("stale", False),
+        "confidence": snapshot.get("confidence"),
+    }
+
+
+def _signal_title(ticker: str, metric: str, operator: str, target: Any) -> str:
+    direction = {
+        "<": "crossed below",
+        "<=": "crossed at or below",
+        ">": "crossed above",
+        ">=": "crossed at or above",
+        "==": "matched",
+        "=": "matched",
+    }.get(operator, operator)
+    return f"{ticker} {metric.upper()} {direction} {target}"
+
+
+def _alert_signal_severity(alert: dict[str, Any]) -> str:
+    metric = str(alert.get("metric") or "").lower()
+    operator = alert.get("operator")
+    if metric in {"price", "market_cap"} and operator in {"<", "<="}:
+        return "critical"
+    return "warning"
 
 
 def run_fundamental_scan(
@@ -42,8 +76,10 @@ def run_fundamental_scan(
                 # Better left as is.
                 continue
                 
+            metric_snapshot = None
             try:
-                current_val = market_data.get_metric(ticker, alert["metric"])
+                metric_snapshot = market_data.get_metric_snapshot(ticker, alert["metric"])
+                current_val = metric_snapshot.get("value")
             except Exception as error:
                 logger.warning(
                     "Failed to fetch metric for alert",
@@ -56,6 +92,7 @@ def run_fundamental_scan(
                     exc_info=error,
                 )
                 current_val = None
+            current_metadata = _snapshot_metadata(metric_snapshot)
             if current_val is None:
                 logger.info(
                     "Skipping alert because current metric value is missing",
@@ -77,7 +114,7 @@ def run_fundamental_scan(
             )
                 
             # Update DB with new value and trigger state
-            db.update_alert_status(alert["id"], is_triggered, current_val)
+            db.update_alert_status(alert["id"], is_triggered, current_val, current_metadata)
             logger.info(
                 "Alert evaluated",
                 extra={
@@ -91,8 +128,62 @@ def run_fundamental_scan(
             
             # If crossed from untriggered to triggered
             if is_triggered and not alert.get("is_triggered", False):
-                # Triggered! Log to history
-                db.log_alert_history(alert["id"], current_val, alert["target"])
+                # Format message
+                if alert.get("alert_type") == "relative":
+                    diff = calculate_relative_diff(current_val, alert.get("reference_value"))
+                    diff_msg = f", Diff: {diff:.2f}%" if diff is not None else ""
+                    msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} changed by {alert['operator']} {alert['target']}% (Current: {current_val:.2f}, Ref: {alert['reference_value']:.2f}{diff_msg})"
+                else:
+                    msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} {alert['operator']} {alert['target']} (Current: {current_val:.2f})"
+
+                # Triggered! Log to history with denormalized alert context.
+                db.log_alert_history(
+                    alert["id"],
+                    current_val,
+                    alert["target"],
+                    {
+                        "ticker_symbol": ticker,
+                        "company_name": details.get("name"),
+                        "metric": alert.get("metric"),
+                        "operator": alert.get("operator"),
+                        "alert_type": alert.get("alert_type") or "absolute",
+                        "reference_value": alert.get("reference_value"),
+                        "current_value": current_val,
+                        "source": current_metadata.get("source") or _provider_source(market_data),
+                        "as_of_date": current_metadata.get("as_of_date"),
+                        "fetched_at": current_metadata.get("fetched_at"),
+                        "message": msg,
+                    },
+                )
+                db.create_signal(
+                    {
+                        "ticker_symbol": ticker,
+                        "company_name": details.get("name"),
+                        "signal_type": "alert_triggered",
+                        "severity": _alert_signal_severity(alert),
+                        "title": _signal_title(
+                            ticker,
+                            alert.get("metric", ""),
+                            alert.get("operator", ""),
+                            alert.get("target"),
+                        ),
+                        "message": msg,
+                        "metric": alert.get("metric"),
+                        "current_value": current_val,
+                        "previous_value": alert.get("current_value"),
+                        "target_value": alert.get("target"),
+                        "source": current_metadata.get("source") or _provider_source(market_data),
+                        "as_of_date": current_metadata.get("as_of_date"),
+                        "fetched_at": current_metadata.get("fetched_at"),
+                        "raw_payload": {
+                            "alert_id": alert.get("id"),
+                            "operator": alert.get("operator"),
+                            "alert_type": alert.get("alert_type") or "absolute",
+                            "reference_value": alert.get("reference_value"),
+                            "current_metadata": current_metadata,
+                        },
+                    }
+                )
                 logger.info(
                     "Alert triggered",
                     extra={
@@ -103,13 +194,5 @@ def run_fundamental_scan(
                         "target_value": alert.get("target"),
                     },
                 )
-                
-                # Format message
-                if alert.get("alert_type") == "relative":
-                    diff = calculate_relative_diff(current_val, alert.get("reference_value"))
-                    diff_msg = f", Diff: {diff:.2f}%" if diff is not None else ""
-                    msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} changed by {alert['operator']} {alert['target']}% (Current: {current_val:.2f}, Ref: {alert['reference_value']:.2f}{diff_msg})"
-                else:    
-                    msg = f"🚨 *{details['name']}* ({ticker}): {alert['metric'].upper()} {alert['operator']} {alert['target']} (Current: {current_val:.2f})"
                     
                 send_alert_func(msg)

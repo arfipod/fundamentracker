@@ -40,9 +40,42 @@ The app currently uses these tables.
 CREATE TABLE IF NOT EXISTS tickers (
   symbol VARCHAR PRIMARY KEY,
   name VARCHAR NOT NULL,
+  status VARCHAR DEFAULT 'watching',
+  priority VARCHAR DEFAULT 'medium',
+  notes TEXT,
+  thesis TEXT,
+  target_action VARCHAR,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+Ticker metadata is returned from `GET /watchlist`. `status` and `priority` are
+editable from the frontend; `notes`, `thesis`, and `target_action` are available
+for investor workflow context.
+
+### `tags` and `ticker_tags`
+
+```sql
+CREATE TABLE IF NOT EXISTS tags (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR NOT NULL UNIQUE,
+  color VARCHAR,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ticker_tags (
+  ticker_symbol VARCHAR REFERENCES tickers(symbol) ON DELETE CASCADE,
+  tag_id UUID REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (ticker_symbol, tag_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ticker_tags_tag_id ON ticker_tags(tag_id);
+```
+
+Tags are shared by name and attached to tickers through `ticker_tags`.
+`GET /watchlist` includes each ticker's `tags` array. Deleting a ticker removes
+its tag links through `ON DELETE CASCADE`; the shared tag row remains.
 
 ### `alerts`
 
@@ -58,25 +91,53 @@ CREATE TABLE IF NOT EXISTS alerts (
   reference_value NUMERIC,
   alert_type VARCHAR DEFAULT 'absolute',
   current_value NUMERIC,
+  current_source VARCHAR,
+  current_as_of_date DATE,
+  current_fetched_at TIMESTAMPTZ,
+  current_expires_at TIMESTAMPTZ,
+  current_stale BOOLEAN,
+  current_confidence NUMERIC,
+  deleted_at TIMESTAMPTZ,
+  restored_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_alerts_ticker_symbol ON alerts(ticker_symbol);
 CREATE INDEX IF NOT EXISTS idx_alerts_active ON alerts(is_active);
+CREATE INDEX IF NOT EXISTS idx_alerts_deleted_at ON alerts(deleted_at);
 ```
 
 `alerts.id` is the canonical alert identity. Do not rely on
 `ticker_symbol + metric` as a unique identifier.
+
+`DELETE /alerts/{alert_id}` soft-deletes an alert by setting `deleted_at`.
+Normal watchlist and alert reads exclude rows with `deleted_at IS NOT NULL`.
+`POST /alerts/{alert_id}/restore` clears `deleted_at`, sets `restored_at`, and
+keeps the original alert ID, target, operator, alert type, and reference value.
+`current_*` columns store the last scanner-observed metric value and cache
+metadata from `MarketDataService.get_metric_snapshot()`, including source,
+freshness timestamps, stale state, and confidence.
 
 ### `alert_history`
 
 ```sql
 CREATE TABLE IF NOT EXISTS alert_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  alert_id UUID NOT NULL REFERENCES alerts(id) ON DELETE CASCADE,
+  alert_id UUID REFERENCES alerts(id) ON DELETE SET NULL,
   triggered_at TIMESTAMPTZ DEFAULT NOW(),
   trigger_value NUMERIC NOT NULL,
-  target_value NUMERIC NOT NULL
+  target_value NUMERIC NOT NULL,
+  ticker_symbol VARCHAR,
+  company_name VARCHAR,
+  metric VARCHAR,
+  operator VARCHAR,
+  alert_type VARCHAR,
+  reference_value NUMERIC,
+  current_value NUMERIC,
+  source VARCHAR,
+  as_of_date DATE,
+  fetched_at TIMESTAMPTZ,
+  message TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_alert_history_triggered_at
@@ -84,6 +145,49 @@ CREATE INDEX IF NOT EXISTS idx_alert_history_triggered_at
 CREATE INDEX IF NOT EXISTS idx_alert_history_alert_id
   ON alert_history(alert_id);
 ```
+
+Alert history is durable audit data. Scanner-created rows denormalize the alert
+and ticker context available at trigger time so history remains meaningful even
+if an alert is later soft-deleted or an older hard-delete path removes the alert
+row. Existing PostgreSQL databases are migrated from the old cascade foreign key
+to `ON DELETE SET NULL`.
+
+### `signals`
+
+```sql
+CREATE TABLE IF NOT EXISTS signals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticker_symbol VARCHAR,
+  company_name VARCHAR,
+  signal_type VARCHAR NOT NULL,
+  severity VARCHAR DEFAULT 'info',
+  title VARCHAR NOT NULL,
+  message TEXT,
+  metric VARCHAR,
+  current_value NUMERIC,
+  previous_value NUMERIC,
+  target_value NUMERIC,
+  source VARCHAR,
+  as_of_date DATE,
+  fetched_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  acknowledged_at TIMESTAMPTZ,
+  dismissed_at TIMESTAMPTZ,
+  raw_payload JSONB
+);
+
+CREATE INDEX IF NOT EXISTS idx_signals_open
+  ON signals(created_at DESC)
+  WHERE acknowledged_at IS NULL AND dismissed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_signals_ticker_symbol ON signals(ticker_symbol);
+CREATE INDEX IF NOT EXISTS idx_signals_signal_type ON signals(signal_type);
+```
+
+Signals are investor-facing event rows used by the frontend Signal Inbox.
+Scanner-created alert signals use `signal_type = 'alert_triggered'` and store
+denormalized ticker/company/metric context plus the original alert ID in
+`raw_payload`. Open signals are rows with both `acknowledged_at` and
+`dismissed_at` unset.
 
 ### `scan_settings`
 
@@ -177,3 +281,14 @@ timestamp so already-applied migrations are skipped safely.
 - `db/migrations/002_metric_cache_provider_health.sql`: adds or updates
   `metric_snapshots` and `provider_health` for existing local PostgreSQL
   databases, including compatibility handling for older metric snapshot shapes.
+- `db/migrations/003_soft_delete_alert_history_durability.sql`: adds alert
+  soft-delete/restore timestamps, denormalized alert history columns, backfills
+  existing history from current alerts where possible, and changes alert history
+  to preserve rows if referenced alerts are hard-deleted.
+- `db/migrations/004_watchlist_metadata_tags.sql`: adds ticker metadata columns
+  and the `tags` / `ticker_tags` tables used by backend-persisted watchlist
+  tags.
+- `db/migrations/005_alert_current_metadata.sql`: adds last-observed current
+  metric value and data-quality metadata columns to alerts.
+- `db/migrations/006_signal_inbox.sql`: adds the `signals` table and indexes
+  used by the Signal Inbox.

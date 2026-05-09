@@ -156,9 +156,13 @@ Market data:
 AI valuation:
 
 - Current endpoint: `POST /ai-valuation`.
-- Current response shape: `{"analysis": "..."}`.
-- Structured valuation with verdict, confidence, warnings, sources, and
-  disclaimer is a planned improvement, not current behavior.
+- Current response includes structured fields with `valuation_label`,
+  `data_quality`, observations, risks, `missing_data`, read-only
+  `suggested_alerts`, `sources`, `disclaimer`, and a temporary legacy
+  `analysis` string.
+- The analysis is based only on the backend data pack assembled from
+  `MarketDataService`; historical norms and sector comparisons are not
+  supported unless explicit data for them is added to that pack.
 
 ## Alert Rules
 
@@ -319,7 +323,8 @@ rg -n 'old-path-or-command' README.md AGENTS.md docs frontend/README.md ISSUES.m
 - Treating `VITE_API_AUTH_TOKEN` as private after it is built into frontend
   assets.
 - Using ticker+metric as an alert identity when duplicate metric alerts exist.
-- Documenting structured AI valuation as implemented. It is planned.
+- Claiming AI valuation has historical norms or sector comparisons. It only has
+  the explicit backend data pack.
 - Claiming frontend tests exist. They do not currently exist.
 - Running destructive Docker commands such as `docker compose down -v` during
   normal troubleshooting.

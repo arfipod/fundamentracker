@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
-import type { Watchlist } from '../types/watchlist';
+import { useState, useMemo } from 'react';
+import type { Watchlist, WatchlistMetadata } from '../types/watchlist';
+import type { MetricCatalogItem } from '../types/metrics';
 import { TickerRow } from './TickerRow';
 import { TickerCard } from './TickerCard';
 
@@ -17,11 +18,15 @@ import { TickerCard } from './TickerCard';
 interface Props {
   watchlist: Watchlist | null;
   loading: boolean;
+  metrics: MetricCatalogItem[];
   onDeleteTicker: (ticker: string) => void;
   onAddInline: (ticker: string, metric: string, operator: string, val: number, alertType?: string) => void;
   onUpdateAlert: (alertId: string, val: number) => void;
   onDeleteAlert: (alertId: string, ticker: string) => void;
   onToggleAlert: (alertId: string, isActive: boolean) => void;
+  onAddTag: (ticker: string, name: string) => void;
+  onRemoveTag: (ticker: string, tagNameOrId: string) => void;
+  onUpdateMetadata: (ticker: string, metadata: Partial<WatchlistMetadata>) => void;
 }
 
 type SortField = 'symbol' | 'name' | 'alerts';
@@ -38,50 +43,35 @@ type ViewMode = 'details' | 'grid';
 export function WatchlistSection({
   watchlist,
   loading,
+  metrics,
   onDeleteTicker,
   onAddInline,
   onUpdateAlert,
   onDeleteAlert,
-  onToggleAlert
+  onToggleAlert,
+  onAddTag,
+  onRemoveTag,
+  onUpdateMetadata
 }: Props) {
   const [sortField, setSortField] = useState<SortField>('symbol');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [viewMode, setViewMode] = useState<ViewMode>('details');
   const [filterTag, setFilterTag] = useState<string>('');
-  const [allTags, setAllTags] = useState<string[]>([]);
-  const [tagsUpdateCounter, setTagsUpdateCounter] = useState(0);
 
-  useEffect(() => {
-    const handleTagsUpdate = () => setTagsUpdateCounter(c => c + 1);
-    window.addEventListener('tagsUpdated', handleTagsUpdate);
-    return () => window.removeEventListener('tagsUpdated', handleTagsUpdate);
-  }, []);
-
-  useEffect(() => {
+  const allTags = useMemo(() => {
     const tagsSet = new Set<string>();
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('tags_')) {
-        try {
-          const t = JSON.parse(localStorage.getItem(key) || '[]');
-          t.forEach((tag: string) => tagsSet.add(tag));
-        } catch(e) {}
-      }
-    }
-    setAllTags(Array.from(tagsSet).sort());
-  }, [watchlist, tagsUpdateCounter]);
+    Object.values(watchlist || {}).forEach(data => {
+      data.tags?.forEach(tag => tagsSet.add(tag.name));
+    });
+    return Array.from(tagsSet).sort();
+  }, [watchlist]);
 
   const sortedWatchlist = useMemo(() => {
     if (!watchlist) return [];
     let entries = Object.entries(watchlist);
     
     if (filterTag) {
-      entries = entries.filter(([symbol]) => {
-        try {
-          const t = JSON.parse(localStorage.getItem(`tags_${symbol}`) || '[]');
-          return t.includes(filterTag);
-        } catch(e) { return false; }
-      });
+      entries = entries.filter(([, data]) => data.tags?.some(tag => tag.name === filterTag));
     }
     
     return entries.sort((a, b) => {
@@ -100,7 +90,7 @@ export function WatchlistSection({
       if (valA > valB) return sortDir === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [watchlist, sortField, sortDir, filterTag, tagsUpdateCounter]);
+  }, [watchlist, sortField, sortDir, filterTag]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -190,11 +180,15 @@ export function WatchlistSection({
                         key={symbol}
                         symbol={symbol}
                         data={data}
+                        metrics={metrics}
                         onDeleteTicker={onDeleteTicker}
                         onAddInline={onAddInline}
                         onUpdateAlert={onUpdateAlert}
                         onDeleteAlert={onDeleteAlert}
                         onToggleAlert={onToggleAlert}
+                        onAddTag={onAddTag}
+                        onRemoveTag={onRemoveTag}
+                        onUpdateMetadata={onUpdateMetadata}
                       />
                     ))}
                   </tbody>
@@ -207,11 +201,15 @@ export function WatchlistSection({
                     key={symbol}
                     symbol={symbol}
                     data={data}
+                    metrics={metrics}
                     onDeleteTicker={onDeleteTicker}
                     onAddInline={onAddInline}
                     onUpdateAlert={onUpdateAlert}
                     onDeleteAlert={onDeleteAlert}
                     onToggleAlert={onToggleAlert}
+                    onAddTag={onAddTag}
+                    onRemoveTag={onRemoveTag}
+                    onUpdateMetadata={onUpdateMetadata}
                   />
                 ))}
               </div>

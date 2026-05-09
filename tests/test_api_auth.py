@@ -17,8 +17,14 @@ def test_mutable_endpoints_require_api_token(monkeypatch):
         ("DELETE", "/remove/AAPL", None),
         ("DELETE", "/remove/AAPL/pe", None),
         ("PUT", "/update", {"ticker": "AAPL", "metric": "pe", "value": 18}),
+        ("PATCH", "/watchlist/AAPL/metadata", {"status": "researching", "priority": "high"}),
+        ("POST", "/watchlist/AAPL/tags", {"name": "core"}),
+        ("DELETE", "/watchlist/AAPL/tags/core", None),
         ("PATCH", "/alerts/alert-1", {"value": 18}),
         ("DELETE", "/alerts/alert-1", None),
+        ("POST", "/alerts/alert-1/restore", None),
+        ("PATCH", "/signals/signal-1/acknowledge", None),
+        ("PATCH", "/signals/signal-1/dismiss", None),
         ("POST", "/scan", None),
         ("PUT", "/scan-settings", {"interval_seconds": 3600}),
         ("PATCH", "/alerts/alert-1/toggle", {"is_active": False}),
@@ -38,8 +44,12 @@ def test_sensitive_read_endpoints_require_api_token(monkeypatch):
 
     protected_requests = [
         "/alert-history",
+        "/alerts/deleted",
+        "/signals",
+        "/tags",
         "/scan-settings",
         "/data/providers/health",
+        "/fundamentals/sec/AAPL",
         "/metric-current?ticker=AAPL&metric=pe",
         "/history?ticker=AAPL&metric=pe",
         "/health/ready",
@@ -50,6 +60,16 @@ def test_sensitive_read_endpoints_require_api_token(monkeypatch):
         response = client.get(path)
 
         assert response.status_code == 401, f"GET {path} should require auth"
+
+
+def test_metric_catalog_is_public(monkeypatch):
+    monkeypatch.setenv("API_AUTH_TOKEN", "test-token")
+    client = TestClient(app)
+
+    response = client.get("/metrics/catalog")
+
+    assert response.status_code == 200
+    assert any(metric["key"] == "price" for metric in response.json())
 
 
 def test_invalid_api_token_returns_401(monkeypatch):

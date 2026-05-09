@@ -1,14 +1,25 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import './App.css';
 import { useWatchlist } from './hooks/useWatchlist';
 import { useScanSettings } from './hooks/useScanSettings';
 import { DashboardHeader } from './components/DashboardHeader';
 import { AlertForm } from './components/AlertForm';
-import { WatchlistSection } from './components/WatchlistSection';
-import { ExplorerSection } from './components/ExplorerSection';
+import { SignalInbox } from './components/SignalInbox';
+import { apiFetch } from './lib/apiClient';
+import type { MetricCatalogItem } from './types/metrics';
+
+const WatchlistSection = lazy(() =>
+  import('./components/WatchlistSection').then((module) => ({ default: module.WatchlistSection }))
+);
+const ExplorerSection = lazy(() =>
+  import('./components/ExplorerSection').then((module) => ({ default: module.ExplorerSection }))
+);
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'watchlist' | 'explorer'>('watchlist');
+  const [activeTab, setActiveTab] = useState<'signals' | 'watchlist' | 'explorer'>('signals');
+  const [metricCatalog, setMetricCatalog] = useState<MetricCatalogItem[]>([]);
+  const [metricCatalogError, setMetricCatalogError] = useState<string | null>(null);
+  const [signalRefreshToken, setSignalRefreshToken] = useState(0);
   const {
     watchlist,
     loading,
@@ -19,6 +30,9 @@ function App() {
     handleDeleteAlert,
     handleDelete,
     handleToggleAlert,
+    handleAddTag,
+    handleRemoveTag,
+    handleUpdateMetadata,
     undoQueue,
     handleUndo
   } = useWatchlist();
@@ -33,7 +47,38 @@ function App() {
     fetchScanSettings,
     handleUpdateInterval,
     handleScan
-  } = useScanSettings(fetchWatchlist);
+  } = useScanSettings(async () => {
+    await fetchWatchlist();
+    setSignalRefreshToken((current) => current + 1);
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchMetricCatalog = async () => {
+      try {
+        const response = await apiFetch('/metrics/catalog');
+        if (!response.ok) {
+          throw new Error('Failed to load metric catalog');
+        }
+        const catalog = await response.json();
+        if (!cancelled) {
+          setMetricCatalog(catalog);
+          setMetricCatalogError(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMetricCatalogError(error instanceof Error ? error.message : 'Failed to load metric catalog');
+        }
+      }
+    };
+
+    fetchMetricCatalog();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     fetchWatchlist();
@@ -55,7 +100,7 @@ function App() {
     }
   };
 
-  const combinedError = error || scanError;
+  const combinedError = error || scanError || metricCatalogError;
 
   return (
     <div className="dashboard">
@@ -70,6 +115,12 @@ function App() {
       />
 
       <div className="tabs-container">
+        <button 
+          className={`tab-btn ${activeTab === 'signals' ? 'active' : ''}`}
+          onClick={() => setActiveTab('signals')}
+        >
+          Signals
+        </button>
         <button 
           className={`tab-btn ${activeTab === 'watchlist' ? 'active' : ''}`}
           onClick={() => setActiveTab('watchlist')}
@@ -86,23 +137,31 @@ function App() {
 
       {combinedError && <div className="error-message">{combinedError}</div>}
 
-      {activeTab === 'watchlist' ? (
-        <>
-          <AlertForm onAdd={handleAddNewAlert} />
+      <Suspense fallback={<div className="loading">Loading view...</div>}>
+        {activeTab === 'signals' ? (
+          <SignalInbox refreshToken={signalRefreshToken} />
+        ) : activeTab === 'watchlist' ? (
+          <>
+            <AlertForm metrics={metricCatalog} onAdd={handleAddNewAlert} />
 
-          <WatchlistSection
-            watchlist={watchlist}
-            loading={loading}
-            onDeleteTicker={handleDelete}
-            onAddInline={handleInlineAdd}
-            onUpdateAlert={handleUpdateTarget}
-            onDeleteAlert={handleDeleteAlert}
-            onToggleAlert={handleToggleAlert}
-          />
-        </>
-      ) : (
-        <ExplorerSection />
-      )}
+            <WatchlistSection
+              watchlist={watchlist}
+              loading={loading}
+              metrics={metricCatalog}
+              onDeleteTicker={handleDelete}
+              onAddInline={handleInlineAdd}
+              onUpdateAlert={handleUpdateTarget}
+              onDeleteAlert={handleDeleteAlert}
+              onToggleAlert={handleToggleAlert}
+              onAddTag={handleAddTag}
+              onRemoveTag={handleRemoveTag}
+              onUpdateMetadata={handleUpdateMetadata}
+            />
+          </>
+        ) : activeTab === 'explorer' ? (
+          <ExplorerSection metrics={metricCatalog} />
+        ) : null}
+      </Suspense>
 
       {undoQueue && (
         <div className="undo-toast" style={{

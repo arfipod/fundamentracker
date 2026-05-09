@@ -38,7 +38,28 @@ class TickerRepository(Protocol):
     def get_tickers(self) -> list[dict[str, Any]]:
         ...
 
+    def get_tags(self) -> list[dict[str, Any]]:
+        ...
+
     def add_ticker_db(self, symbol: str, company_name: str) -> Any:
+        ...
+
+    def update_ticker_metadata(
+        self,
+        symbol: str,
+        metadata: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        ...
+
+    def add_tag_to_ticker(
+        self,
+        symbol: str,
+        name: str,
+        color: str | None = None,
+    ) -> dict[str, Any] | None:
+        ...
+
+    def remove_tag_from_ticker(self, symbol: str, tag_name_or_id: str) -> bool:
         ...
 
     def delete_ticker_db(self, symbol: str) -> Any:
@@ -69,11 +90,18 @@ class AlertRepository(Protocol):
     def toggle_alert_active(self, alert_id: str, is_active: bool) -> Any:
         ...
 
+    def restore_alert_db(self, alert_id: str) -> Any:
+        ...
+
+    def get_deleted_alerts_db(self) -> list[dict[str, Any]]:
+        ...
+
     def update_alert_status(
         self,
         alert_id: str,
         is_triggered: bool,
         current_value: float | None = None,
+        current_metadata: dict[str, Any] | None = None,
     ) -> Any:
         ...
 
@@ -87,10 +115,30 @@ class AlertRepository(Protocol):
 
 
 class AlertHistoryRepository(Protocol):
-    def log_alert_history(self, alert_id: str, trigger_val: float, target_val: float) -> Any:
+    def log_alert_history(
+        self,
+        alert_id: str,
+        trigger_val: float,
+        target_val: float,
+        metadata: dict[str, Any] | None = None,
+    ) -> Any:
         ...
 
     def get_alert_history_db(self, limit: int = 50) -> list[dict[str, Any]]:
+        ...
+
+
+class SignalRepository(Protocol):
+    def create_signal(self, payload: dict[str, Any]) -> dict[str, Any] | None:
+        ...
+
+    def get_signals(self, status: str = "open", limit: int = 50) -> list[dict[str, Any]]:
+        ...
+
+    def acknowledge_signal(self, signal_id: str) -> dict[str, Any] | None:
+        ...
+
+    def dismiss_signal(self, signal_id: str) -> dict[str, Any] | None:
         ...
 
 
@@ -142,6 +190,7 @@ class FundamenTrackerRepository(
     TickerRepository,
     AlertRepository,
     AlertHistoryRepository,
+    SignalRepository,
     ScanSettingsRepository,
     MetricSnapshotRepository,
     ProviderHealthRepository,
@@ -179,7 +228,24 @@ def to_float(value: Any, default: float | None = None) -> float | None:
     return float(value)
 
 
-def build_watchlist(tickers: list[dict[str, Any]], alerts: list[dict[str, Any]]) -> dict[str, Any]:
+def _normalize_tag_row(row: dict[str, Any]) -> dict[str, Any] | None:
+    tag = row.get("tags") if isinstance(row.get("tags"), dict) else row
+    tag_id = tag.get("tag_id") or tag.get("id")
+    name = tag.get("tag_name") or tag.get("name")
+    if not tag_id or not name:
+        return None
+    return {
+        "id": str(tag_id),
+        "name": name,
+        "color": tag.get("tag_color") or tag.get("color"),
+    }
+
+
+def build_watchlist(
+    tickers: list[dict[str, Any]],
+    alerts: list[dict[str, Any]],
+    ticker_tags: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     watchlist: dict[str, Any] = {}
     for ticker in tickers:
         symbol = ticker.get("symbol")
@@ -187,8 +253,22 @@ def build_watchlist(tickers: list[dict[str, Any]], alerts: list[dict[str, Any]])
             continue
         watchlist[symbol] = {
             "name": ticker.get("name") or symbol,
+            "status": ticker.get("status") or "watching",
+            "priority": ticker.get("priority") or "medium",
+            "notes": ticker.get("notes"),
+            "thesis": ticker.get("thesis"),
+            "target_action": ticker.get("target_action"),
+            "tags": [],
             "alerts": [],
         }
+
+    for row in ticker_tags or []:
+        symbol = row.get("ticker_symbol")
+        if symbol not in watchlist:
+            continue
+        tag = _normalize_tag_row(row)
+        if tag is not None:
+            watchlist[symbol]["tags"].append(tag)
 
     for alert in alerts:
         symbol = alert.get("ticker_symbol")
@@ -206,6 +286,12 @@ def build_watchlist(tickers: list[dict[str, Any]], alerts: list[dict[str, Any]])
                 "reference_value": to_float(alert.get("reference_value")),
                 "alert_type": alert.get("alert_type") or "absolute",
                 "current_value": to_float(alert.get("current_value")),
+                "current_source": alert.get("current_source"),
+                "current_as_of_date": serialize_value(alert.get("current_as_of_date")),
+                "current_fetched_at": serialize_value(alert.get("current_fetched_at")),
+                "current_expires_at": serialize_value(alert.get("current_expires_at")),
+                "current_stale": alert.get("current_stale"),
+                "current_confidence": to_float(alert.get("current_confidence")),
             }
         )
 

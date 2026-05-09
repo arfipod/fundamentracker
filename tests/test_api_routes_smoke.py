@@ -89,14 +89,21 @@ def test_registered_route_smoke_table():
         ("PUT", "/update"),
         ("PATCH", "/alerts/{alert_id}"),
         ("DELETE", "/alerts/{alert_id}"),
+        ("GET", "/alerts/deleted"),
+        ("POST", "/alerts/{alert_id}/restore"),
         ("PATCH", "/alerts/{alert_id}/toggle"),
         ("GET", "/alert-history"),
+        ("GET", "/signals"),
+        ("PATCH", "/signals/{signal_id}/acknowledge"),
+        ("PATCH", "/signals/{signal_id}/dismiss"),
         ("POST", "/scan"),
         ("GET", "/scan-settings"),
         ("PUT", "/scan-settings"),
         ("GET", "/server-time"),
         ("GET", "/search"),
         ("GET", "/data/providers/health"),
+        ("GET", "/metrics/catalog"),
+        ("GET", "/fundamentals/sec/{ticker}"),
         ("GET", "/metric-current"),
         ("GET", "/history"),
         ("GET", "/market-overview"),
@@ -119,6 +126,16 @@ def test_route_smoke_responses(monkeypatch):
         "get_alert_history_db",
         lambda limit=50: [{"id": "history-1", "limit": limit}],
     )
+    monkeypatch.setattr(
+        api_module.db,
+        "get_deleted_alerts_db",
+        lambda: [{"id": "deleted-alert"}],
+    )
+    monkeypatch.setattr(
+        api_module.db,
+        "get_signals",
+        lambda status="open", limit=50: [{"id": "signal-1", "status": status, "limit": limit}],
+    )
 
     client = TestClient(app)
 
@@ -132,9 +149,16 @@ def test_route_smoke_responses(monkeypatch):
     assert client.get("/alert-history?limit=1", headers=AUTH_HEADER).json() == [
         {"id": "history-1", "limit": 1}
     ]
+    assert client.get("/alerts/deleted", headers=AUTH_HEADER).json() == [{"id": "deleted-alert"}]
+    assert client.get("/signals?status=open&limit=1", headers=AUTH_HEADER).json() == [
+        {"id": "signal-1", "status": "open", "limit": 1}
+    ]
     assert client.get("/data/providers/health", headers=AUTH_HEADER).json() == [
         {"provider": "fake", "status": "ok"}
     ]
+    catalog = client.get("/metrics/catalog").json()
+    assert {metric["key"] for metric in catalog} >= {"pe", "fpe", "pb", "evebitda", "roe", "price"}
+    assert catalog == sorted(catalog, key=lambda metric: (metric["category"], metric["label"]))
     assert client.get(
         "/metric-current?ticker=aapl&metric=roe",
         headers=AUTH_HEADER,
@@ -170,6 +194,36 @@ def test_mutable_route_smoke_responses(monkeypatch):
         lambda: {"interval_seconds": 60, "last_scan_time": 0},
     )
 
+    signals = [
+        {
+            "id": "signal-1",
+            "title": "AAPL PE crossed below 20",
+            "acknowledged_at": None,
+            "dismissed_at": None,
+        }
+    ]
+
+    def get_signals(status="open", limit=50):
+        rows = signals
+        if status == "open":
+            rows = [
+                signal
+                for signal in rows
+                if signal.get("acknowledged_at") is None and signal.get("dismissed_at") is None
+            ]
+        return rows[:limit]
+
+    def acknowledge_signal(signal_id):
+        for signal in signals:
+            if signal["id"] == signal_id:
+                signal["acknowledged_at"] = "2026-05-08T12:00:00+00:00"
+                return signal
+        return None
+
+    monkeypatch.setattr(api_module.db, "get_signals", get_signals)
+    monkeypatch.setattr(api_module.db, "acknowledge_signal", acknowledge_signal)
+    monkeypatch.setattr(api_module.db, "dismiss_signal", lambda signal_id: None)
+
     client = TestClient(app)
 
     add_response = client.post(
@@ -191,3 +245,17 @@ def test_mutable_route_smoke_responses(monkeypatch):
     )
     assert settings_response.status_code == 200
     assert settings_response.json() == {"interval_seconds": 60, "last_scan_time": 0}
+
+    assert client.get("/signals", headers=AUTH_HEADER).json() == [
+        {
+            "id": "signal-1",
+            "title": "AAPL PE crossed below 20",
+            "acknowledged_at": None,
+            "dismissed_at": None,
+        }
+    ]
+
+    ack_response = client.patch("/signals/signal-1/acknowledge", headers=AUTH_HEADER)
+    assert ack_response.status_code == 200
+    assert ack_response.json()["acknowledged_at"] == "2026-05-08T12:00:00+00:00"
+    assert client.get("/signals", headers=AUTH_HEADER).json() == []

@@ -19,6 +19,22 @@ from repositories.base import (
 class PostgresRepository:
     DatabaseHealthError = DatabaseHealthError
     backend = "postgres"
+    ALERT_COLUMNS = (
+        "id, ticker_symbol, metric, operator, target_value, is_active, "
+        "is_triggered, reference_value, alert_type, current_value, "
+        "current_source, current_as_of_date, current_fetched_at, "
+        "current_expires_at, current_stale, current_confidence, "
+        "deleted_at, restored_at, created_at"
+    )
+    TICKER_COLUMNS = (
+        "symbol, name, status, priority, notes, thesis, target_action, "
+        "created_at, updated_at"
+    )
+    SIGNAL_COLUMNS = (
+        "id, ticker_symbol, company_name, signal_type, severity, title, message, "
+        "metric, current_value, previous_value, target_value, source, as_of_date, "
+        "fetched_at, created_at, acknowledged_at, dismissed_at, raw_payload"
+    )
 
     def __init__(
         self,
@@ -122,23 +138,31 @@ class PostgresRepository:
         return self.check_connectivity()
 
     def get_watchlist(self):
-        tickers = self._query_all("SELECT symbol, name, created_at FROM tickers ORDER BY symbol")
+        tickers = self._query_all(f"SELECT {self.TICKER_COLUMNS} FROM tickers ORDER BY symbol")
         alerts = self._query_all(
-            """
-            SELECT id, ticker_symbol, metric, operator, target_value, is_active,
-                   is_triggered, reference_value, alert_type, current_value, created_at
+            f"""
+            SELECT {self.ALERT_COLUMNS}
             FROM alerts
+            WHERE deleted_at IS NULL
             ORDER BY created_at ASC
             """
         )
-        return build_watchlist(tickers, alerts)
+        ticker_tags = self._query_all(
+            """
+            SELECT tt.ticker_symbol, t.id AS tag_id, t.name AS tag_name, t.color AS tag_color
+            FROM ticker_tags tt
+            JOIN tags t ON t.id = tt.tag_id
+            ORDER BY lower(t.name) ASC
+            """
+        )
+        return build_watchlist(tickers, alerts, ticker_tags)
 
     def get_alerts(self):
         return self._query_all(
-            """
-            SELECT id, ticker_symbol, metric, operator, target_value, is_active,
-                   is_triggered, reference_value, alert_type, current_value, created_at
+            f"""
+            SELECT {self.ALERT_COLUMNS}
             FROM alerts
+            WHERE deleted_at IS NULL
             ORDER BY created_at ASC
             """
         )
@@ -274,17 +298,88 @@ class PostgresRepository:
         )
 
     def get_tickers(self):
-        return self._query_all("SELECT symbol, name, created_at FROM tickers ORDER BY symbol")
+        return self._query_all(f"SELECT {self.TICKER_COLUMNS} FROM tickers ORDER BY symbol")
+
+    def get_tags(self):
+        return self._query_all("SELECT id, name, color, created_at FROM tags ORDER BY lower(name)")
 
     def add_ticker_db(self, symbol, company_name):
         return self._query_all(
             """
             INSERT INTO tickers (symbol, name)
             VALUES (%s, %s)
-            ON CONFLICT (symbol) DO UPDATE SET name = EXCLUDED.name
-            RETURNING symbol, name, created_at
+            ON CONFLICT (symbol) DO UPDATE SET
+                name = EXCLUDED.name,
+                updated_at = NOW()
+            RETURNING symbol, name, status, priority, notes, thesis,
+                      target_action, created_at, updated_at
             """,
             (symbol, company_name),
+        )
+
+    def update_ticker_metadata(self, symbol, metadata):
+        allowed_columns = ("status", "priority", "notes", "thesis", "target_action")
+        assignments = []
+        params = []
+        for column in allowed_columns:
+            if column in metadata:
+                assignments.append(f"{column} = %s")
+                params.append(metadata[column])
+
+        if not assignments:
+            rows = self._query_all(
+                f"SELECT {self.TICKER_COLUMNS} FROM tickers WHERE symbol = %s",
+                (symbol,),
+            )
+            return rows[0] if rows else None
+
+        assignments.append("updated_at = NOW()")
+        params.append(symbol)
+        rows = self._query_all(
+            f"""
+            UPDATE tickers
+            SET {', '.join(assignments)}
+            WHERE symbol = %s
+            RETURNING symbol, name, status, priority, notes, thesis,
+                      target_action, created_at, updated_at
+            """,
+            tuple(params),
+        )
+        return rows[0] if rows else None
+
+    def add_tag_to_ticker(self, symbol, name, color=None):
+        rows = self._query_all(
+            """
+            WITH tag_row AS (
+                INSERT INTO tags (name, color)
+                VALUES (%s, %s)
+                ON CONFLICT (name) DO UPDATE SET
+                    color = COALESCE(EXCLUDED.color, tags.color)
+                RETURNING id, name, color
+            ), linked AS (
+                INSERT INTO ticker_tags (ticker_symbol, tag_id)
+                SELECT %s, id
+                FROM tag_row
+                ON CONFLICT (ticker_symbol, tag_id) DO NOTHING
+                RETURNING tag_id
+            )
+            SELECT id, name, color
+            FROM tag_row
+            """,
+            (name, color, symbol),
+        )
+        return rows[0] if rows else None
+
+    def remove_tag_from_ticker(self, symbol, tag_name_or_id):
+        return self._execute(
+            """
+            DELETE FROM ticker_tags tt
+            USING tags t
+            WHERE tt.tag_id = t.id
+              AND tt.ticker_symbol = %s
+              AND (t.id::text = %s OR lower(t.name) = lower(%s))
+            """,
+            (symbol, tag_name_or_id, tag_name_or_id),
         )
 
     def add_alert_db(
@@ -304,7 +399,10 @@ class PostgresRepository:
             )
             VALUES (%s, %s, %s, %s, %s, %s, TRUE, FALSE)
             RETURNING id, ticker_symbol, metric, operator, target_value, is_active,
-                      is_triggered, reference_value, alert_type, current_value, created_at
+                      is_triggered, reference_value, alert_type, current_value,
+                      current_source, current_as_of_date, current_fetched_at,
+                      current_expires_at, current_stale, current_confidence,
+                      deleted_at, restored_at, created_at
             """,
             (symbol, metric, operator, target_value, alert_type, reference_value),
         )
@@ -315,8 +413,12 @@ class PostgresRepository:
             UPDATE alerts
             SET target_value = %s
             WHERE id = %s
+              AND deleted_at IS NULL
             RETURNING id, ticker_symbol, metric, operator, target_value, is_active,
-                      is_triggered, reference_value, alert_type, current_value, created_at
+                      is_triggered, reference_value, alert_type, current_value,
+                      current_source, current_as_of_date, current_fetched_at,
+                      current_expires_at, current_stale, current_confidence,
+                      deleted_at, restored_at, created_at
             """,
             (float(new_target), alert_id),
         )
@@ -327,21 +429,55 @@ class PostgresRepository:
             UPDATE alerts
             SET is_active = %s
             WHERE id = %s
+              AND deleted_at IS NULL
             RETURNING id, ticker_symbol, metric, operator, target_value, is_active,
-                      is_triggered, reference_value, alert_type, current_value, created_at
+                      is_triggered, reference_value, alert_type, current_value,
+                      current_source, current_as_of_date, current_fetched_at,
+                      current_expires_at, current_stale, current_confidence,
+                      deleted_at, restored_at, created_at
             """,
             (is_active, alert_id),
         )
 
-    def update_alert_status(self, alert_id, is_triggered, current_value=None):
+    def restore_alert_db(self, alert_id):
+        return self._query_all(
+            """
+            UPDATE alerts
+            SET deleted_at = NULL, restored_at = NOW()
+            WHERE id = %s
+            RETURNING id, ticker_symbol, metric, operator, target_value, is_active,
+                      is_triggered, reference_value, alert_type, current_value,
+                      current_source, current_as_of_date, current_fetched_at,
+                      current_expires_at, current_stale, current_confidence,
+                      deleted_at, restored_at, created_at
+            """,
+            (alert_id,),
+        )
+
+    def get_deleted_alerts_db(self):
+        return self._query_all(
+            f"""
+            SELECT {self.ALERT_COLUMNS}
+            FROM alerts
+            WHERE deleted_at IS NOT NULL
+            ORDER BY deleted_at DESC
+            """
+        )
+
+    def update_alert_status(self, alert_id, is_triggered, current_value=None, current_metadata=None):
+        current_metadata = current_metadata or {}
         if current_value is None:
             return self._query_all(
                 """
                 UPDATE alerts
                 SET is_triggered = %s
                 WHERE id = %s
+                  AND deleted_at IS NULL
                 RETURNING id, ticker_symbol, metric, operator, target_value, is_active,
-                          is_triggered, reference_value, alert_type, current_value, created_at
+                          is_triggered, reference_value, alert_type, current_value,
+                          current_source, current_as_of_date, current_fetched_at,
+                          current_expires_at, current_stale, current_confidence,
+                          deleted_at, restored_at, created_at
                 """,
                 (is_triggered, alert_id),
             )
@@ -349,20 +485,54 @@ class PostgresRepository:
         return self._query_all(
             """
             UPDATE alerts
-            SET is_triggered = %s, current_value = %s
+            SET is_triggered = %s,
+                current_value = %s,
+                current_source = %s,
+                current_as_of_date = %s,
+                current_fetched_at = %s,
+                current_expires_at = %s,
+                current_stale = %s,
+                current_confidence = %s
             WHERE id = %s
+              AND deleted_at IS NULL
             RETURNING id, ticker_symbol, metric, operator, target_value, is_active,
-                      is_triggered, reference_value, alert_type, current_value, created_at
+                      is_triggered, reference_value, alert_type, current_value,
+                      current_source, current_as_of_date, current_fetched_at,
+                      current_expires_at, current_stale, current_confidence,
+                      deleted_at, restored_at, created_at
             """,
-            (is_triggered, float(current_value), alert_id),
+            (
+                is_triggered,
+                float(current_value),
+                current_metadata.get("source"),
+                current_metadata.get("as_of_date"),
+                current_metadata.get("fetched_at"),
+                current_metadata.get("expires_at"),
+                current_metadata.get("stale"),
+                current_metadata.get("confidence"),
+                alert_id,
+            ),
         )
 
     def delete_alert_db(self, alert_id=None, symbol=None, metric=None):
         if alert_id:
-            return self._execute("DELETE FROM alerts WHERE id = %s", (alert_id,))
+            return self._execute(
+                """
+                UPDATE alerts
+                SET deleted_at = COALESCE(deleted_at, NOW())
+                WHERE id = %s
+                """,
+                (alert_id,),
+            )
         if symbol and metric:
             return self._execute(
-                "DELETE FROM alerts WHERE ticker_symbol = %s AND metric = %s",
+                """
+                UPDATE alerts
+                SET deleted_at = COALESCE(deleted_at, NOW())
+                WHERE ticker_symbol = %s
+                  AND metric = %s
+                  AND deleted_at IS NULL
+                """,
                 (symbol, metric),
             )
         return False
@@ -424,22 +594,60 @@ class PostgresRepository:
             return rows[0]
         return {}
 
-    def log_alert_history(self, alert_id, trigger_val, target_val):
+    def log_alert_history(self, alert_id, trigger_val, target_val, metadata=None):
+        metadata = metadata or {}
         return self._query_all(
             """
-            INSERT INTO alert_history (alert_id, trigger_value, target_value)
-            VALUES (%s, %s, %s)
-            RETURNING id, alert_id, triggered_at, trigger_value, target_value
+            INSERT INTO alert_history (
+                alert_id, trigger_value, target_value, ticker_symbol, company_name,
+                metric, operator, alert_type, reference_value, current_value,
+                source, as_of_date, fetched_at, message
+            )
+            SELECT
+                a.id, %s, %s,
+                COALESCE(%s, a.ticker_symbol),
+                COALESCE(%s, t.name),
+                COALESCE(%s, a.metric),
+                COALESCE(%s, a.operator),
+                COALESCE(%s, a.alert_type),
+                COALESCE(%s, a.reference_value),
+                COALESCE(%s, %s),
+                %s, %s, %s, %s
+            FROM alerts a
+            LEFT JOIN tickers t ON t.symbol = a.ticker_symbol
+            WHERE a.id = %s
+            RETURNING id, alert_id, triggered_at, trigger_value, target_value,
+                      ticker_symbol, company_name, metric, operator, alert_type,
+                      reference_value, current_value, source, as_of_date, fetched_at, message
             """,
-            (alert_id, trigger_val, target_val),
+            (
+                trigger_val,
+                target_val,
+                metadata.get("ticker_symbol"),
+                metadata.get("company_name"),
+                metadata.get("metric"),
+                metadata.get("operator"),
+                metadata.get("alert_type"),
+                metadata.get("reference_value"),
+                metadata.get("current_value"),
+                trigger_val,
+                metadata.get("source"),
+                metadata.get("as_of_date"),
+                metadata.get("fetched_at"),
+                metadata.get("message"),
+                alert_id,
+            ),
         )
 
     def get_alert_history_db(self, limit=50):
         rows = self._query_all(
             """
             SELECT h.id, h.alert_id, h.triggered_at, h.trigger_value, h.target_value,
-                   a.ticker_symbol AS alert_ticker_symbol,
-                   a.metric AS alert_metric
+                   h.ticker_symbol, h.company_name, h.metric, h.operator, h.alert_type,
+                   h.reference_value, h.current_value, h.source, h.as_of_date,
+                   h.fetched_at, h.message,
+                   COALESCE(h.ticker_symbol, a.ticker_symbol) AS alert_ticker_symbol,
+                   COALESCE(h.metric, a.metric) AS alert_metric
             FROM alert_history h
             LEFT JOIN alerts a ON a.id = h.alert_id
             ORDER BY h.triggered_at DESC
@@ -458,3 +666,81 @@ class PostgresRepository:
                 }
             history.append(row)
         return history
+
+    def create_signal(self, payload):
+        rows = self._query_all(
+            """
+            INSERT INTO signals (
+                ticker_symbol, company_name, signal_type, severity, title, message,
+                metric, current_value, previous_value, target_value, source,
+                as_of_date, fetched_at, raw_payload
+            )
+            VALUES (
+                %s, %s, %s, COALESCE(%s, 'info'), %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s::jsonb
+            )
+            RETURNING id, ticker_symbol, company_name, signal_type, severity, title,
+                      message, metric, current_value, previous_value, target_value,
+                      source, as_of_date, fetched_at, created_at, acknowledged_at,
+                      dismissed_at, raw_payload
+            """,
+            (
+                payload.get("ticker_symbol"),
+                payload.get("company_name"),
+                payload.get("signal_type"),
+                payload.get("severity"),
+                payload.get("title"),
+                payload.get("message"),
+                payload.get("metric"),
+                payload.get("current_value"),
+                payload.get("previous_value"),
+                payload.get("target_value"),
+                payload.get("source"),
+                payload.get("as_of_date"),
+                payload.get("fetched_at"),
+                self._jsonb_param(payload.get("raw_payload")),
+            ),
+        )
+        return rows[0] if rows else None
+
+    def get_signals(self, status="open", limit=50):
+        where_clause = ""
+        if status == "open":
+            where_clause = "WHERE acknowledged_at IS NULL AND dismissed_at IS NULL"
+
+        return self._query_all(
+            f"""
+            SELECT {self.SIGNAL_COLUMNS}
+            FROM signals
+            {where_clause}
+            ORDER BY created_at DESC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+
+    def acknowledge_signal(self, signal_id):
+        rows = self._query_all(
+            f"""
+            UPDATE signals
+            SET acknowledged_at = COALESCE(acknowledged_at, NOW())
+            WHERE id = %s
+              AND dismissed_at IS NULL
+            RETURNING {self.SIGNAL_COLUMNS}
+            """,
+            (signal_id,),
+        )
+        return rows[0] if rows else None
+
+    def dismiss_signal(self, signal_id):
+        rows = self._query_all(
+            f"""
+            UPDATE signals
+            SET dismissed_at = COALESCE(dismissed_at, NOW())
+            WHERE id = %s
+            RETURNING {self.SIGNAL_COLUMNS}
+            """,
+            (signal_id,),
+        )
+        return rows[0] if rows else None

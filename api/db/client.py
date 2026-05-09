@@ -110,8 +110,24 @@ def get_tickers():
     return _repository().get_tickers()
 
 
+def get_tags():
+    return _repository().get_tags()
+
+
 def add_ticker_db(symbol, company_name):
     return _repository().add_ticker_db(symbol, company_name)
+
+
+def update_ticker_metadata(symbol, metadata):
+    return _repository().update_ticker_metadata(symbol, metadata)
+
+
+def add_tag_to_ticker(symbol, name, color=None):
+    return _repository().add_tag_to_ticker(symbol, name, color)
+
+
+def remove_tag_from_ticker(symbol, tag_name_or_id):
+    return _repository().remove_tag_from_ticker(symbol, tag_name_or_id)
 
 
 def add_alert_db(
@@ -140,8 +156,16 @@ def toggle_alert_active(alert_id, is_active):
     return _repository().toggle_alert_active(alert_id, is_active)
 
 
-def update_alert_status(alert_id, is_triggered, current_value=None):
-    return _repository().update_alert_status(alert_id, is_triggered, current_value)
+def restore_alert_db(alert_id):
+    return _repository().restore_alert_db(alert_id)
+
+
+def get_deleted_alerts_db():
+    return _repository().get_deleted_alerts_db()
+
+
+def update_alert_status(alert_id, is_triggered, current_value=None, current_metadata=None):
+    return _repository().update_alert_status(alert_id, is_triggered, current_value, current_metadata)
 
 
 def delete_alert_db(alert_id=None, symbol=None, metric=None):
@@ -163,9 +187,25 @@ def update_scan_settings_db(interval=None, last_scan_time=None):
     )
 
 
-def log_alert_history(alert_id, trigger_val, target_val):
-    return _repository().log_alert_history(alert_id, trigger_val, target_val)
+def log_alert_history(alert_id, trigger_val, target_val, metadata=None):
+    return _repository().log_alert_history(alert_id, trigger_val, target_val, metadata)
 
 
 def get_alert_history_db(limit=50):
     return _repository().get_alert_history_db(limit=limit)
+
+
+def create_signal(payload):
+    return _repository().create_signal(payload)
+
+
+def get_signals(status="open", limit=50):
+    return _repository().get_signals(status=status, limit=limit)
+
+
+def acknowledge_signal(signal_id):
+    return _repository().acknowledge_signal(signal_id)
+
+
+def dismiss_signal(signal_id):
+    return _repository().dismiss_signal(signal_id)

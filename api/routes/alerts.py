@@ -27,6 +27,16 @@ def create_router(
             raise HTTPException(status_code=404, detail="Alert not found")
         return {"message": "Alert removed"}
 
+    @router.get("/alerts/deleted", dependencies=[Depends(require_api_token)])
+    def get_deleted_alerts():
+        return alert_service.get_deleted_alerts(get_db())
+
+    @router.post("/alerts/{alert_id}/restore", dependencies=[Depends(require_api_token)])
+    def restore_alert_by_id(alert_id: str):
+        if not alert_service.restore_alert_by_id(get_db(), alert_id):
+            raise HTTPException(status_code=404, detail="Alert not found")
+        return {"message": "Alert restored"}
+
     @router.patch("/alerts/{alert_id}/toggle", dependencies=[Depends(require_api_token)])
     def toggle_alert(alert_id: str, payload: ToggleAlertRequest):
         if not alert_service.toggle_alert(get_db(), alert_id, payload.is_active):

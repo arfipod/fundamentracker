@@ -242,7 +242,9 @@ change should update the relevant docs and keep copy-pasteable commands current.
 
 AI valuation should stay behind a service that builds an explicit data pack,
 tracks sources, and returns structured output with warnings and a disclaimer.
-The current code has moved the Gemini call into `api/services/valuation.py`, but
-the response is still plain text shaped as `{"analysis": "..."}`. Structured
-output with explicit warnings, sources, confidence, and disclaimer fields is
-planned but not implemented yet.
+The current code builds that data pack in `api/services/valuation.py` from
+`MarketDataService` quote and current supported metric snapshots, asks Gemini
+for JSON, validates the structured response, and appends a temporary legacy
+`analysis` string for older clients. The analysis is intentionally limited to
+the supplied data pack; historical norms, peer groups, and sector comparisons
+are not available unless explicit data for them is added to the pack.
