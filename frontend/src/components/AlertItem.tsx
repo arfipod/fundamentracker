@@ -1,215 +1,52 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { Alert } from '../types/watchlist';
+import { formatMetricValue, getMetricLabel, type MetricCatalogItem } from '../types/metrics';
 import { DataQualityBadge } from './DataQualityBadge';
 import { MetricChart } from './MetricChart';
+import { Icon } from './Icon';
 
-/**
- * Props for the AlertItem component.
- * @interface Props
- * @property {string} symbol - The ticker symbol associated with this alert.
- * @property {Alert} alert - The alert object containing metric, operator, and target details.
- * @property {Function} onUpdate - Callback triggered when the alert's target value is updated.
- * @property {Function} onDelete - Callback triggered when the alert is deleted.
- * @property {Function} [onToggle] - Optional callback triggered when the alert's active status is toggled.
- */
 interface Props {
-  symbol: string;
-  alert: Alert;
+  symbol: string; alert: Alert; metrics: MetricCatalogItem[];
   onUpdate: (alertId: string, val: number) => void;
   onDelete: (alertId: string, ticker: string) => void;
   onToggle?: (alertId: string, isActive: boolean) => void;
 }
 
-/**
- * AlertItem component renders a single alert configuration for a ticker.
- * It displays the metric, operator, target, and current value. It allows inline editing
- * of the target value and toggling a historical MetricChart.
- * 
- * @param {Props} props - The component props
- * @returns {JSX.Element} The rendered AlertItem component
- */
-export function AlertItem({ symbol, alert, onUpdate, onDelete, onToggle }: Props) {
+export function AlertItem({ symbol, alert, metrics, onUpdate, onDelete, onToggle }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editingValue, setEditingValue] = useState(alert.target.toString());
   const [showChart, setShowChart] = useState(false);
-
-  const handleSave = () => {
-    const val = parseFloat(parseFloat(editingValue).toFixed(2));
-    if (!isNaN(val)) {
-      onUpdate(alert.id, val);
-    }
-    setIsEditing(false);
-  };
-
   const isRelative = alert.alert_type === 'relative';
-  const relativeDiff =
-    isRelative &&
-    alert.current_value !== undefined &&
-    alert.current_value !== null &&
-    alert.reference_value !== undefined &&
-    alert.reference_value !== null &&
-    alert.reference_value !== 0
-      ? ((alert.current_value / alert.reference_value) - 1) * 100
-      : null;
-  
-  const isConditionMet = () => {
-    if (alert.current_value === undefined || alert.current_value === null) return null;
-    let curr = alert.current_value;
-    if (isRelative) {
-      if (relativeDiff === null) return null;
-      curr = relativeDiff;
-    }
-    const target = alert.target;
-    switch (alert.operator) {
-      case '<': return curr < target;
-      case '<=': return curr <= target;
-      case '>': return curr > target;
-      case '>=': return curr >= target;
-      case '==': return curr === target;
-      case '!=': return curr !== target;
-      default: return null;
-    }
-  };
-
-  const conditionMet = isConditionMet();
-  const valueColor = conditionMet === true ? '#10b981' : conditionMet === false ? '#ef4444' : '#94a3b8';
-  const qualityMetadata = {
-    source: alert.current_source,
-    as_of_date: alert.current_as_of_date,
-    fetched_at: alert.current_fetched_at,
-    expires_at: alert.current_expires_at,
-    stale: alert.current_stale,
-    confidence: alert.current_confidence,
-  };
-  const hasQualityMetadata = Boolean(
-      qualityMetadata.source ||
-      qualityMetadata.as_of_date ||
-      qualityMetadata.fetched_at ||
-      qualityMetadata.expires_at ||
-      (qualityMetadata.stale !== undefined && qualityMetadata.stale !== null) ||
-      (qualityMetadata.confidence !== undefined && qualityMetadata.confidence !== null),
-  );
+  const metricDefinition = metrics.find((metric) => metric.key === alert.metric);
+  const canShowChart = Boolean(metricDefinition?.supported_for_history);
+  const relativeDiff = isRelative && alert.current_value !== undefined && alert.current_value !== null && alert.reference_value !== undefined && alert.reference_value !== null && alert.reference_value !== 0 ? ((alert.current_value / alert.reference_value) - 1) * 100 : null;
+  const conditionValue = isRelative ? relativeDiff : alert.current_value;
+  const conditionMet = (() => {
+    if (conditionValue === undefined || conditionValue === null) return null;
+    switch (alert.operator) { case '<': return conditionValue < alert.target; case '<=': return conditionValue <= alert.target; case '>': return conditionValue > alert.target; case '>=': return conditionValue >= alert.target; case '==': return conditionValue === alert.target; case '!=': return conditionValue !== alert.target; default: return null; }
+  })();
+  const conditionClass = conditionMet === true ? 'met' : conditionMet === false ? 'not-met' : 'unknown';
+  const targetLabel = isRelative ? `${alert.target.toLocaleString()}%` : formatMetricValue(metrics, alert.metric, alert.target);
+  const currentLabel = formatMetricValue(metrics, alert.metric, alert.current_value);
+  const qualityMetadata = { source: alert.current_source, as_of_date: alert.current_as_of_date, fetched_at: alert.current_fetched_at, expires_at: alert.current_expires_at, stale: alert.current_stale, confidence: alert.current_confidence };
+  const hasQualityMetadata = Object.values(qualityMetadata).some((value) => value !== undefined && value !== null && value !== '');
+  const handleSave = (event: FormEvent) => { event.preventDefault(); const value = Number.parseFloat(editingValue); if (Number.isFinite(value)) onUpdate(alert.id, value); setIsEditing(false); };
+  const removeAlert = () => { if (window.confirm(`Delete the ${getMetricLabel(metrics, alert.metric)} alert for ${symbol}?`)) onDelete(alert.id, symbol); };
 
   return (
-    <li style={{ 
-      display: 'flex', 
-      flexDirection: 'column',
-      opacity: alert.is_active ? 1 : 0.5,
-      transition: 'all 0.3s ease'
-    }}>
-      <div style={{ position: 'relative', paddingRight: '5.5rem', display: 'flex', alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
-        <span className="metric">{alert.metric.toUpperCase()}</span>
-        <span className="operator">{alert.operator}</span>
-        {isEditing ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <input
-              type="number"
-              step="0.01"
-              className="target-edit-input"
-              autoFocus
-              value={editingValue}
-              onChange={(e) => setEditingValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleSave();
-                } else if (e.key === 'Escape') {
-                  setIsEditing(false);
-                }
-              }}
-              style={{ width: '80px', padding: '2px 4px', fontSize: 'inherit' }}
-            />
-            <button type="button" className="btn-success" style={{ padding: '2px 6px', fontSize: '0.8rem', minWidth: 'auto', height: 'auto' }} onClick={handleSave}>✓</button>
-            <button type="button" className="btn-danger" style={{ padding: '2px 6px', fontSize: '0.8rem', minWidth: 'auto', height: 'auto', display: 'inline-flex', alignItems: 'center' }} onClick={() => setIsEditing(false)}>✕</button>
-          </div>
-        ) : (
-          <span 
-            className="target"
-            style={{ cursor: 'pointer', borderBottom: '1px dashed currentColor' }}
-            title="Click para editar"
-            onClick={() => {
-              setEditingValue(alert.target.toString());
-              setIsEditing(true);
-            }}
-          >
-            {alert.target}{isRelative ? '%' : ''}
-          </span>
-        )}
-        
-        {isRelative && alert.reference_value !== null && alert.reference_value !== undefined && (
-          <span style={{ marginLeft: '4px', fontSize: '0.8em', color: 'var(--primary)' }}>
-            (Ref: {alert.reference_value.toFixed(2)})
-          </span>
-        )}
-        {relativeDiff !== null && (
-          <span style={{ marginLeft: '4px', fontSize: '0.8em', color: valueColor }}>
-            (Diff: {relativeDiff >= 0 ? '+' : ''}{relativeDiff.toFixed(2)}%)
-          </span>
-        )}
-        
-        {alert.current_value !== undefined && alert.current_value !== null && (
-          <span className="current-val" style={{ marginLeft: '6px', fontSize: '0.85em', color: valueColor, fontWeight: conditionMet !== null ? 'bold' : 'normal' }}>
-            (Current: {alert.current_value.toFixed(2)})
-          </span>
-        )}
-
-        {hasQualityMetadata && <DataQualityBadge metadata={qualityMetadata} />}
-        
-        <div style={{ position: 'absolute', right: '0', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '4px' }}>
-          <button
-            type="button"
-            className="btn-delete-alert"
-            style={{ color: showChart ? '#3b82f6' : '#94a3b8' }}
-            onClick={() => setShowChart(!showChart)}
-            title="Toggle Chart"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-            </svg>
-          </button>
-
-          {onToggle && (
-             <button
-              type="button"
-              className="btn-delete-alert"
-              style={{ color: alert.is_active ? '#94a3b8' : '#eab308' }}
-              onClick={() => onToggle(alert.id, !alert.is_active)}
-              title={alert.is_active ? "Silenciar alerta" : "Activar alerta"}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                {alert.is_active ? (
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                ) : (
-                  <g><path d="M13.73 21a2 2 0 0 1-3.46 0"></path><path d="M18.63 13A17.89 17.89 0 0 1 18 8"></path><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"></path><path d="M18 8a6 6 0 0 0-9.33-5"></path><line x1="1" y1="1" x2="23" y2="23"></line></g>
-                )}
-              </svg>
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn-delete-alert"
-            onClick={() => {
-              if (window.confirm(`Are you sure you want to delete the ${alert.metric.toUpperCase()} alert for ${symbol}?`)) {
-                onDelete(alert.id, symbol);
-              }
-            }}
-            title="Eliminar alerta"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 6h18"></path>
-              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-              <line x1="10" y1="11" x2="10" y2="17"></line>
-              <line x1="14" y1="11" x2="14" y2="17"></line>
-            </svg>
-          </button>
+    <li className={`alert-item ${conditionClass}${alert.is_active ? '' : ' inactive'}${alert.is_triggered ? ' triggered' : ''}`}>
+      <div className="alert-row-main">
+        <div className="alert-state" title={alert.is_active ? 'Alert active' : 'Alert paused'}><span className="alert-state-dot" aria-hidden="true" /><span className="visually-hidden">{alert.is_active ? 'Active alert' : 'Paused alert'}</span></div>
+        <div className="alert-rule"><strong>{getMetricLabel(metrics, alert.metric)}</strong><div className="alert-expression"><span>{alert.operator}</span>{isEditing ? <form className="alert-edit-form" onSubmit={handleSave}><label className="visually-hidden" htmlFor={`target-${alert.id}`}>New target value</label><input id={`target-${alert.id}`} type="number" step="any" inputMode="decimal" autoFocus value={editingValue} onChange={(event) => setEditingValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') { setEditingValue(alert.target.toString()); setIsEditing(false); } }} /><button className="icon-button icon-button-small" type="submit" aria-label="Save target" title="Save target"><Icon name="check" size={15} /></button><button className="icon-button icon-button-small" type="button" aria-label="Cancel editing" title="Cancel" onClick={() => setIsEditing(false)}><Icon name="close" size={15} /></button></form> : <button className="alert-target-button" type="button" onClick={() => { setEditingValue(alert.target.toString()); setIsEditing(true); }} title="Edit target">{targetLabel}</button>}</div></div>
+        <div className="alert-observation"><span className="alert-current-label">Current</span><strong>{currentLabel}</strong><span className={`condition-label ${conditionClass}`}>{conditionMet === true ? 'Condition met' : conditionMet === false ? 'Not met' : 'Waiting for data'}</span></div>
+        <div className="alert-provenance">{isRelative && alert.reference_value !== undefined && alert.reference_value !== null && <span>Reference {formatMetricValue(metrics, alert.metric, alert.reference_value)}</span>}{relativeDiff !== null && <span>Change {relativeDiff >= 0 ? '+' : ''}{relativeDiff.toFixed(2)}%</span>}{hasQualityMetadata && <DataQualityBadge metadata={qualityMetadata} />}</div>
+        <div className="alert-actions">
+          {canShowChart && <button className="icon-button" type="button" aria-label={`${showChart ? 'Hide' : 'Show'} ${getMetricLabel(metrics, alert.metric)} history`} title={showChart ? 'Hide history' : 'Show history'} aria-pressed={showChart} onClick={() => setShowChart((current) => !current)}><Icon name="chart" /></button>}
+          {onToggle && <button className="icon-button" type="button" aria-label={alert.is_active ? 'Pause alert' : 'Activate alert'} title={alert.is_active ? 'Pause alert' : 'Activate alert'} onClick={() => onToggle(alert.id, !alert.is_active)}><Icon name={alert.is_active ? 'pause' : 'play'} /></button>}
+          <button className="icon-button danger-text" type="button" aria-label="Delete alert" title="Delete alert" onClick={removeAlert}><Icon name="trash" /></button>
         </div>
       </div>
-      
-      {showChart && (
-        <div style={{ marginTop: '1rem', marginBottom: '0.5rem', width: '100%', animation: 'fadeIn 0.3s ease' }}>
-          <MetricChart ticker={symbol} metric={alert.metric} currentValue={alert.current_value} targetValue={alert.target} height={250} showPeriodToggle={true} showReferenceLineToggle={true} />
-        </div>
-      )}
+      {showChart && canShowChart && <div className="alert-chart"><MetricChart ticker={symbol} metric={alert.metric} currentValue={alert.current_value} targetValue={isRelative ? null : alert.target} height={260} showPeriodToggle showReferenceLineToggle /></div>}
     </li>
   );
 }

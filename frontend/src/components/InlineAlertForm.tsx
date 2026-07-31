@@ -1,75 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState, type FormEvent } from 'react';
 import { MetricSelect } from './MetricSelect';
+import { Icon } from './Icon';
 import type { MetricCatalogItem } from '../types/metrics';
 
-interface InlineAlertFormProps {
-  metrics: MetricCatalogItem[];
-  onSubmit: (metric: string, operator: string, targetValue: number, alertType: string) => void;
-  onCancel: () => void;
-}
-
+interface InlineAlertFormProps { metrics: MetricCatalogItem[]; onSubmit: (metric: string, operator: string, targetValue: number, alertType: string) => void; onCancel: () => void; }
 export function InlineAlertForm({ metrics, onSubmit, onCancel }: InlineAlertFormProps) {
-  const alertMetrics = useMemo(
-    () => metrics.filter(metric => metric.supported_for_alerts),
-    [metrics]
-  );
-  const [metric, setMetric] = useState('pe');
-  const [operator, setOperator] = useState('<');
-  const [alertType, setAlertType] = useState('absolute');
-  const [targetValue, setTargetValue] = useState('');
-
-  useEffect(() => {
-    if (alertMetrics.length > 0 && !alertMetrics.some(item => item.key === metric)) {
-      setMetric(alertMetrics[0].key);
-    }
-  }, [alertMetrics, metric]);
-
-  const handleSubmit = () => {
-    if (!targetValue) return;
-
-    onSubmit(metric, operator, parseFloat(targetValue), alertType);
-    setTargetValue('');
-  };
-
+  const formId = useId();
+  const alertMetrics = useMemo(() => metrics.filter((metric) => metric.supported_for_alerts), [metrics]);
+  const [metric, setMetric] = useState('pe'); const [operator, setOperator] = useState('<'); const [alertType, setAlertType] = useState('absolute'); const [targetValue, setTargetValue] = useState('');
+  useEffect(() => { if (alertMetrics.length > 0 && !alertMetrics.some((item) => item.key === metric)) setMetric(alertMetrics[0].key); }, [alertMetrics, metric]);
+  const handleSubmit = (event: FormEvent) => { event.preventDefault(); const parsedTarget = Number.parseFloat(targetValue); if (!Number.isFinite(parsedTarget)) return; onSubmit(metric, operator, parsedTarget, alertType); setTargetValue(''); };
   return (
-    <div style={{ padding: '0.5rem', background: 'var(--bg-color)', borderRadius: '6px', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-      <MetricSelect
-        metrics={metrics}
-        value={metric}
-        onChange={setMetric}
-        support="alerts"
-        className="target-edit-input"
-        style={{ width: 'auto', padding: '2px 4px' }}
-      />
-      <select value={operator} onChange={event => setOperator(event.target.value)} className="target-edit-input" style={{ width: 'auto', padding: '2px 4px' }}>
-        <option value="<">&lt;</option>
-        <option value=">">&gt;</option>
-        <option value="<=">&lt;=</option>
-        <option value=">=">&gt;=</option>
-        <option value="==">==</option>
-        <option value="!=">!=</option>
-      </select>
-      <select value={alertType} onChange={event => setAlertType(event.target.value)} className="target-edit-input" style={{ width: 'auto', padding: '2px 4px' }}>
-        <option value="absolute">Value</option>
-        <option value="relative">Change %</option>
-      </select>
-      <input
-        type="number"
-        step="any"
-        placeholder="Val"
-        value={targetValue}
-        onChange={event => setTargetValue(event.target.value)}
-        className="target-edit-input"
-        style={{ width: '60px', padding: '2px 4px' }}
-        onKeyDown={event => {
-          if (event.key === 'Enter') handleSubmit();
-          if (event.key === 'Escape') onCancel();
-        }}
-      />
-      <div style={{ display: 'flex', gap: '4px' }}>
-        <button className="btn-success" style={{ padding: '2px 6px', fontSize: '0.8rem' }} onClick={handleSubmit}>Add</button>
-        <button className="btn-danger" style={{ padding: '2px 6px', fontSize: '0.8rem' }} onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
+    <form className="inline-alert-form" onSubmit={handleSubmit}>
+      <div className="field"><label htmlFor={`${formId}-metric`}>Metric</label><MetricSelect id={`${formId}-metric`} metrics={metrics} value={metric} onChange={setMetric} support="alerts" /></div>
+      <div className="field"><label htmlFor={`${formId}-operator`}>Condition</label><select id={`${formId}-operator`} value={operator} onChange={(event) => setOperator(event.target.value)}><option value="<">Below</option><option value="<=">At or below</option><option value=">">Above</option><option value=">=">At or above</option><option value="==">Equal to</option><option value="!=">Not equal to</option></select></div>
+      <div className="field"><label htmlFor={`${formId}-type`}>Type</label><select id={`${formId}-type`} value={alertType} onChange={(event) => setAlertType(event.target.value)}><option value="absolute">Metric value</option><option value="relative">Change from today</option></select></div>
+      <div className="field"><label htmlFor={`${formId}-target`}>Target</label><input id={`${formId}-target`} type="number" step="any" inputMode="decimal" placeholder={alertType === 'relative' ? '-20' : '16'} value={targetValue} onChange={(event) => setTargetValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') onCancel(); }} required /></div>
+      <div className="inline-form-actions"><button className="button button-primary button-small" type="submit" disabled={alertMetrics.length === 0}><Icon name="plus" />Add alert</button><button className="button button-quiet button-small" type="button" onClick={onCancel}>Cancel</button></div>
+    </form>
   );
 }
