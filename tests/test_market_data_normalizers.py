@@ -90,3 +90,48 @@ def test_calculate_historical_fundamental_forward_fills_roe_to_history_index():
     )
 
     assert series.tolist() == [0.25, 0.25]
+
+
+def test_historical_roe_uses_ttm_income_and_average_equity():
+    dates = pd.to_datetime(["2025-03-31", "2025-06-30", "2025-09-30", "2025-12-31", "2026-03-31"])
+    income = pd.DataFrame(
+        {date: [10.0] for date in dates},
+        index=["Net Income"],
+    )
+    balance = pd.DataFrame(
+        {date: [100.0 + index * 10] for index, date in enumerate(dates)},
+        index=["Stockholders Equity"],
+    )
+
+    series = calculate_historical_fundamental(income, balance, "roe", dates)
+
+    assert series.iloc[-1] == pytest.approx(40.0 / 120.0)
+
+
+def test_historical_roic_uses_ttm_nopat_and_average_invested_capital():
+    dates = pd.to_datetime(["2025-03-31", "2025-06-30", "2025-09-30", "2025-12-31", "2026-03-31"])
+    income = pd.DataFrame(
+        {date: [20.0, 5.0, 25.0] for date in dates},
+        index=["EBIT", "Tax Provision", "Pretax Income"],
+    )
+    balance = pd.DataFrame(
+        {date: [100.0 + index * 10] for index, date in enumerate(dates)},
+        index=["Invested Capital"],
+    )
+
+    series = calculate_historical_fundamental(income, balance, "roic", dates)
+
+    assert series.iloc[-1] == pytest.approx((80.0 * 0.8) / 120.0)
+
+
+def test_historical_debt_to_equity_matches_yahoo_percentage_convention():
+    statement_date = pd.Timestamp("2026-03-31")
+    income = pd.DataFrame()
+    balance = pd.DataFrame(
+        {statement_date: [50.0, 100.0]},
+        index=["Total Debt", "Stockholders Equity"],
+    )
+
+    series = calculate_historical_fundamental(income, balance, "debttoequity", [statement_date])
+
+    assert series.iloc[0] == 50.0
