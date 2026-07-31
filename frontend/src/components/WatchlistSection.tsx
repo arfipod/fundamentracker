@@ -1,24 +1,13 @@
-import { useState, useMemo } from 'react';
-import type { Watchlist, WatchlistMetadata } from '../types/watchlist';
+import { useMemo, useState } from 'react';
+import type { Watchlist, WatchlistMetadata, TickerData } from '../types/watchlist';
 import type { MetricCatalogItem } from '../types/metrics';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { Icon } from './Icon';
 import { TickerRow } from './TickerRow';
 import { TickerCard } from './TickerCard';
 
-/**
- * Props for the WatchlistSection component.
- * @interface Props
- * @property {Watchlist | null} watchlist - The user's configured watchlist data.
- * @property {boolean} loading - Whether the watchlist data is currently loading.
- * @property {Function} onDeleteTicker - Callback to delete a whole ticker from the watchlist.
- * @property {Function} onAddInline - Callback to add a new alert metric inline.
- * @property {Function} onUpdateAlert - Callback to update the target value of an alert.
- * @property {Function} onDeleteAlert - Callback to delete a specific alert.
- * @property {Function} onToggleAlert - Callback to toggle the active status of an alert.
- */
 interface Props {
-  watchlist: Watchlist | null;
-  loading: boolean;
-  metrics: MetricCatalogItem[];
+  watchlist: Watchlist | null; loading: boolean; metrics: MetricCatalogItem[];
   onDeleteTicker: (ticker: string) => void;
   onAddInline: (ticker: string, metric: string, operator: string, val: number, alertType?: string) => void;
   onUpdateAlert: (alertId: string, val: number) => void;
@@ -28,197 +17,39 @@ interface Props {
   onRemoveTag: (ticker: string, tagNameOrId: string) => void;
   onUpdateMetadata: (ticker: string, metadata: Partial<WatchlistMetadata>) => void;
 }
+type SortField = 'symbol' | 'name' | 'alerts'; type SortDirection = 'asc' | 'desc'; type ViewMode = 'details' | 'grid'; type WatchlistEntry = [string, TickerData];
+function sortValue([symbol, data]: WatchlistEntry, field: SortField): string | number { if (field === 'symbol') return symbol.toLocaleLowerCase(); if (field === 'name') return data.name.toLocaleLowerCase(); return data.alerts?.length || 0; }
 
-type SortField = 'symbol' | 'name' | 'alerts';
-type SortDir = 'asc' | 'desc';
-type ViewMode = 'details' | 'grid';
-
-/**
- * WatchlistSection component renders the main area for the user's tracked stocks and alerts.
- * It provides both a detailed table view and a grid card view, and supports sorting.
- * 
- * @param {Props} props - The component props
- * @returns {JSX.Element} The rendered WatchlistSection component
- */
-export function WatchlistSection({
-  watchlist,
-  loading,
-  metrics,
-  onDeleteTicker,
-  onAddInline,
-  onUpdateAlert,
-  onDeleteAlert,
-  onToggleAlert,
-  onAddTag,
-  onRemoveTag,
-  onUpdateMetadata
-}: Props) {
-  const [sortField, setSortField] = useState<SortField>('symbol');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
-  const [viewMode, setViewMode] = useState<ViewMode>('details');
-  const [filterTag, setFilterTag] = useState<string>('');
-
-  const allTags = useMemo(() => {
-    const tagsSet = new Set<string>();
-    Object.values(watchlist || {}).forEach(data => {
-      data.tags?.forEach(tag => tagsSet.add(tag.name));
-    });
-    return Array.from(tagsSet).sort();
-  }, [watchlist]);
-
-  const sortedWatchlist = useMemo(() => {
-    if (!watchlist) return [];
-    let entries = Object.entries(watchlist);
-    
-    if (filterTag) {
-      entries = entries.filter(([, data]) => data.tags?.some(tag => tag.name === filterTag));
-    }
-    
-    return entries.sort((a, b) => {
-      let valA: string | number = a[1][sortField as keyof typeof a[1]] as any;
-      let valB: string | number = b[1][sortField as keyof typeof b[1]] as any;
-      
-      if (sortField === 'symbol') {
-        valA = a[0];
-        valB = b[0];
-      } else if (sortField === 'alerts') {
-        valA = a[1].alerts?.length || 0;
-        valB = b[1].alerts?.length || 0;
-      }
-      
-      if (valA < valB) return sortDir === 'asc' ? -1 : 1;
-      if (valA > valB) return sortDir === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [watchlist, sortField, sortDir, filterTag]);
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
-  };
-
-  const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return <span style={{ opacity: 0.3, marginLeft: '4px' }}>↕</span>;
-    return sortDir === 'asc' ? <span style={{ marginLeft: '4px' }}>↑</span> : <span style={{ marginLeft: '4px' }}>↓</span>;
-  };
+export function WatchlistSection({ watchlist, loading, metrics, onDeleteTicker, onAddInline, onUpdateAlert, onDeleteAlert, onToggleAlert, onAddTag, onRemoveTag, onUpdateMetadata }: Props) {
+  const [sortField, setSortField] = useState<SortField>('symbol'); const [sortDirection, setSortDirection] = useState<SortDirection>('asc'); const [viewMode, setViewMode] = useState<ViewMode>('details'); const [filterTag, setFilterTag] = useState(''); const [query, setQuery] = useState('');
+  const isCompact = useMediaQuery('(max-width: 760px)'); const effectiveViewMode: ViewMode = isCompact ? 'grid' : viewMode;
+  const allTags = useMemo(() => { const names = new Set<string>(); Object.values(watchlist || {}).forEach((data) => data.tags?.forEach((tag) => names.add(tag.name))); return Array.from(names).sort((left, right) => left.localeCompare(right)); }, [watchlist]);
+  const sortedWatchlist = useMemo<WatchlistEntry[]>(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const entries = Object.entries(watchlist || {}).filter(([symbol, data]) => { const matchesTag = !filterTag || data.tags?.some((tag) => tag.name === filterTag); const matchesQuery = !normalizedQuery || symbol.toLocaleLowerCase().includes(normalizedQuery) || data.name.toLocaleLowerCase().includes(normalizedQuery); return matchesTag && matchesQuery; });
+    return entries.sort((left, right) => { const leftValue = sortValue(left, sortField); const rightValue = sortValue(right, sortField); const comparison = typeof leftValue === 'number' && typeof rightValue === 'number' ? leftValue - rightValue : String(leftValue).localeCompare(String(rightValue)); return sortDirection === 'asc' ? comparison : -comparison; });
+  }, [watchlist, filterTag, query, sortField, sortDirection]);
+  const handleSort = (field: SortField) => { if (sortField === field) setSortDirection((current) => current === 'asc' ? 'desc' : 'asc'); else { setSortField(field); setSortDirection('asc'); } };
+  const sortIndicator = (field: SortField) => sortField === field ? (sortDirection === 'asc' ? '↑' : '↓') : '';
+  const totalCount = Object.keys(watchlist || {}).length; const hasFilters = Boolean(filterTag || query.trim());
 
   return (
-    <section className="watchlist-section">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <h2 style={{ margin: 0 }}>Watchlist</h2>
-          {allTags.length > 0 && (
-            <select 
-              value={filterTag} 
-              onChange={e => setFilterTag(e.target.value)}
-              style={{ padding: '4px 8px', borderRadius: '4px', background: 'var(--bg-color)', color: 'var(--text-color)', border: '1px solid var(--border-color)' }}
-            >
-              <option value="">All Tags</option>
-              {allTags.map(tag => <option key={tag} value={tag}>#{tag}</option>)}
-            </select>
-          )}
-        </div>
-        <div className="view-toggle">
-          <button 
-            className={`toggle-btn ${viewMode === 'details' ? 'active' : ''}`}
-            onClick={() => setViewMode('details')}
-            title="Details View"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="8" y1="6" x2="21" y2="6"></line>
-              <line x1="8" y1="12" x2="21" y2="12"></line>
-              <line x1="8" y1="18" x2="21" y2="18"></line>
-              <line x1="3" y1="6" x2="3.01" y2="6"></line>
-              <line x1="3" y1="12" x2="3.01" y2="12"></line>
-              <line x1="3" y1="18" x2="3.01" y2="18"></line>
-            </svg>
-          </button>
-          <button 
-            className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
-            onClick={() => setViewMode('grid')}
-            title="Grid View"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7"></rect>
-              <rect x="14" y="3" width="7" height="7"></rect>
-              <rect x="14" y="14" width="7" height="7"></rect>
-              <rect x="3" y="14" width="7" height="7"></rect>
-            </svg>
-          </button>
-        </div>
+    <section className="watchlist-section" aria-labelledby="watchlist-heading">
+      <div className="section-heading watchlist-heading"><div><h2 id="watchlist-heading">Watchlist</h2><p>{totalCount === 1 ? '1 company' : `${totalCount} companies`} organised by alert rules and research status.</p></div></div>
+      <div className="watchlist-toolbar">
+        <label className="toolbar-search"><span>Filter companies</span><div className="input-with-icon"><Icon name="search" size={17} /><input type="search" placeholder="Ticker or company name" value={query} onChange={(event) => setQuery(event.target.value)} /></div></label>
+        {allTags.length > 0 && <label className="toolbar-field"><span>Tag</span><select value={filterTag} onChange={(event) => setFilterTag(event.target.value)}><option value="">All tags</option>{allTags.map((tag) => <option key={tag} value={tag}>#{tag}</option>)}</select></label>}
+        <label className="toolbar-field compact-only"><span>Sort by</span><select value={sortField} onChange={(event) => setSortField(event.target.value as SortField)}><option value="symbol">Ticker</option><option value="name">Company</option><option value="alerts">Alert count</option></select></label>
+        <button className="icon-button compact-only" type="button" onClick={() => setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')} aria-label={`Sort ${sortDirection === 'asc' ? 'descending' : 'ascending'}`} title={`Sort ${sortDirection === 'asc' ? 'descending' : 'ascending'}`}>{sortDirection === 'asc' ? '↑' : '↓'}</button>
+        <div className="view-switch" aria-label="Watchlist view"><button type="button" className={viewMode === 'details' ? 'active' : ''} aria-pressed={viewMode === 'details'} onClick={() => setViewMode('details')}><Icon name="table" />Table</button><button type="button" className={viewMode === 'grid' ? 'active' : ''} aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')}><Icon name="grid" />Cards</button></div>
       </div>
-      
-      {loading ? (
-        <div className="loading">Loading data...</div>
-      ) : (
-        <>
-          {watchlist && Object.entries(watchlist).length > 0 ? (
-            viewMode === 'details' ? (
-              <div className="table-container">
-                <table className="details-table">
-                  <thead>
-                    <tr>
-                      <th onClick={() => handleSort('symbol')} style={{ width: '15%' }}>
-                        Symbol {getSortIcon('symbol')}
-                      </th>
-                      <th onClick={() => handleSort('name')} style={{ width: '35%' }}>
-                        Name {getSortIcon('name')}
-                      </th>
-                      <th onClick={() => handleSort('alerts')} style={{ width: '40%' }}>
-                        Configured Alerts {getSortIcon('alerts')}
-                      </th>
-                      <th style={{ width: '10%', textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedWatchlist.map(([symbol, data]) => (
-                      <TickerRow
-                        key={symbol}
-                        symbol={symbol}
-                        data={data}
-                        metrics={metrics}
-                        onDeleteTicker={onDeleteTicker}
-                        onAddInline={onAddInline}
-                        onUpdateAlert={onUpdateAlert}
-                        onDeleteAlert={onDeleteAlert}
-                        onToggleAlert={onToggleAlert}
-                        onAddTag={onAddTag}
-                        onRemoveTag={onRemoveTag}
-                        onUpdateMetadata={onUpdateMetadata}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="grid-container">
-                {sortedWatchlist.map(([symbol, data]) => (
-                  <TickerCard
-                    key={symbol}
-                    symbol={symbol}
-                    data={data}
-                    metrics={metrics}
-                    onDeleteTicker={onDeleteTicker}
-                    onAddInline={onAddInline}
-                    onUpdateAlert={onUpdateAlert}
-                    onDeleteAlert={onDeleteAlert}
-                    onToggleAlert={onToggleAlert}
-                    onAddTag={onAddTag}
-                    onRemoveTag={onRemoveTag}
-                    onUpdateMetadata={onUpdateMetadata}
-                  />
-                ))}
-              </div>
-            )
-          ) : (
-            <p className="empty-message">No tickers in the watchlist.</p>
-          )}
-        </>
-      )}
+      {loading ? <div className="loading-state" role="status">Loading watchlist…</div> : totalCount === 0 ? <div className="empty-state"><Icon name="watchlist" size={24} /><div><h3>Your watchlist is empty</h3><p>Create an alert above to add the first company.</p></div></div> : sortedWatchlist.length === 0 ? <div className="empty-state compact-empty"><div><h3>No companies match these filters</h3><p>Clear the search or tag filter to show the full watchlist.</p></div>{hasFilters && <button className="button button-secondary button-small" type="button" onClick={() => { setQuery(''); setFilterTag(''); }}>Clear filters</button>}</div> : effectiveViewMode === 'details' ? (
+        <div className="table-container"><table className="details-table"><thead><tr>
+          <th aria-sort={sortField === 'symbol' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}><button type="button" className="table-sort-button" onClick={() => handleSort('symbol')}>Ticker <span>{sortIndicator('symbol')}</span></button></th>
+          <th aria-sort={sortField === 'name' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}><button type="button" className="table-sort-button" onClick={() => handleSort('name')}>Company <span>{sortIndicator('name')}</span></button></th>
+          <th aria-sort={sortField === 'alerts' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}><button type="button" className="table-sort-button" onClick={() => handleSort('alerts')}>Alerts <span>{sortIndicator('alerts')}</span></button></th><th className="actions-column">Actions</th>
+        </tr></thead><tbody>{sortedWatchlist.map(([symbol, data]) => <TickerRow key={symbol} symbol={symbol} data={data} metrics={metrics} onDeleteTicker={onDeleteTicker} onAddInline={onAddInline} onUpdateAlert={onUpdateAlert} onDeleteAlert={onDeleteAlert} onToggleAlert={onToggleAlert} onAddTag={onAddTag} onRemoveTag={onRemoveTag} onUpdateMetadata={onUpdateMetadata} />)}</tbody></table></div>
+      ) : <div className="ticker-grid">{sortedWatchlist.map(([symbol, data]) => <TickerCard key={symbol} symbol={symbol} data={data} metrics={metrics} onDeleteTicker={onDeleteTicker} onAddInline={onAddInline} onUpdateAlert={onUpdateAlert} onDeleteAlert={onDeleteAlert} onToggleAlert={onToggleAlert} onAddTag={onAddTag} onRemoveTag={onRemoveTag} onUpdateMetadata={onUpdateMetadata} />)}</div>}
     </section>
   );
 }
