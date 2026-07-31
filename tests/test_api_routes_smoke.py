@@ -71,11 +71,14 @@ def test_api_api_app_importable():
 
 
 def test_registered_route_smoke_table():
+    # OpenAPI is the public route contract and remains stable across Starlette
+    # internal route-object changes.
+    schema = app.openapi()
     actual = {
-        (method, route.path)
-        for route in app.routes
-        for method in getattr(route, "methods", set())
-        if method not in {"HEAD", "OPTIONS"}
+        (method.upper(), path)
+        for path, path_item in schema["paths"].items()
+        for method in path_item
+        if method.lower() in {"get", "post", "put", "patch", "delete"}
     }
 
     expected = {
