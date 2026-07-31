@@ -1,7 +1,7 @@
 # Testing
 
-FundamenTracker backend tests are written with `pytest` and are configured by
-`pytest.ini`. CI currently runs backend tests with Python 3.13.
+FundamenTracker backend tests use `pytest` and are configured by `pytest.ini`.
+CI runs backend tests with Python 3.13.
 
 ## Run Backend Tests
 
@@ -11,7 +11,7 @@ From the repository root:
 pytest
 ```
 
-If you use the checked-out virtual environment or create `.venv`, run:
+With a local virtual environment:
 
 ```bash
 source .venv/bin/activate
@@ -26,62 +26,73 @@ pythonpath = api
 testpaths = tests
 ```
 
-That means tests can import backend modules directly, and collection is limited
-to the `tests/` directory.
+Tests can therefore import backend modules directly, and collection is limited
+to `tests/`.
 
 ## Test Layout
 
-Core backend coverage is split by module:
+Core coverage is split by module:
 
 - `tests/test_health.py`: live and readiness health endpoints.
-- `tests/test_alert_evaluation.py`: absolute alerts, relative alert percent
-  differences, invalid inputs, and duplicate same-metric alert rules.
-- `tests/test_scanner.py`: scanner behavior with fake market data and fake DB
-  operations, including false-to-true transitions, already-triggered alerts,
-  clearing triggered state, relative alerts, inactive alerts, missing data, and
-  duplicate same-metric alerts by `alert_id`.
-- `tests/test_alert_id_operations.py`: alert update/delete behavior for
-  duplicate same-metric alerts, including deprecated ticker+metric route
-  compatibility returning `409` instead of mutating ambiguous alerts.
+- `tests/test_alert_evaluation.py`: absolute and relative alert logic, invalid
+  inputs, and duplicate same-metric rules.
+- `tests/test_scanner.py`: scan transitions, inactive or missing metrics,
+  relative alerts, duplicate IDs, history, and signals.
+- `tests/test_alert_id_operations.py`: update, soft-delete, restore, and
+  ambiguity behavior.
 - `tests/test_repositories_fake.py`: fake repository behavior and watchlist
-  shaping without Supabase or PostgreSQL.
-- `tests/test_market_data_normalizers.py`: symbol, numeric, metric, history,
-  and historical fundamental normalizers.
+  shaping.
+- `tests/test_market_data_normalizers.py`: symbol/value normalization plus
+  point-in-time quarterly ROE, ROIC, margin, and debt/equity reconstruction.
+- `tests/test_derived_metrics.py`: TTM valuation and cash metrics, owner earnings,
+  reinvestment, leverage, growth, capital allocation, valuation context, and EPS
+  revisions.
+- `tests/test_market_data_service.py`: snapshot cache, provider health, yfinance
+  provider behavior, real valuation-table history, API endpoints, and catalog.
 
-Additional focused tests cover API auth, CORS, DB client configuration, market
-data service caching/fallback behavior, and the SEC EDGAR provider using local
-fixtures and fake request clients.
+Additional focused tests cover auth, CORS, database configuration, migrations,
+operations status, Gemini valuation, and SEC EDGAR using local fixtures.
 
-`tests/test_all.py` is a legacy placeholder that documents the retirement of an
-older monolithic test file; active coverage is in the focused modules above.
+`tests/test_all.py` is a legacy placeholder; active coverage lives in focused
+modules.
 
 ## No External Calls
 
 Tests must not call real external services:
 
-- Yahoo Finance / `yfinance`.
+- Yahoo Finance / yfinance.
 - SEC EDGAR.
 - Gemini.
 - Telegram.
 - Supabase production.
 - Cloudflare.
 
-Use fakes, fixtures, monkeypatching, or local test containers. Provider tests
-must inject fake request clients or monkeypatch provider dependencies so that
-they remain deterministic and offline.
+Use fakes, fixtures, monkeypatching, or local test containers. yfinance tests
+must use fake `Ticker` objects and deterministic pandas DataFrames. In
+particular, valuation-history tests must supply a fake
+`get_valuation_measures()` table rather than depending on Yahoo availability.
 
 ## Useful Commands
 
-Run a specific module:
+Run all backend tests:
 
 ```bash
-python -m pytest tests/test_scanner.py
+python -m pytest
 ```
 
-Run one test by name:
+Run market-data tests:
 
 ```bash
-python -m pytest tests/test_alert_evaluation.py::test_relative_alert_evaluation_compares_percent_diff_to_target
+python -m pytest \
+  tests/test_market_data_normalizers.py \
+  tests/test_derived_metrics.py \
+  tests/test_market_data_service.py
+```
+
+Run a single test:
+
+```bash
+python -m pytest tests/test_derived_metrics.py::test_core_valuation_and_cash_metrics
 ```
 
 Show extra skip and failure context:
@@ -108,9 +119,9 @@ docker compose -f docker-compose.prod.yml config
 ## Current Known Warnings And Gaps
 
 The suite currently emits FastAPI deprecation warnings for `@app.on_event`.
-These warnings do not fail tests, but should be addressed when the API startup
-flow is moved to lifespan handlers.
+These warnings do not fail tests, but should be addressed when startup moves to
+lifespan handlers.
 
-Frontend lint exists but is not currently enforced in CI because `npm run lint`
-fails on existing React hooks and TypeScript lint issues. There is no frontend
-`npm test` script and no committed frontend unit test suite at the moment.
+Frontend lint exists but is not enforced in CI because existing React hooks and
+TypeScript lint issues are not yet clean. There is no frontend unit-test script;
+CI validates the production TypeScript/Vite build.

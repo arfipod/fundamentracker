@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pandas as pd
+import pytest
 from fastapi.testclient import TestClient
 
 import api as api_module
@@ -195,24 +196,31 @@ def test_yfinance_provider_current_metrics_are_normalized(monkeypatch):
     assert service.get_metric("AAPL", "payoutratio") == 35.0
 
 
-def test_yfinance_provider_metric_history_calculates_pe_from_mocked_history(monkeypatch):
-    dates = pd.to_datetime(["2024-01-02", "2024-01-03"])
-    history = pd.DataFrame({"Close": [100.0, 110.0]}, index=dates)
+def test_yfinance_provider_metric_history_uses_real_valuation_timeseries(monkeypatch):
+    valuation = pd.DataFrame(
+        {
+            "Current": [21.0],
+            "6/30/2026": [20.0],
+            "7/31/2026": [22.0],
+        },
+        index=["Trailing P/E"],
+    )
 
     class FakeTicker:
         info = {"trailingEps": 5.0}
 
-        def history(self, period):
-            assert period == "1mo"
-            return history
+        def get_valuation_measures(self, freq, periods):
+            assert freq == "yearly"
+            assert periods is None
+            return valuation
 
     monkeypatch.setattr(yfinance_provider.yf, "Ticker", lambda _symbol: FakeTicker())
 
     service = MarketDataService(YFinanceProvider(cache_ttl_seconds=0))
 
-    assert service.get_metric_history("AAPL", "pe", "1mo") == [
-        {"date": "2024-01-02", "value": 20.0},
-        {"date": "2024-01-03", "value": 22.0},
+    assert service.get_metric_history("AAPL", "pe", "max") == [
+        {"date": "2026-06-30", "value": 20.0},
+        {"date": "2026-07-31", "value": 22.0},
     ]
 
 
@@ -244,6 +252,27 @@ def test_yfinance_provider_metric_history_normalizes_fundamental_series(monkeypa
         {"date": "2024-03-31", "value": 20.0},
         {"date": "2024-04-01", "value": 20.0},
     ]
+
+
+def test_yfinance_provider_does_not_repeat_current_value_when_history_is_missing(monkeypatch):
+    dates = pd.to_datetime(["2024-03-31", "2024-04-01"])
+    history = pd.DataFrame({"Close": [100.0, 101.0]}, index=dates)
+
+    class FakeTicker:
+        info = {"returnOnEquity": 0.25}
+        quarterly_incomestmt = pd.DataFrame()
+        quarterly_balancesheet = pd.DataFrame()
+
+        def history(self, period):
+            assert period == "1y"
+            return history
+
+    monkeypatch.setattr(yfinance_provider.yf, "Ticker", lambda _symbol: FakeTicker())
+
+    service = MarketDataService(YFinanceProvider(cache_ttl_seconds=0))
+
+    with pytest.raises(ValueError, match="No real historical ROE statement data available"):
+        service.get_metric_history("AAPL", "roe", "1y")
 
 
 def test_metric_current_endpoint_uses_market_data_service(monkeypatch):
@@ -296,7 +325,7 @@ def test_metric_current_endpoint_rejects_unsupported_metric(monkeypatch):
     assert response.json() == {"detail": "Unsupported metric: notreal"}
 
 
-def test_metric_catalog_endpoint_returns_current_metrics(monkeypatch):
+def test_metric_catalog_endpoint_returns_current_and_derived_metrics(monkeypatch):
     monkeypatch.setenv("API_AUTH_TOKEN", "test-token")
 
     client = TestClient(app)
@@ -304,7 +333,8 @@ def test_metric_catalog_endpoint_returns_current_metrics(monkeypatch):
 
     assert response.status_code == 200
     catalog = response.json()
-    assert {metric["key"] for metric in catalog} == {
+    keys = {metric["key"] for metric in catalog}
+    assert {
         "pe",
         "fpe",
         "pb",
@@ -317,11 +347,25 @@ def test_metric_catalog_endpoint_returns_current_metrics(monkeypatch):
         "debttoequity",
         "profitmargins",
         "operatingmargins",
-    }
+    }.issubset(keys)
+    assert {
+        "fcf_yield_ttm",
+        "owner_earnings_yield_ttm",
+        "ev_to_ebit_ttm",
+        "normalized_pe",
+        "pe_discount_to_median_5y",
+        "pe_percentile_5y",
+        "net_debt_to_ebitda_ttm",
+        "sbc_to_revenue_ttm",
+        "diluted_share_growth_yoy",
+        "eps_revision_90d",
+    }.issubset(keys)
     assert catalog == sorted(catalog, key=lambda metric: (metric["category"], metric["label"]))
     assert all(metric["supported_for_alerts"] for metric in catalog)
-    assert all(metric["supported_for_history"] for metric in catalog)
+    assert next(metric for metric in catalog if metric["key"] == "pe")["supported_for_history"] is True
+    assert next(metric for metric in catalog if metric["key"] == "fcf_yield_ttm")["supported_for_history"] is False
     assert next(metric for metric in catalog if metric["key"] == "pe")["label"] == "Trailing P/E"
+    assert next(metric for metric in catalog if metric["key"] == "fcf_yield_ttm")["source_kind"] == "statement"
 
 
 def test_provider_health_endpoint_uses_market_data_service(monkeypatch):

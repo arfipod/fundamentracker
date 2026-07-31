@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Any
 
 import pandas as pd
@@ -64,91 +65,205 @@ def price_history_points(history: pd.DataFrame) -> list[dict[str, float | str]]:
     return data
 
 
+def _normalized_label(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value).lower())
+
+
+def _statement_table(statement: pd.DataFrame | None) -> pd.DataFrame:
+    if statement is None or statement.empty:
+        return pd.DataFrame()
+    table = statement.T.copy()
+    table.index = pd.to_datetime(table.index, errors="coerce")
+    table = table[~table.index.isna()].sort_index()
+    return table.apply(pd.to_numeric, errors="coerce")
+
+
+def _matching_column(table: pd.DataFrame, *aliases: str) -> str | None:
+    aliases_normalized = {_normalized_label(alias) for alias in aliases}
+    return next(
+        (column for column in table.columns if _normalized_label(column) in aliases_normalized),
+        None,
+    )
+
+
+def _flow_sum(table: pd.DataFrame, as_of: pd.Timestamp, *aliases: str) -> float | None:
+    column = _matching_column(table, *aliases)
+    if column is None:
+        return None
+    window = pd.to_numeric(table.loc[table.index <= as_of, column], errors="coerce").dropna().tail(4)
+    if window.empty:
+        return None
+    return to_float(window.sum())
+
+
+def _balance_values(table: pd.DataFrame, as_of: pd.Timestamp, *aliases: str) -> pd.Series:
+    column = _matching_column(table, *aliases)
+    if column is None:
+        return pd.Series(dtype=float)
+    return pd.to_numeric(table.loc[table.index <= as_of, column], errors="coerce").dropna()
+
+
+def _latest_balance(table: pd.DataFrame, as_of: pd.Timestamp, *aliases: str) -> float | None:
+    values = _balance_values(table, as_of, *aliases)
+    return to_float(values.iloc[-1]) if not values.empty else None
+
+
+def _average_balance(table: pd.DataFrame, as_of: pd.Timestamp, *aliases: str) -> float | None:
+    values = _balance_values(table, as_of, *aliases)
+    if values.empty:
+        return None
+    current = to_float(values.iloc[-1])
+    previous_year = to_float(values.iloc[-5]) if len(values) >= 5 else None
+    if current is None:
+        return None
+    return (current + previous_year) / 2.0 if previous_year is not None else current
+
+
+def _invested_capital_at(table: pd.DataFrame, as_of: pd.Timestamp) -> float | None:
+    direct = _latest_balance(table, as_of, "Invested Capital")
+    if direct is not None and direct > 0:
+        return direct
+    debt = _latest_balance(table, as_of, "Total Debt") or 0.0
+    equity = _latest_balance(table, as_of, "Stockholders Equity", "Common Stock Equity") or 0.0
+    cash = _latest_balance(
+        table,
+        as_of,
+        "Cash Cash Equivalents And Short Term Investments",
+        "Cash And Cash Equivalents",
+    ) or 0.0
+    value = debt + equity - cash
+    return value if value > 0 else None
+
+
+def _average_invested_capital(table: pd.DataFrame, as_of: pd.Timestamp) -> float | None:
+    dates = table.index[table.index <= as_of]
+    if len(dates) == 0:
+        return None
+    current = _invested_capital_at(table, dates[-1])
+    previous = _invested_capital_at(table, dates[-5]) if len(dates) >= 5 else None
+    if current is None:
+        return None
+    return (current + previous) / 2.0 if previous is not None else current
+
+
+def _effective_tax_rate(income: pd.DataFrame, as_of: pd.Timestamp) -> float:
+    direct_column = _matching_column(income, "Tax Rate For Calcs")
+    if direct_column is not None:
+        direct_values = pd.to_numeric(
+            income.loc[income.index <= as_of, direct_column],
+            errors="coerce",
+        ).dropna()
+        latest_rate = to_float(direct_values.iloc[-1]) if not direct_values.empty else None
+        if latest_rate is not None and 0 <= latest_rate <= 0.5:
+            return latest_rate
+
+    tax = _flow_sum(income, as_of, "Tax Provision")
+    pretax = _flow_sum(income, as_of, "Pretax Income")
+    if tax is not None and pretax not in (None, 0):
+        rate = tax / pretax
+        if 0 <= rate <= 0.5:
+            return rate
+    return 0.21
+
+
 def calculate_historical_fundamental(
     income_statement: pd.DataFrame,
     balance_sheet: pd.DataFrame,
     metric_name: str,
     history_index: pd.Index,
 ) -> pd.Series:
-    metric_name = metric_name.lower()
-    q_inc = income_statement.T if income_statement is not None and not income_statement.empty else pd.DataFrame()
-    q_bal = balance_sheet.T if balance_sheet is not None and not balance_sheet.empty else pd.DataFrame()
-    q_df = pd.concat([q_inc, q_bal], axis=1).sort_index()
+    """Build point-in-time fundamental history from quarterly statements.
 
-    if q_df.empty:
+    Flow metrics use a rolling four-quarter sum when four observations are
+    available. ROE and ROIC divide those TTM flows by average beginning/ending
+    capital (five quarterly balance observations); shorter histories gracefully
+    use the available flow window and ending capital rather than inventing data.
+    """
+
+    metric_name = metric_name.lower()
+    income = _statement_table(income_statement)
+    balance = _statement_table(balance_sheet)
+    statement_dates = sorted(set(income.index) | set(balance.index))
+    if not statement_dates:
         return pd.Series(index=history_index, dtype=float)
 
-    values = []
-    dates = []
+    values: list[float] = []
+    dates: list[pd.Timestamp] = []
 
-    for date, row in q_df.iterrows():
-        val = None
+    for statement_date in statement_dates:
+        value: float | None = None
+        net_income = _flow_sum(income, statement_date, "Net Income", "Net Income Common Stockholders")
+        revenue = _flow_sum(income, statement_date, "Total Revenue", "Operating Revenue")
+        operating_income = _flow_sum(
+            income,
+            statement_date,
+            "Operating Income",
+            "Total Operating Income As Reported",
+        )
 
         if metric_name == "roe":
-            net_income = row.get("Net Income", 0)
-            equity = row.get("Stockholders Equity", 0)
-            if pd.notna(net_income) and pd.notna(equity) and equity != 0:
-                val = net_income / equity
+            average_equity = _average_balance(
+                balance,
+                statement_date,
+                "Stockholders Equity",
+                "Common Stock Equity",
+            )
+            if net_income is not None and average_equity not in (None, 0):
+                value = net_income / average_equity
 
         elif metric_name == "roic":
-            ebit = row.get("EBIT", 0)
-            if pd.isna(ebit):
-                pretax_income = row.get("Pretax Income", 0)
-                interest_expense = row.get("Interest Expense", 0)
-                ebit = (pretax_income if pd.notna(pretax_income) else 0) + (
-                    interest_expense if pd.notna(interest_expense) else 0
+            ebit = _flow_sum(income, statement_date, "EBIT")
+            if ebit is None:
+                ebit = operating_income
+            if ebit is None:
+                pretax = _flow_sum(income, statement_date, "Pretax Income")
+                interest = _flow_sum(
+                    income,
+                    statement_date,
+                    "Interest Expense",
+                    "Interest Expense Non Operating",
                 )
-
-            tax_provision = row.get("Tax Provision", 0)
-            pretax_income = row.get("Pretax Income", 0)
-            tax_rate = (
-                tax_provision / pretax_income
-                if pd.notna(tax_provision) and pd.notna(pretax_income) and pretax_income != 0
-                else 0.21
-            )
-            nopat = ebit * (1 - tax_rate)
-
-            debt = row.get("Total Debt", 0)
-            equity = row.get("Stockholders Equity", 0)
-            if pd.isna(debt):
-                debt = 0
-            if pd.isna(equity):
-                equity = 0
-
-            if (debt + equity) != 0:
-                val = nopat / (debt + equity)
+                if pretax is not None:
+                    ebit = pretax + (interest or 0.0)
+            invested_capital = _average_invested_capital(balance, statement_date)
+            if ebit is not None and invested_capital not in (None, 0):
+                nopat = ebit * (1.0 - _effective_tax_rate(income, statement_date))
+                value = nopat / invested_capital
 
         elif metric_name == "debttoequity":
-            debt = row.get("Total Debt", 0)
-            equity = row.get("Stockholders Equity", 0)
-            if pd.notna(debt) and pd.notna(equity) and equity != 0:
-                val = debt / equity
+            debt = _latest_balance(balance, statement_date, "Total Debt")
+            equity = _latest_balance(
+                balance,
+                statement_date,
+                "Stockholders Equity",
+                "Common Stock Equity",
+            )
+            if debt is not None and equity not in (None, 0):
+                value = (debt / equity) * 100.0
 
         elif metric_name == "profitmargins":
-            net_income = row.get("Net Income", 0)
-            total_revenue = row.get("Total Revenue", 0)
-            if pd.notna(net_income) and pd.notna(total_revenue) and total_revenue != 0:
-                val = net_income / total_revenue
+            if net_income is not None and revenue not in (None, 0):
+                value = net_income / revenue
 
         elif metric_name == "operatingmargins":
-            operating_income = row.get("Operating Income", 0)
-            total_revenue = row.get("Total Revenue", 0)
-            if pd.notna(operating_income) and pd.notna(total_revenue) and total_revenue != 0:
-                val = operating_income / total_revenue
+            if operating_income is not None and revenue not in (None, 0):
+                value = operating_income / revenue
 
-        if val is not None:
-            values.append(val)
-            dates.append(date)
+        if value is not None and math.isfinite(value):
+            values.append(float(value))
+            dates.append(statement_date)
 
     if not values:
         return pd.Series(index=history_index, dtype=float)
 
-    series = pd.Series(values, index=dates).sort_index()
-    series.index = pd.to_datetime(series.index)
-    history_tz = getattr(history_index, "tz", None)
+    series = pd.Series(values, index=pd.DatetimeIndex(dates)).sort_index()
+    history_dates = pd.DatetimeIndex(pd.to_datetime(history_index))
+    history_tz = getattr(history_dates, "tz", None)
     if history_tz is not None and series.index.tz is None:
         series.index = series.index.tz_localize(history_tz)
+    elif history_tz is None and series.index.tz is not None:
+        series.index = series.index.tz_localize(None)
 
-    combined = pd.concat([pd.Series(index=history_index, dtype=float), series], axis=1)
-    combined = combined.iloc[:, 1].ffill()
-    return combined.loc[history_index]
+    expanded_index = series.index.union(history_dates).sort_values()
+    expanded = series.reindex(expanded_index).ffill()
+    return expanded.reindex(history_dates)
