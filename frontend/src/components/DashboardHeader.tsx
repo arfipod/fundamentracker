@@ -1,151 +1,123 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { apiFetch } from '../lib/apiClient';
+import type { Theme } from '../hooks/useTheme';
+import { Icon } from './Icon';
 
-/**
- * Props for the DashboardHeader component.
- * @interface Props
- * @property {number} scanInterval - The configured scan interval in seconds.
- * @property {number} lastScanTime - The Unix timestamp of the last scan.
- * @property {boolean} isScanning - Whether a scan is currently in progress.
- * @property {number} currentServerTime - The current Unix timestamp from the server.
- * @property {number} nextScanTime - The expected Unix timestamp of the next scan.
- * @property {Function} onUpdateInterval - Callback to update the scan interval.
- * @property {Function} onForceScan - Callback to manually force a scan.
- */
 interface Props {
   scanInterval: number;
   lastScanTime: number;
   isScanning: boolean;
   currentServerTime: number;
   nextScanTime: number;
+  theme: Theme;
+  onToggleTheme: () => void;
   onUpdateInterval: (interval: number) => void;
   onForceScan: () => void;
 }
 
-/**
- * DashboardHeader component displays the title, scan interval controls,
- * and current scanning status and timing information.
- * 
- * @param {Props} props - The component props
- * @returns {JSX.Element} The rendered DashboardHeader component
- */
-export function DashboardHeader({
-  scanInterval,
-  lastScanTime,
-  isScanning,
-  currentServerTime,
-  nextScanTime,
-  onUpdateInterval,
-  onForceScan
-}: Props) {
-  const [localInterval, setLocalInterval] = useState({ d: 0, h: 0, m: 0 });
-  const [marketStats, setMarketStats] = useState<{symbol: string, current: number, change_percent: number}[]>([]);
+interface MarketStat { symbol: string; current: number; change_percent: number; }
+interface IntervalParts { d: number; h: number; m: number; }
 
-  useEffect(() => {
-    setLocalInterval({
-      d: Math.floor(scanInterval / 86400),
-      h: Math.floor((scanInterval % 86400) / 3600),
-      m: Math.floor((scanInterval % 3600) / 60)
-    });
-  }, [scanInterval]);
+function intervalParts(totalSeconds: number): IntervalParts {
+  return { d: Math.floor(totalSeconds / 86400), h: Math.floor((totalSeconds % 86400) / 3600), m: Math.floor((totalSeconds % 3600) / 60) };
+}
+function intervalSeconds(parts: IntervalParts) { return (parts.d * 86400) + (parts.h * 3600) + (parts.m * 60); }
+function formatClock(timestamp: number, fallback: string) {
+  if (!timestamp) return fallback;
+  return new Date(timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+function formatSchedule(seconds: number) {
+  if (seconds <= 0) return 'Manual only';
+  const parts = intervalParts(seconds);
+  const values = [parts.d ? `${parts.d}d` : '', parts.h ? `${parts.h}h` : '', parts.m ? `${parts.m}m` : ''].filter(Boolean);
+  return values.join(' ') || 'Under 1m';
+}
+function clamp(value: string, max?: number) {
+  const number = Number.parseInt(value, 10);
+  if (!Number.isFinite(number) || number < 0) return 0;
+  return max === undefined ? number : Math.min(number, max);
+}
 
+export function DashboardHeader({ scanInterval, lastScanTime, isScanning, currentServerTime, nextScanTime, theme, onToggleTheme, onUpdateInterval, onForceScan }: Props) {
+  const [localInterval, setLocalInterval] = useState<IntervalParts>(() => intervalParts(scanInterval));
+  const [marketStats, setMarketStats] = useState<MarketStat[]>([]);
+
+  useEffect(() => { setLocalInterval(intervalParts(scanInterval)); }, [scanInterval]);
   useEffect(() => {
     const fetchMarketStats = async () => {
       try {
-        const res = await apiFetch('/market-overview');
-        if (res.ok) {
-          const data = await res.json();
-          setMarketStats(data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch market stats:", err);
+        const response = await apiFetch('/market-overview');
+        if (response.ok) setMarketStats(await response.json());
+      } catch (error) {
+        console.error('Market overview could not be loaded.', error);
       }
     };
-    fetchMarketStats();
-    // Refresh market stats every 5 minutes
-    const interval = setInterval(fetchMarketStats, 300000);
-    return () => clearInterval(interval);
+    void fetchMarketStats();
+    const refreshTimer = window.setInterval(fetchMarketStats, 300000);
+    return () => window.clearInterval(refreshTimer);
   }, []);
 
-  const handleApplyInterval = () => {
-    const total = (localInterval.d * 86400) + (localInterval.h * 3600) + (localInterval.m * 60);
-    if (total !== scanInterval) {
-      onUpdateInterval(total);
-    }
+  const localSeconds = intervalSeconds(localInterval);
+  const scheduleChanged = localSeconds !== scanInterval;
+  const handleScheduleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    if (scheduleChanged) onUpdateInterval(localSeconds);
   };
 
   return (
     <>
       {marketStats.length > 0 && (
-        <div className="top-bar-tickers" style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '2rem',
-          padding: '0.3rem 1rem',
-          fontSize: '0.75rem',
-          color: 'var(--text-muted)',
-          borderBottom: '1px solid var(--border-color)',
-          marginBottom: '1.5rem',
-          backgroundColor: 'transparent'
-        }}>
-          {marketStats.map(stat => (
-            <div key={stat.symbol} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ fontWeight: '600', opacity: 0.8 }}>{stat.symbol}</span>
-              <span>{stat.current.toFixed(2)}</span>
-              <span style={{ color: stat.change_percent >= 0 ? '#10b981' : '#ef4444', fontWeight: '500' }}>
-                {stat.change_percent >= 0 ? '▲' : '▼'} {Math.abs(stat.change_percent).toFixed(2)}%
-              </span>
-            </div>
-          ))}
+        <div className="market-strip" aria-label="Market overview">
+          <div className="market-strip-track">
+            {marketStats.map((stat) => (
+              <div className="market-quote" key={stat.symbol}>
+                <strong>{stat.symbol}</strong>
+                <span className="market-price">{stat.current.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                <span className={stat.change_percent >= 0 ? 'market-change positive' : 'market-change negative'}>
+                  {stat.change_percent >= 0 ? '+' : ''}{stat.change_percent.toFixed(2)}%
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      <header className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem' }}>
-        <div className="header-left">
-          <h1 style={{ margin: 0, fontSize: '1.8rem' }}>FundamenTracker Dashboard</h1>
+      <header className="product-header">
+        <div className="header-main">
+          <div className="brand">
+            <div className="brand-line"><span className="brand-status" aria-hidden="true" /><h1>FundamenTracker</h1></div>
+            <p>Private company research and valuation alerts</p>
+          </div>
+          <div className="header-actions">
+            <button type="button" className="icon-button" onClick={onToggleTheme} title={`Use ${theme === 'light' ? 'dark' : 'light'} theme`} aria-label={`Use ${theme === 'light' ? 'dark' : 'light'} theme`}>
+              <Icon name={theme === 'light' ? 'moon' : 'sun'} />
+            </button>
+            <button type="button" className="button button-primary" onClick={onForceScan} disabled={isScanning}>
+              <Icon name="scan" />{isScanning ? 'Scanning…' : 'Run scan'}
+            </button>
+          </div>
         </div>
-        
-        <div className="header-right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.6rem' }}>
-          <div className="header-status-row" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-              <span>Server time: {new Date(currentServerTime * 1000).toLocaleTimeString()}</span>
-              <span>|</span>
-              <span>Last scan: {lastScanTime ? new Date(lastScanTime * 1000).toLocaleTimeString() : 'Nunca'}</span>
-              <span>|</span>
-              <span>Next scan: {nextScanTime ? new Date(nextScanTime * 1000).toLocaleTimeString() : 'Manual'}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              {isScanning && <span style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 'bold' }}>Scanning...</span>}
-              <button className="btn-primary" onClick={onForceScan} disabled={isScanning} style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
-                Force Scan
-              </button>
-            </div>
+
+        <div className="header-utility">
+          <div className="scan-summary" aria-live="polite">
+            <span className={`scan-state-dot${isScanning ? ' scanning' : ''}`} aria-hidden="true" />
+            <span>{isScanning ? 'Scan in progress' : `Last scan ${formatClock(lastScanTime, 'not run yet')}`}</span>
+            <span className="utility-separator" aria-hidden="true">·</span><span>Next {formatClock(nextScanTime, 'manual')}</span>
+            <span className="utility-separator desktop-only" aria-hidden="true">·</span><span className="desktop-only">Server {formatClock(currentServerTime, 'unavailable')}</span>
           </div>
 
-          <div className="scan-interval-selector" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'var(--panel-bg)', padding: '0.3rem 0.8rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Auto-Scan:</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-              <input 
-                type="number" min="0" className="stopwatch-input" value={localInterval.d}
-                onChange={e => setLocalInterval({...localInterval, d: Number(e.target.value)})}
-                onBlur={handleApplyInterval}
-              /><span className="stopwatch-label">d</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-              <input 
-                type="number" min="0" max="23" className="stopwatch-input" value={localInterval.h}
-                onChange={e => setLocalInterval({...localInterval, h: Number(e.target.value)})}
-                onBlur={handleApplyInterval}
-              /><span className="stopwatch-label">h</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-              <input 
-                type="number" min="0" max="59" className="stopwatch-input" value={localInterval.m}
-                onChange={e => setLocalInterval({...localInterval, m: Number(e.target.value)})}
-                onBlur={handleApplyInterval}
-              /><span className="stopwatch-label">m</span>
-            </div>
-          </div>
+          <details className="scan-settings">
+            <summary><Icon name="settings" /><span>Auto scan</span><strong>{formatSchedule(scanInterval)}</strong><Icon name="chevronDown" className="disclosure-chevron" /></summary>
+            <form className="scan-settings-panel" onSubmit={handleScheduleSubmit}>
+              <p>Set the interval between automatic scans. Use zero in every field for manual scans only.</p>
+              <div className="schedule-fields">
+                <label><span>Days</span><input type="number" min="0" inputMode="numeric" value={localInterval.d} onChange={(event) => setLocalInterval({ ...localInterval, d: clamp(event.target.value) })} /></label>
+                <label><span>Hours</span><input type="number" min="0" max="23" inputMode="numeric" value={localInterval.h} onChange={(event) => setLocalInterval({ ...localInterval, h: clamp(event.target.value, 23) })} /></label>
+                <label><span>Minutes</span><input type="number" min="0" max="59" inputMode="numeric" value={localInterval.m} onChange={(event) => setLocalInterval({ ...localInterval, m: clamp(event.target.value, 59) })} /></label>
+              </div>
+              <button className="button button-secondary button-small" type="submit" disabled={!scheduleChanged}>Apply schedule</button>
+            </form>
+          </details>
         </div>
       </header>
     </>
