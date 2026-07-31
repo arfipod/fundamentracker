@@ -1,220 +1,46 @@
-import { useState, useEffect } from 'react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  ReferenceLine
-} from 'recharts';
+import { useEffect, useState } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { apiFetch } from '../lib/apiClient';
+import { Icon } from './Icon';
 
-interface HistoryData {
-  date: string;
-  value: number;
-}
+interface HistoryData { date: string; value: number; }
+interface MetricChartProps { ticker: string; metric: string; currentValue?: number | null; targetValue?: number | null; height?: number; showPeriodToggle?: boolean; showReferenceLineToggle?: boolean; }
+const PERIODS = [{ label: '1M', value: '1mo' }, { label: '3M', value: '3mo' }, { label: '6M', value: '6mo' }, { label: '1Y', value: '1y' }, { label: '2Y', value: '2y' }, { label: '5Y', value: '5y' }, { label: '10Y', value: '10y' }, { label: 'Max', value: 'max' }];
 
-/**
- * Props for the MetricChart component.
- * @interface MetricChartProps
- * @property {string} ticker - The stock ticker symbol.
- * @property {string} metric - The metric to plot (e.g., 'pe', 'price', 'roe').
- * @property {number} [currentValue] - The current value of the metric to plot as a reference line.
- * @property {number} [targetValue] - The target value from the alert to plot as a reference line.
- * @property {number} [height=400] - The height of the chart container in pixels.
- * @property {boolean} [showPeriodToggle=true] - Whether to show the period selector buttons.
- * @property {boolean} [showReferenceLineToggle=true] - Whether to show the toggles for min/max/avg reference lines.
- */
-interface MetricChartProps {
-  ticker: string;
-  metric: string;
-  currentValue?: number | null;
-  targetValue?: number | null;
-  height?: number;
-  showPeriodToggle?: boolean;
-  showReferenceLineToggle?: boolean;
-}
-
-/**
- * MetricChart component fetches and displays historical data for a specific stock metric.
- * It uses recharts to plot a line chart and allows toggling various reference lines
- * such as maximum, minimum, average, median, current, and target values.
- * 
- * @param {MetricChartProps} props - The component props
- * @returns {JSX.Element} The rendered MetricChart component
- */
 export function MetricChart({ ticker, metric, currentValue, targetValue, height = 400, showPeriodToggle = true, showReferenceLineToggle = true }: MetricChartProps) {
-  const [period, setPeriod] = useState('1y');
-  const [historyData, setHistoryData] = useState<HistoryData[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [showMax, setShowMax] = useState(false);
-  const [showMin, setShowMin] = useState(false);
-  const [showAvg, setShowAvg] = useState(false);
-  const [showMedian, setShowMedian] = useState(false);
-  const [showStdDev, setShowStdDev] = useState(false);
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showTarget, setShowTarget] = useState(false);
-
-  const periods = [
-    { label: '1m', value: '1mo' },
-    { label: '3m', value: '3mo' },
-    { label: '6m', value: '6mo' },
-    { label: '1y', value: '1y' },
-    { label: '2y', value: '2y' },
-    { label: '5y', value: '5y' },
-    { label: '10y', value: '10y' },
-    { label: 'Max', value: 'max' }
-  ];
-
+  const [period, setPeriod] = useState('1y'); const [historyData, setHistoryData] = useState<HistoryData[]>([]); const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null);
+  const [showMax, setShowMax] = useState(false); const [showMin, setShowMin] = useState(false); const [showAvg, setShowAvg] = useState(false); const [showMedian, setShowMedian] = useState(false); const [showStdDev, setShowStdDev] = useState(false); const [showCurrent, setShowCurrent] = useState(false); const [showTarget, setShowTarget] = useState(false);
   useEffect(() => {
+    const controller = new AbortController();
     const fetchHistory = async () => {
-      if (!ticker || !metric) return;
-      
-      setLoading(true);
-      setError(null);
-      
+      if (!ticker || !metric) return; setLoading(true); setError(null);
       try {
-        const histRes = await apiFetch(`/history?ticker=${ticker}&metric=${metric}&period=${period}`);
-        if (histRes.ok) {
-          const histData = await histRes.json();
-          setHistoryData(histData);
-        } else {
-          setHistoryData([]);
-          const errorData = await histRes.json();
-          setError(errorData.detail || "Failed to fetch historical data");
-        }
-      } catch (err: any) {
-        setError(err.message || "An error occurred");
-        setHistoryData([]);
-      } finally {
-        setLoading(false);
-      }
+        const response = await apiFetch(`/history?ticker=${encodeURIComponent(ticker)}&metric=${encodeURIComponent(metric)}&period=${encodeURIComponent(period)}`, { signal: controller.signal });
+        if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.detail || 'Historical data could not be loaded.'); }
+        setHistoryData(await response.json());
+      } catch (historyError) {
+        if (!(historyError instanceof DOMException && historyError.name === 'AbortError')) { setError(historyError instanceof Error ? historyError.message : 'Historical data could not be loaded.'); setHistoryData([]); }
+      } finally { if (!controller.signal.aborted) setLoading(false); }
     };
-
-    fetchHistory();
+    void fetchHistory(); return () => controller.abort();
   }, [ticker, metric, period]);
-
-  const values = historyData.map(d => d.value).filter(v => typeof v === 'number' && !isNaN(v));
-  const dataMax = values.length ? Math.max(...values) : null;
-  const dataMin = values.length ? Math.min(...values) : null;
-  const dataAvg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
-  const dataStd = values.length ? Math.sqrt(values.reduce((sum, val) => sum + Math.pow(val - dataAvg!, 2), 0) / values.length) : null;
-  const sortedValues = [...values].sort((a, b) => a - b);
-  const dataMedian = values.length 
-    ? (values.length % 2 === 0 
-      ? (sortedValues[values.length / 2 - 1] + sortedValues[values.length / 2]) / 2 
-      : sortedValues[Math.floor(values.length / 2)]) 
-    : null;
+  const values = historyData.map((point) => point.value).filter((value) => Number.isFinite(value));
+  const dataMax = values.length ? Math.max(...values) : null; const dataMin = values.length ? Math.min(...values) : null; const dataAvg = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  const dataStd = values.length && dataAvg !== null ? Math.sqrt(values.reduce((sum, value) => sum + Math.pow(value - dataAvg, 2), 0) / values.length) : null;
+  const sortedValues = [...values].sort((left, right) => left - right);
+  const dataMedian = values.length ? values.length % 2 === 0 ? (sortedValues[values.length / 2 - 1] + sortedValues[values.length / 2]) / 2 : sortedValues[Math.floor(values.length / 2)] : null;
 
   return (
-    <div className="metric-chart-container" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
-      <div className="chart-header" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {showPeriodToggle && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-            <div className="period-selector" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {periods.map(p => (
-              <button
-                key={p.value}
-                onClick={() => setPeriod(p.value)}
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  border: '1px solid #334155',
-                  background: period === p.value ? '#3b82f6' : '#1e293b',
-                  color: '#f8fafc',
-                  cursor: 'pointer',
-                  fontSize: '0.8rem'
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
-            </div>
-          </div>
-        )}
-        
-        {showReferenceLineToggle && (
-          <div className="reference-lines-toggles" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', fontSize: '0.9rem', color: '#cbd5e1' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showMax} onChange={e => setShowMax(e.target.checked)} /> Max
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showMin} onChange={e => setShowMin(e.target.checked)} /> Min
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showAvg} onChange={e => setShowAvg(e.target.checked)} /> Avg
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showMedian} onChange={e => setShowMedian(e.target.checked)} /> Median
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showStdDev} onChange={e => setShowStdDev(e.target.checked)} /> ±1 SD Band
-            </label>
-            {currentValue !== undefined && currentValue !== null && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={showCurrent} onChange={e => setShowCurrent(e.target.checked)} /> Current
-              </label>
-            )}
-            {targetValue !== undefined && targetValue !== null && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={showTarget} onChange={e => setShowTarget(e.target.checked)} /> Target
-              </label>
-            )}
-          </div>
-        )}
+    <div className="metric-chart-container">
+      <div className="chart-toolbar">
+        {showPeriodToggle && <div className="period-selector" aria-label="Chart period">{PERIODS.map((option) => <button key={option.value} type="button" className={period === option.value ? 'active' : ''} aria-pressed={period === option.value} onClick={() => setPeriod(option.value)}>{option.label}</button>)}</div>}
+        {showReferenceLineToggle && <details className="chart-options"><summary><Icon name="settings" size={16} />Reference lines</summary><div className="chart-option-list"><label><input type="checkbox" checked={showMax} onChange={(event) => setShowMax(event.target.checked)} />Maximum</label><label><input type="checkbox" checked={showMin} onChange={(event) => setShowMin(event.target.checked)} />Minimum</label><label><input type="checkbox" checked={showAvg} onChange={(event) => setShowAvg(event.target.checked)} />Average</label><label><input type="checkbox" checked={showMedian} onChange={(event) => setShowMedian(event.target.checked)} />Median</label><label><input type="checkbox" checked={showStdDev} onChange={(event) => setShowStdDev(event.target.checked)} />±1 standard deviation</label>{currentValue !== undefined && currentValue !== null && <label><input type="checkbox" checked={showCurrent} onChange={(event) => setShowCurrent(event.target.checked)} />Current value</label>}{targetValue !== undefined && targetValue !== null && <label><input type="checkbox" checked={showTarget} onChange={(event) => setShowTarget(event.target.checked)} />Alert target</label>}</div></details>}
       </div>
-
-      {loading ? (
-        <div className="loading" style={{ height }}>Loading chart data...</div>
-      ) : error ? (
-        <div className="error-message">{error}</div>
-      ) : historyData.length > 0 ? (
-        <div style={{ width: '100%', height }}>
-          <ResponsiveContainer>
-            <LineChart data={historyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis 
-                dataKey="date" 
-                stroke="#94a3b8" 
-                tickFormatter={(val) => {
-                  const date = new Date(val);
-                  return `${date.getMonth() + 1}/${date.getFullYear().toString().slice(2)}`;
-                }}
-              />
-              <YAxis stroke="#94a3b8" domain={['auto', 'auto']} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f8fafc' }}
-                itemStyle={{ color: '#60a5fa' }}
-              />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="value" 
-                name={metric.toUpperCase()} 
-                stroke="#3b82f6" 
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 8 }} 
-              />
-              {showMax && dataMax !== null && <ReferenceLine y={dataMax} label={{ value: "Max", position: 'insideTopLeft', fill: '#ef4444' }} stroke="#ef4444" strokeDasharray="3 3" />}
-              {showMin && dataMin !== null && <ReferenceLine y={dataMin} label={{ value: "Min", position: 'insideBottomLeft', fill: '#10b981' }} stroke="#10b981" strokeDasharray="3 3" />}
-              {showAvg && dataAvg !== null && <ReferenceLine y={dataAvg} label={{ value: "Avg", position: 'insideBottomLeft', fill: '#f59e0b' }} stroke="#f59e0b" strokeDasharray="3 3" />}
-              {showStdDev && dataAvg !== null && dataStd !== null && <ReferenceLine y={dataAvg + dataStd} label={{ value: "+1 SD", position: 'insideTopLeft', fill: '#fbbf24' }} stroke="#fbbf24" strokeDasharray="3 3" opacity={0.5} />}
-              {showStdDev && dataAvg !== null && dataStd !== null && <ReferenceLine y={dataAvg - dataStd} label={{ value: "-1 SD", position: 'insideBottomLeft', fill: '#fbbf24' }} stroke="#fbbf24" strokeDasharray="3 3" opacity={0.5} />}
-              {showMedian && dataMedian !== null && <ReferenceLine y={dataMedian} label={{ value: "Median", position: 'insideTopLeft', fill: '#8b5cf6' }} stroke="#8b5cf6" strokeDasharray="3 3" />}
-              {showCurrent && currentValue !== null && currentValue !== undefined && <ReferenceLine y={currentValue} label={{ value: "Current", position: 'right', fill: '#06b6d4' }} stroke="#06b6d4" strokeDasharray="3 3" />}
-              {showTarget && targetValue !== null && targetValue !== undefined && <ReferenceLine y={targetValue} label={{ value: "Target", position: 'left', fill: '#ec4899' }} stroke="#ec4899" strokeDasharray="3 3" />}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      ) : (
-        <div className="empty-message" style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>No historical data available</div>
-      )}
+      {loading ? <div className="chart-state" style={{ minHeight: height }} role="status">Loading history…</div> : error ? <div className="chart-state chart-error" style={{ minHeight: height }} role="alert">{error}</div> : historyData.length > 0 ? (
+        <div className="chart-canvas" style={{ height }} role="img" aria-label={`${ticker} ${metric} history for ${period}`}><ResponsiveContainer><LineChart data={historyData} margin={{ top: 16, right: 20, left: 0, bottom: 4 }}><CartesianGrid vertical={false} stroke="var(--chart-grid)" strokeDasharray="3 5" /><XAxis dataKey="date" stroke="var(--text-subtle)" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} minTickGap={28} tickFormatter={(value) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : `${date.getMonth() + 1}/${date.getFullYear().toString().slice(2)}`; }} /><YAxis stroke="var(--text-subtle)" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={52} domain={['auto', 'auto']} /><Tooltip contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--line-strong)', borderRadius: 8, color: 'var(--text)' }} labelStyle={{ color: 'var(--text-muted)' }} itemStyle={{ color: 'var(--chart-line)' }} /><Line type="monotone" dataKey="value" name={metric.toUpperCase()} stroke="var(--chart-line)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
+          {showMax && dataMax !== null && <ReferenceLine y={dataMax} label={{ value: 'Max', position: 'insideTopLeft', fill: 'var(--danger)' }} stroke="var(--danger)" strokeDasharray="4 4" />}{showMin && dataMin !== null && <ReferenceLine y={dataMin} label={{ value: 'Min', position: 'insideBottomLeft', fill: 'var(--positive)' }} stroke="var(--positive)" strokeDasharray="4 4" />}{showAvg && dataAvg !== null && <ReferenceLine y={dataAvg} label={{ value: 'Average', position: 'insideBottomLeft', fill: 'var(--warning)' }} stroke="var(--warning)" strokeDasharray="4 4" />}{showStdDev && dataAvg !== null && dataStd !== null && <ReferenceLine y={dataAvg + dataStd} label={{ value: '+1 SD', position: 'insideTopLeft', fill: 'var(--warning)' }} stroke="var(--warning)" strokeDasharray="4 4" opacity={0.6} />}{showStdDev && dataAvg !== null && dataStd !== null && <ReferenceLine y={dataAvg - dataStd} label={{ value: '-1 SD', position: 'insideBottomLeft', fill: 'var(--warning)' }} stroke="var(--warning)" strokeDasharray="4 4" opacity={0.6} />}{showMedian && dataMedian !== null && <ReferenceLine y={dataMedian} label={{ value: 'Median', position: 'insideTopLeft', fill: 'var(--chart-secondary)' }} stroke="var(--chart-secondary)" strokeDasharray="4 4" />}{showCurrent && currentValue !== null && currentValue !== undefined && <ReferenceLine y={currentValue} label={{ value: 'Current', position: 'right', fill: 'var(--chart-current)' }} stroke="var(--chart-current)" strokeDasharray="4 4" />}{showTarget && targetValue !== null && targetValue !== undefined && <ReferenceLine y={targetValue} label={{ value: 'Target', position: 'left', fill: 'var(--chart-target)' }} stroke="var(--chart-target)" strokeDasharray="4 4" />}
+        </LineChart></ResponsiveContainer></div>
+      ) : <div className="chart-state" style={{ minHeight: height }}>No historical observations are available for this period.</div>}
     </div>
   );
 }

@@ -10,53 +10,12 @@ import type { DataQualityMetadata } from '../types/watchlist';
 
 interface ExplorerSectionProps { metrics: MetricCatalogItem[]; }
 interface CurrentMetric extends DataQualityMetadata { value: number | null; }
-
 export function ExplorerSection({ metrics }: ExplorerSectionProps) {
-  const [tickerInput, setTickerInput] = useState('AAPL');
-  const [activeTicker, setActiveTicker] = useState('AAPL');
-  const [metric, setMetric] = useState('price');
-  const [currentValue, setCurrentValue] = useState<number | null>(null);
-  const [currentMetric, setCurrentMetric] = useState<CurrentMetric | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [requestError, setRequestError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [tickerInput, setTickerInput] = useState('AAPL'); const [activeTicker, setActiveTicker] = useState('AAPL'); const [metric, setMetric] = useState('price'); const [currentValue, setCurrentValue] = useState<number | null>(null); const [currentMetric, setCurrentMetric] = useState<CurrentMetric | null>(null); const [loading, setLoading] = useState(false); const [requestError, setRequestError] = useState<string | null>(null); const [refreshKey, setRefreshKey] = useState(0);
   const selectedMetric = metrics.find((item) => item.key === metric);
-
   useEffect(() => { if (metrics.length > 0 && !metrics.some((item) => item.key === metric)) setMetric(metrics[0].key); }, [metrics, metric]);
-  const loadMetric = useCallback(async (ticker: string, metricKey: string) => {
-    setLoading(true); setRequestError(null);
-    try {
-      const response = await apiFetch(`/metric-current?ticker=${encodeURIComponent(ticker)}&metric=${encodeURIComponent(metricKey)}`);
-      if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.detail || 'The metric could not be loaded.'); }
-      const data = await response.json();
-      setCurrentValue(data.value);
-      setCurrentMetric({ value: data.value, source: data.source, as_of_date: data.as_of_date, fetched_at: data.fetched_at, expires_at: data.expires_at, stale: data.stale, confidence: data.confidence });
-    } catch (metricError) {
-      setCurrentValue(null); setCurrentMetric(null); setRequestError(metricError instanceof Error ? metricError.message : 'The metric could not be loaded.');
-    } finally { setLoading(false); }
-  }, []);
+  const loadMetric = useCallback(async (ticker: string, metricKey: string) => { setLoading(true); setRequestError(null); try { const response = await apiFetch(`/metric-current?ticker=${encodeURIComponent(ticker)}&metric=${encodeURIComponent(metricKey)}`); if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.detail || 'The metric could not be loaded.'); } const data = await response.json(); setCurrentValue(data.value); setCurrentMetric({ value: data.value, source: data.source, as_of_date: data.as_of_date, fetched_at: data.fetched_at, expires_at: data.expires_at, stale: data.stale, confidence: data.confidence }); } catch (metricError) { setCurrentValue(null); setCurrentMetric(null); setRequestError(metricError instanceof Error ? metricError.message : 'The metric could not be loaded.'); } finally { setLoading(false); } }, []);
   useEffect(() => { void loadMetric(activeTicker, metric); }, [activeTicker, metric, refreshKey, loadMetric]);
   const handleSubmit = (event: FormEvent) => { event.preventDefault(); const nextTicker = tickerInput.trim().toUpperCase(); if (!nextTicker) return; setActiveTicker(nextTicker); setRefreshKey((current) => current + 1); };
-
-  return (
-    <section className="explorer-section" aria-labelledby="explorer-heading">
-      <div className="section-heading"><div><h2 id="explorer-heading">Metric explorer</h2><p>Inspect one current value, its provenance, and a real history where the source supports it.</p></div></div>
-      <form className="explorer-form" onSubmit={handleSubmit}>
-        <TickerSearchInput id="explorer-ticker" label="Company ticker" value={tickerInput} onChange={setTickerInput} required />
-        <div className="field field-wide"><label htmlFor="explorer-metric">Metric</label><MetricSelect metrics={metrics} value={metric} onChange={setMetric} support="all" /><span className="field-help">{selectedMetric?.description || 'Loading available metrics…'}</span></div>
-        <div className="form-action"><button className="button button-primary" type="submit" disabled={loading}><Icon name="search" />{loading ? 'Loading…' : 'Inspect metric'}</button></div>
-      </form>
-      {requestError && <div className="notice notice-error" role="alert">{requestError}</div>}
-      <div className="explorer-layout">
-        <aside className="metric-summary" aria-live="polite">
-          <span className="metric-summary-ticker">{activeTicker}</span><h3>{getMetricLabel(metrics, metric)}</h3><div className="metric-display-value">{loading ? '—' : formatMetricValue(metrics, metric, currentValue)}</div>
-          {selectedMetric?.description && <p>{selectedMetric.description}</p>}
-          <div className="metric-metadata">{selectedMetric?.period && <span>{selectedMetric.period}</span>}{selectedMetric?.source_kind && <span>{selectedMetric.source_kind.replaceAll('_', ' ')}</span>}{selectedMetric && !selectedMetric.supported_for_history && <span>Current only</span>}</div>
-          {currentMetric && <DataQualityBadge metadata={{ source: currentMetric.source, as_of_date: currentMetric.as_of_date, fetched_at: currentMetric.fetched_at, expires_at: currentMetric.expires_at, stale: currentMetric.stale, confidence: currentMetric.confidence }} />}
-          {selectedMetric?.formula && <details className="formula-disclosure"><summary>How it is calculated</summary><code>{selectedMetric.formula}</code></details>}
-        </aside>
-        <div className="chart-panel">{selectedMetric?.supported_for_history ? <MetricChart ticker={activeTicker} metric={metric} currentValue={currentValue} height={420} /> : <div className="history-unavailable"><Icon name="chart" size={24} /><div><h3>History is not available for this metric</h3><p>The current value is calculated from the latest statements or analyst data. FundamenTracker will not invent a historical series.</p></div></div>}</div>
-      </div>
-    </section>
-  );
+  return <section className="explorer-section" aria-labelledby="explorer-heading"><div className="section-heading"><div><h2 id="explorer-heading">Metric explorer</h2><p>Inspect one current value, its provenance, and a real history where the source supports it.</p></div></div><form className="explorer-form" onSubmit={handleSubmit}><TickerSearchInput id="explorer-ticker" label="Company ticker" value={tickerInput} onChange={setTickerInput} required /><div className="field field-wide"><label htmlFor="explorer-metric">Metric</label><MetricSelect id="explorer-metric" metrics={metrics} value={metric} onChange={setMetric} support="all" /><span className="field-help">{selectedMetric?.description || 'Loading available metrics…'}</span></div><div className="form-action"><button className="button button-primary" type="submit" disabled={loading}><Icon name="search" />{loading ? 'Loading…' : 'Inspect metric'}</button></div></form>{requestError && <div className="notice notice-error" role="alert">{requestError}</div>}<div className="explorer-layout"><aside className="metric-summary" aria-live="polite"><span className="metric-summary-ticker">{activeTicker}</span><h3>{getMetricLabel(metrics, metric)}</h3><div className="metric-display-value">{loading ? '—' : formatMetricValue(metrics, metric, currentValue)}</div>{selectedMetric?.description && <p>{selectedMetric.description}</p>}<div className="metric-metadata">{selectedMetric?.period && <span>{selectedMetric.period}</span>}{selectedMetric?.source_kind && <span>{selectedMetric.source_kind.replaceAll('_', ' ')}</span>}{selectedMetric && !selectedMetric.supported_for_history && <span>Current only</span>}</div>{currentMetric && <DataQualityBadge metadata={{ source: currentMetric.source, as_of_date: currentMetric.as_of_date, fetched_at: currentMetric.fetched_at, expires_at: currentMetric.expires_at, stale: currentMetric.stale, confidence: currentMetric.confidence }} />}{selectedMetric?.formula && <details className="formula-disclosure"><summary>How it is calculated</summary><code>{selectedMetric.formula}</code></details>}</aside><div className="chart-panel">{selectedMetric?.supported_for_history ? <MetricChart ticker={activeTicker} metric={metric} currentValue={currentValue} height={420} /> : <div className="history-unavailable"><Icon name="chart" size={24} /><div><h3>History is not available for this metric</h3><p>The current value is calculated from the latest statements or analyst data. FundamenTracker will not invent a historical series.</p></div></div>}</div></div></section>;
 }
