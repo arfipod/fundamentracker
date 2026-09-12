@@ -18,13 +18,13 @@ def test_database_backend_accepts_postgresql_alias(monkeypatch):
 
 
 def test_check_database_connectivity_rejects_unknown_backend(monkeypatch):
-    monkeypatch.setenv("DATABASE_BACKEND", "sqlite")
+    monkeypatch.setenv("DATABASE_BACKEND", "mysql")
 
     with pytest.raises(db.DatabaseHealthError) as exc_info:
         db.check_database_connectivity()
 
     assert exc_info.value.reason == "unsupported_backend"
-    assert exc_info.value.backend == "sqlite"
+    assert exc_info.value.backend == "mysql"
 
 
 def test_postgres_health_requires_database_url(monkeypatch):
