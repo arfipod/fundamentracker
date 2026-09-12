@@ -1,9 +1,9 @@
 # FundamenTracker
 
 FundamenTracker is a self-hosted fundamental-investing tracker with a FastAPI
-backend, React/Vite frontend, PostgreSQL or Supabase persistence, scheduled alert
-scans, a Signal Inbox, optional Telegram notifications, and optional structured
-Gemini analysis.
+backend, React/Vite frontend, PostgreSQL, SQLite, or Supabase persistence,
+scheduled alert scans, a Signal Inbox, optional Telegram notifications, and
+optional structured Gemini analysis.
 
 It is currently designed as a personal investment-monitoring application rather
 than a general multi-user SaaS product.
@@ -25,6 +25,27 @@ than a general multi-user SaaS product.
   sources, disclaimer, and read-only alert ideas.
 - Docker Compose, systemd units, migration runner, watchdog, and database backup
   scripts.
+
+## Persistence Backends
+
+FundamenTracker supports three repository backends through the same application
+boundary:
+
+- `postgres`: local or remote PostgreSQL, used by the production Compose stack.
+- `sqlite`: lightweight file-backed persistence for single-host deployments.
+- `supabase_rest`: Supabase persistence through its REST API.
+
+For SQLite, configure:
+
+```env
+DATABASE_BACKEND=sqlite
+SQLITE_PATH=/srv/fundamentracker/fundamentracker.db
+```
+
+The SQLite repository initializes the idempotent schema in
+`db/sqlite/001_schema.sql`, enables foreign keys, uses WAL journal mode, and
+sets a bounded busy timeout. PostgreSQL and Supabase behavior remain available
+unchanged.
 
 ## Fundamental Metric Coverage
 
@@ -131,6 +152,9 @@ docker compose -f docker-compose.prod.yml up -d postgres
 docker compose -f docker-compose.dev.yml up --build api frontend
 ```
 
+For a lightweight local SQLite session, run the API natively with
+`DATABASE_BACKEND=sqlite` and a writable `SQLITE_PATH`.
+
 ## Common Commands
 
 | Command | Purpose |
@@ -183,10 +207,10 @@ api/market_data/providers/              live provider implementations
 api/market_data/derived_metrics.py      deterministic fundamental formulas
 api/market_data/metric_definitions.py   public metric catalog
 api/scanner.py                          alert evaluation and signals
-api/repositories/                       PostgreSQL and Supabase repositories
+api/repositories/                       PostgreSQL, SQLite, Supabase repositories
 frontend/                               React/Vite frontend
 tests/                                  offline backend test suite
-db/                                     bootstrap schema and migrations
+db/                                     PostgreSQL and SQLite schemas/migrations
 scripts/ and systemd/                    host operations
 ```
 
