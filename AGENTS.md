@@ -294,13 +294,9 @@ Raspberry deployment shell syntax:
 
 ```bash
 bash -n deploy/rpi1/probe-runtime.sh
-a bash -n deploy/rpi1/install-native.sh
+bash -n deploy/rpi1/install-native.sh
 bash -n deploy/rpi1/validate-native.sh
 ```
-
-The second line above should be run as `bash -n deploy/rpi1/install-native.sh`;
-if editing this file, remove any accidental command-prefix typo rather than
-copying it into automation.
 
 Docs:
 
