@@ -23,8 +23,8 @@ than a general multi-user SaaS product.
   only have a reliable current value.
 - Structured Gemini valuation output with observations, risks, missing data,
   sources, disclaimer, and read-only alert ideas.
-- Docker Compose, systemd units, migration runner, watchdog, and database backup
-  scripts.
+- Docker Compose, native Raspberry Pi/systemd deployment assets, migration
+  tooling, watchdog, and database backup scripts.
 
 ## Persistence Backends
 
@@ -46,6 +46,9 @@ The SQLite repository initializes the idempotent schema in
 `db/sqlite/001_schema.sql`, enables foreign keys, uses WAL journal mode, and
 sets a bounded busy timeout. PostgreSQL and Supabase behavior remain available
 unchanged.
+
+A safe read-only PostgreSQL-to-SQLite migration tool is provided for moving an
+existing deployment. See [Migrating to SQLite](docs/MIGRATING_TO_SQLITE.md).
 
 ## Fundamental Metric Coverage
 
@@ -102,6 +105,8 @@ not fabricate a chart for them.
   implemented.
 - The frontend has no committed unit-test suite; CI validates its production
   TypeScript/Vite build.
+- Raspberry Pi 1/ARMv6 compatibility for the compiled Python dependency stack
+  must be validated on the physical target; x86 CI does not prove it.
 
 ## Documentation
 
@@ -112,6 +117,8 @@ not fabricate a chart for them.
 - [Testing](docs/TESTING.md)
 - [Host setup](docs/HOST_SETUP.md)
 - [Deployment sequence](docs/DEPLOYMENT_SEQUENCE.md)
+- [Raspberry Pi 1 native deployment](docs/RPI1_DEPLOYMENT.md)
+- [Migrating PostgreSQL data to SQLite](docs/MIGRATING_TO_SQLITE.md)
 - [Local PostgreSQL](docs/LOCAL_DATABASE.md)
 - [SQL schema](docs/SQL_TABLES.md)
 - [Security](docs/SECURITY.md)
@@ -125,8 +132,11 @@ CI is authoritative and currently validates:
 - Python 3.13 backend tests.
 - Node.js 22 frontend build.
 - Development and production Docker Compose configuration.
+- Static syntax/configuration checks for Raspberry Pi deployment assets.
 
 The backend image uses Python 3.11 and the frontend image uses Node 20.
+Raspberry Pi 1 native runtime compatibility is established separately on the
+physical ARMv6 target with `deploy/rpi1/probe-runtime.sh`.
 
 ## Local Development
 
@@ -177,6 +187,9 @@ pytest
 cd frontend && npm ci && npm run build
 docker compose -f docker-compose.dev.yml config
 docker compose -f docker-compose.prod.yml config
+bash -n deploy/rpi1/probe-runtime.sh
+bash -n deploy/rpi1/install-native.sh
+bash -n deploy/rpi1/validate-native.sh
 ```
 
 ## Alert Semantics
@@ -208,10 +221,12 @@ api/market_data/derived_metrics.py      deterministic fundamental formulas
 api/market_data/metric_definitions.py   public metric catalog
 api/scanner.py                          alert evaluation and signals
 api/repositories/                       PostgreSQL, SQLite, Supabase repositories
+api/db/postgres_to_sqlite.py            verified PostgreSQL -> SQLite copy
+deploy/rpi1/                             native ARMv6 deployment/probe assets
 frontend/                               React/Vite frontend
 tests/                                  offline backend test suite
 db/                                     PostgreSQL and SQLite schemas/migrations
-scripts/ and systemd/                    host operations
+scripts/ and systemd/                    generic host operations
 ```
 
 Production deployment details, network exposure, authentication configuration,
