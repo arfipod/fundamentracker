@@ -8,7 +8,7 @@ from uuid import UUID
 
 DEFAULT_TIMEOUT_SECONDS = 5
 DEFAULT_POSTGRES_STARTUP_TIMEOUT_SECONDS = 60
-SUPPORTED_DATABASE_BACKENDS = {"supabase_rest", "postgres"}
+SUPPORTED_DATABASE_BACKENDS = {"supabase_rest", "postgres", "sqlite"}
 METRIC_SNAPSHOT_COLUMNS = (
     "id,symbol,metric,value,unit,currency,source,as_of_date,"
     "fetched_at,expires_at,confidence,raw_payload"
@@ -22,6 +22,7 @@ def normalize_database_backend(backend: str | None) -> str:
     aliases = {
         "supabase": "supabase_rest",
         "postgresql": "postgres",
+        "sqlite3": "sqlite",
     }
     return aliases.get(normalized, normalized)
 
