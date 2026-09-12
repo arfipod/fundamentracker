@@ -11,6 +11,7 @@ from repositories.base import (
     normalize_database_backend,
 )
 from repositories.postgres import PostgresRepository
+from repositories.sqlite import SQLiteRepository
 from repositories.supabase_rest import SupabaseRestRepository
 
 
@@ -29,12 +30,14 @@ def create_repository(backend: str | None = None) -> FundamenTrackerRepository:
 
     if selected_backend == "postgres":
         return PostgresRepository()
+    if selected_backend == "sqlite":
+        return SQLiteRepository()
     if selected_backend == "supabase_rest":
         return SupabaseRestRepository()
 
     raise DatabaseHealthError(
         reason="unsupported_backend",
-        detail="DATABASE_BACKEND must be either 'supabase_rest' or 'postgres'.",
+        detail="DATABASE_BACKEND must be one of 'supabase_rest', 'postgres', or 'sqlite'.",
         backend=selected_backend,
     )
 
