@@ -1,0 +1,46 @@
+[Unit]
+Description=FundamenTracker native API (Raspberry Pi 1)
+Documentation=https://github.com/arfipod/fundamentracker
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=fundamentracker
+Group=fundamentracker
+WorkingDirectory=/opt/fundamentracker
+EnvironmentFile=/etc/fundamentracker/fundamentracker.env
+Environment=PYTHONPATH=/opt/fundamentracker/api
+ExecStartPre=/opt/fundamentracker/.venv/bin/python -c "import fastapi, uvicorn, pandas, yfinance; import api.api"
+ExecStart=/opt/fundamentracker/.venv/bin/python -m uvicorn api.api:app --host 127.0.0.1 --port 8000 --workers 1
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=90s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+
+# Keep the API below interactive/monitoring work when the single ARMv6 core is busy.
+Nice=5
+OOMScoreAdjust=250
+
+# SQLite and provider caches are the only persistent writable application paths.
+ReadWritePaths=/srv/fundamentracker
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectHostname=yes
+ProtectClock=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
