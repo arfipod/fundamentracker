@@ -231,8 +231,11 @@ def migrate_postgres_to_sqlite(
                     )
                     raise RuntimeError(f"SQLite migration count verification failed: {details}")
 
+                # SQLiteRepository initializes the temporary target in WAL mode.
+                # Flush all committed pages into the main database before the
+                # atomic rename; the temporary -wal/-shm sidecars are removed
+                # only after this connection closes.
                 target.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-                target.execute("PRAGMA journal_mode = DELETE")
 
             source.rollback()
 
