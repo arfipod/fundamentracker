@@ -22,10 +22,14 @@ if [[ "${EUID}" -ne 0 ]]; then
   fail "run this installer with sudo or as root"
 fi
 
+if [[ "$(realpath "${REPO_ROOT}")" != "${PROJECT_DIR}" ]]; then
+  fail "native deployment expects the Git checkout at ${PROJECT_DIR}; clone/update the repository there first"
+fi
+
+[[ -d "${PROJECT_DIR}/.git" ]] || fail "${PROJECT_DIR} is not a Git checkout"
 [[ -f "${SERVICE_SRC}" ]] || fail "missing service file: ${SERVICE_SRC}"
 [[ -f "${ENV_EXAMPLE}" ]] || fail "missing environment template: ${ENV_EXAMPLE}"
 command -v python3 >/dev/null 2>&1 || fail "python3 is not installed"
-command -v tar >/dev/null 2>&1 || fail "tar is not installed"
 
 if ! getent group fundamentracker >/dev/null; then
   groupadd --system fundamentracker
@@ -42,22 +46,6 @@ fi
 
 install -d -o root -g fundamentracker -m 0750 "${CONFIG_DIR}"
 install -d -o fundamentracker -g fundamentracker -m 0750 "${DATA_DIR}"
-install -d -o root -g fundamentracker -m 0755 "${PROJECT_DIR}"
-
-# Stage code without touching the persistent SQLite/data directory. When the
-# checkout itself already lives in /opt/fundamentracker, no copy is necessary.
-if [[ "$(realpath "${REPO_ROOT}")" != "$(realpath "${PROJECT_DIR}")" ]]; then
-  tar \
-    --exclude='.git' \
-    --exclude='.venv' \
-    --exclude='frontend/node_modules' \
-    --exclude='__pycache__' \
-    --exclude='*.pyc' \
-    -C "${REPO_ROOT}" -cf - . | tar -C "${PROJECT_DIR}" -xf -
-fi
-chown -R root:fundamentracker "${PROJECT_DIR}"
-find "${PROJECT_DIR}" -type d -exec chmod a-w {} +
-find "${PROJECT_DIR}" -type f -exec chmod a-w {} +
 
 if [[ ! -f "${CONFIG_FILE}" ]]; then
   install -o root -g fundamentracker -m 0640 "${ENV_EXAMPLE}" "${CONFIG_FILE}"
@@ -67,8 +55,9 @@ fi
 if [[ ! -x "${PROJECT_DIR}/.venv/bin/python" ]]; then
   cat >&2 <<EOF
 ERROR: ${PROJECT_DIR}/.venv is not prepared.
-Run the ARMv6 runtime probe first, then create/validate the virtualenv using the
-package strategy selected from that probe. The service has NOT been installed.
+Run deploy/rpi1/probe-runtime.sh first, then create and validate the virtualenv
+using the package strategy selected from that probe. The service has NOT been
+installed.
 EOF
   exit 2
 fi
