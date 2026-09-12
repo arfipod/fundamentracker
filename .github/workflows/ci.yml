@@ -73,3 +73,24 @@ jobs:
 
       - name: Validate production compose file
         run: docker compose -f docker-compose.prod.yml config
+
+  rpi1-deployment:
+    name: Raspberry Pi deployment static checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate shell syntax
+        run: |
+          bash -n deploy/rpi1/probe-runtime.sh
+          bash -n deploy/rpi1/install-native.sh
+          bash -n deploy/rpi1/validate-native.sh
+
+      - name: Verify native unit and templates are present
+        run: |
+          test -s deploy/rpi1/fundamentracker-native.service
+          test -s deploy/rpi1/fundamentracker.env.example
+          grep -q '^DATABASE_BACKEND=sqlite$' deploy/rpi1/fundamentracker.env.example
+          grep -q '^ExecStart=.*uvicorn api.api:app.*--workers 1$' deploy/rpi1/fundamentracker-native.service

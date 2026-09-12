@@ -8,7 +8,7 @@ Keep changes small, accurate, and grounded in the current code.
 FundamenTracker is a self-hosted fundamental investing tracker for an individual
 investor. The active application is a FastAPI backend plus a React/Vite
 frontend. It tracks a watchlist, evaluates fundamental/price alerts, stores
-state in either local PostgreSQL or Supabase REST, exposes market-data charts,
+state in PostgreSQL, SQLite, or Supabase REST, exposes market-data charts,
 optionally sends Telegram notifications, and has a Gemini valuation endpoint.
 
 Long-term goals include stronger provider arbitration, local-first data
@@ -25,6 +25,7 @@ Current active entrypoints:
 - Shared frontend API helper: `frontend/src/lib/apiClient.ts`.
 - Repository factory: `api/repositories/factory.py`.
 - PostgreSQL repository: `api/repositories/postgres.py`.
+- SQLite repository: `api/repositories/sqlite.py`.
 - Supabase REST repository: `api/repositories/supabase_rest.py`.
 - Scanner: `api/scanner.py`.
 - Market-data service: `api/market_data/service.py`.
@@ -55,15 +56,23 @@ manual/periodic scan -> api/scanner.py -> MarketDataService -> provider/cache
 
 ## Current Persistence Reality
 
-Two repository backends exist:
+Three repository backends exist:
 
 - `postgres`
+- `sqlite`
 - `supabase_rest`
 
 `docker-compose.prod.yml` defaults to `DATABASE_BACKEND=postgres` and starts a
 local PostgreSQL service. A bare non-Compose API defaults to `supabase_rest` if
 `DATABASE_BACKEND` is unset, because `api/repositories/base.py` normalizes a
-missing backend to Supabase REST.
+missing backend to Supabase REST. Lightweight single-host deployments can select
+`DATABASE_BACKEND=sqlite` and must provide `SQLITE_PATH`.
+
+The SQLite schema is in `db/sqlite/001_schema.sql`. The PostgreSQL-to-SQLite
+migration implementation is `api/db/postgres_to_sqlite.py`, with the CLI
+`scripts/migrate-postgres-to-sqlite.py`. It reads PostgreSQL in a repeatable-read,
+read-only transaction, verifies table counts, and refuses to replace an existing
+SQLite destination unless explicitly requested.
 
 Business logic should call the repository boundary and must not hardcode one
 database backend.
@@ -71,18 +80,22 @@ database backend.
 ## Safe Working Rules
 
 - Preserve user data. Never delete, reset, recreate, or prune PostgreSQL data,
-  Supabase data, alert history, watchlists, or backups unless explicitly asked.
-- Never commit real secrets. Use `.env.example` dummy values only.
-- Be careful with `.env`: it may contain real local secrets. Do not print it in
-  final answers.
+  SQLite data, Supabase data, alert history, watchlists, or backups unless
+  explicitly asked.
+- Never commit real secrets. Use `.env.example` and deployment templates with
+  dummy values only.
+- Be careful with `.env` and `/etc/fundamentracker/fundamentracker.env`: they may
+  contain real local secrets. Do not print them in final answers or logs.
 - Do not add direct external calls to route handlers. Use services/providers.
 - Do not add tests that call Yahoo Finance, SEC EDGAR, Gemini, Telegram,
-  Supabase production, or Cloudflare.
+  Supabase production, Cloudflare, or a real production database.
 - Prefer incremental changes over broad rewrites.
 - Before deleting or renaming suspicious files, inspect imports, Docker
   entrypoints, tests, docs, and scripts.
 - Update docs when changing commands, environment variables, API exposure,
   Docker/systemd behavior, schema, data sources, or testing workflow.
+- Keep the Raspberry Pi deployment separate from the generic Docker production
+  service. Do not silently replace the existing Docker/PostgreSQL path.
 
 ## Configuration And Secrets
 
@@ -95,6 +108,7 @@ Documented configuration lives in `.env.example`. Important variables include:
 - `PUBLIC_READY_HEALTH`
 - `DATABASE_BACKEND`
 - `DATABASE_URL`
+- `SQLITE_PATH`
 - `SUPABASE_URL`
 - `SUPABASE_KEY`
 - `POSTGRES_DB`
@@ -219,6 +233,24 @@ make db-migrate
 ./scripts/migrate-db.sh --dry-run
 ```
 
+PostgreSQL-to-SQLite copy:
+
+```bash
+python scripts/migrate-postgres-to-sqlite.py \
+  --database-url 'postgresql://...' \
+  --sqlite-path ./fundamentracker.db
+```
+
+Raspberry Pi 1 preflight (non-destructive):
+
+```bash
+bash deploy/rpi1/probe-runtime.sh
+```
+
+See `docs/RPI1_DEPLOYMENT.md` before installing the native service. ARMv6
+compiled-dependency compatibility must be established from the real target; do
+not assume x86 CI proves it.
+
 ## Validation Commands
 
 Run the most relevant checks for the change.
@@ -258,6 +290,14 @@ docker compose -f docker-compose.dev.yml config
 docker compose -f docker-compose.prod.yml config
 ```
 
+Raspberry deployment shell syntax:
+
+```bash
+bash -n deploy/rpi1/probe-runtime.sh
+bash -n deploy/rpi1/install-native.sh
+bash -n deploy/rpi1/validate-native.sh
+```
+
 Docs:
 
 ```bash
@@ -271,10 +311,13 @@ rg -n 'old-path-or-command' README.md AGENTS.md docs frontend/README.md ISSUES.m
 - Use fakes, fixtures, monkeypatching, or local test containers.
 - Keep tests deterministic and offline.
 - Current focused tests cover health, auth, CORS, alert evaluation, scanner
-  transitions, alert ID operations, repository factory behavior, fake
-  repositories, market-data service caching/fallback, normalizers, migration
-  runner, ops status, and SEC provider fixtures.
+  transitions, alert ID operations, repository factory behavior, SQLite
+  repository parity, PostgreSQL-to-SQLite migration behavior, fake repositories,
+  market-data service caching/fallback, normalizers, migration runner, ops
+  status, and SEC provider fixtures.
 - Frontend build is covered in CI. Frontend unit tests are not yet present.
+- Raspberry Pi x86 CI checks are not a substitute for running the ARMv6 runtime
+  probe and native validation on the physical target.
 
 ## Documentation Rules
 
@@ -293,6 +336,7 @@ rg -n 'old-path-or-command' README.md AGENTS.md docs frontend/README.md ISSUES.m
 - `api/api.py`
 - `api/repositories/*`
 - `api/db/migration_runner.py`
+- `api/db/postgres_to_sqlite.py`
 - `api/scanner.py`
 - `api/alert_evaluator.py`
 - `api/telegram_service.py`
@@ -309,14 +353,21 @@ rg -n 'old-path-or-command' README.md AGENTS.md docs frontend/README.md ISSUES.m
 - `frontend/Dockerfile`
 - `.env.example`
 - `db/init/001_schema.sql`
+- `db/sqlite/001_schema.sql`
 - `db/migrations/*.sql`
 - `scripts/*.sh`
 - `systemd/*.service`
 - `systemd/*.timer`
+- `deploy/rpi1/*`
 
 ## Common Pitfalls
 
-- Assuming Supabase is the only persistence backend.
+- Assuming Supabase or PostgreSQL is the only persistence backend. SQLite is a
+  supported backend too.
+- Treating SQLite as a network service. It is a local database file and should
+  be accessed through the repository/API boundary.
+- Replacing an active SQLite file while the API is using it. Stop the target API
+  before a final database replacement.
 - Assuming production Compose exposes services publicly. It binds API, frontend,
   and pgAdmin to `127.0.0.1` by default.
 - Assuming SEC EDGAR is the default live provider. It is not.
