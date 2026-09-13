@@ -150,6 +150,12 @@ nice'd below interactive/monitoring workloads and given a positive OOM score so
 that a pathological API workload is preferred over SSH/system management if
 the machine is under severe memory pressure.
 
+On the tested Pi, the pre-start import took 57–78 seconds and the subsequent
+Uvicorn import took another 78–104 seconds under installation load. systemd
+`active` is therefore not proof of readiness. Allow the health endpoint to
+become ready before routing traffic; the validation script retries connection
+refusals. The pre-start timeout is five minutes to tolerate cold boot load.
+
 ## 5. Migrate production data
 
 Use the read-only migration documented in
