@@ -19,19 +19,10 @@ section() {
 
 read_env_value() {
   local key="$1"
-  python3 - "${ENV_FILE}" "${key}" <<'PY'
-from pathlib import Path
+  /opt/fundamentracker/.venv/bin/python - "${ENV_FILE}" "${key}" <<'PY'
+from dotenv import dotenv_values
 import sys
-path = Path(sys.argv[1])
-key = sys.argv[2]
-for raw in path.read_text(encoding="utf-8").splitlines():
-    line = raw.strip()
-    if not line or line.startswith("#") or "=" not in line:
-        continue
-    name, value = line.split("=", 1)
-    if name.strip() == key:
-        print(value.strip())
-        break
+print(dotenv_values(sys.argv[1]).get(sys.argv[2]) or "")
 PY
 }
 
@@ -65,8 +56,12 @@ import sqlite3
 import sys
 path = sys.argv[1]
 with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as conn:
-    print("integrity_check:", conn.execute("PRAGMA integrity_check").fetchone()[0])
-    print("foreign_key_check:", len(conn.execute("PRAGMA foreign_key_check").fetchall()), "violations")
+    integrity = conn.execute("PRAGMA integrity_check").fetchall()
+    violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+    print("integrity_check:", integrity)
+    print("foreign_key_check:", len(violations), "violations")
+    if integrity != [("ok",)] or violations:
+        raise SystemExit("SQLite validation failed")
     for table in (
         "tickers", "tags", "ticker_tags", "alerts", "alert_history", "signals",
         "scan_settings", "data_providers", "metric_snapshots", "provider_health",
