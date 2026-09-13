@@ -72,11 +72,21 @@ if grep -q '^API_AUTH_TOKEN=change-me-api-token$' "${CONFIG_FILE}"; then
   fail "replace the placeholder API_AUTH_TOKEN in ${CONFIG_FILE} before installing the service"
 fi
 
+if [[ -f "${SYSTEMD_DIR}/${SERVICE_NAME}" ]]; then
+  cp -a "${SYSTEMD_DIR}/${SERVICE_NAME}" "${SYSTEMD_DIR}/${SERVICE_NAME}.backup-$(date +%Y%m%d-%H%M%S)"
+fi
 install -o root -g root -m 0644 \
   "${SERVICE_SRC}" "${SYSTEMD_DIR}/${SERVICE_NAME}"
+for unit in fundamentracker-sqlite-backup.service fundamentracker-sqlite-backup.timer; do
+  if [[ -f "${SYSTEMD_DIR}/${unit}" ]]; then
+    cp -a "${SYSTEMD_DIR}/${unit}" "${SYSTEMD_DIR}/${unit}.backup-$(date +%Y%m%d-%H%M%S)"
+  fi
+  install -o root -g root -m 0644 "${SCRIPT_DIR}/${unit}" "${SYSTEMD_DIR}/${unit}"
+done
 systemctl daemon-reload
 systemctl enable "${SERVICE_NAME}"
 systemctl restart "${SERVICE_NAME}"
+systemctl enable --now fundamentracker-sqlite-backup.timer
 
 printf 'Installed and started %s.\n' "${SERVICE_NAME}"
 printf 'Status: sudo systemctl status %s\n' "${SERVICE_NAME}"

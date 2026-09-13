@@ -78,6 +78,38 @@ file.
 
 ## 3. Prepare the Python runtime
 
+For Raspbian Trixie, the ARMv6 profile is `deploy/rpi1/requirements.txt`.
+Use distro binaries for NumPy 2.2.4, pandas 2.2.3, lxml 5.4.0,
+Pydantic 2.10.6 / pydantic-core 2.27.2, and the distribution's security-patched
+cryptography 43.0.0. This keeps large C/Rust builds off the single-core Pi.
+The profile keeps yfinance 1.5.2 and uses curl_cffi 0.16.3 because the
+generic requirements' exact curl_cffi 0.15.0 has no compatible binary on
+piwheels. The 0.16.3 wheel advertises ARMv6/VFPv2 ELF attributes; actual imports
+and HTTPS requests on the target must still pass before deployment.
+
+```bash
+sudo apt-get install --no-install-recommends \
+  python3-venv python3-numpy python3-pandas python3-lxml \
+  python3-pydantic python3-pydantic-core python3-cryptography
+cd /opt/fundamentracker
+sudo python3 -m venv --system-site-packages .venv
+sudo .venv/bin/python -m pip install --only-binary=:all: \
+  --extra-index-url https://www.piwheels.org/simple \
+  -r deploy/rpi1/requirements.txt
+```
+
+If `multitasking==0.0.12` lacks a wheel, build its pure-Python wheel on the
+development PC with `python -m pip wheel --no-deps multitasking==0.0.12`,
+transfer it, and add `--find-links /path/to/wheels` to the install command.
+Do not remove `--only-binary` and accidentally compile heavy dependencies.
+An offline wheel directory downloaded on the PC with `pip download
+--platform linux_armv6l --python-version 3.13 --implementation cp --abi cp313
+--only-binary=:all:` is also supported; distro-satisfied packages need not be
+downloaded. Copying an x86 virtualenv to the Pi is not supported.
+
+The CI compatibility job tests these dependency versions on x86. This does not
+replace the hardware import, scan, memory, and reboot checks.
+
 The exact commands depend on the ARMv6 probe result. The service installer will
 refuse to continue until `/opt/fundamentracker/.venv/bin/python` exists and can
 import the core runtime (`fastapi`, `uvicorn`, `pandas`, `yfinance`, and
@@ -181,3 +213,39 @@ The C++ TFT dashboard stays independent of FundamenTracker during this migration
 After the backend is stable, it can query the API over
 `http://127.0.0.1:8000` for health, signals, scan state, and explicit actions.
 A FundamenTracker crash must not take the dashboard down with it.
+
+## 9. Daily SQLite backups and restore
+
+The native installer enables `fundamentracker-sqlite-backup.timer`. It runs
+daily around 04:00 (local system timezone) and catches up after downtime. The
+job uses SQLite's online backup API, verifies integrity and foreign keys, and
+stores mode-0600 timestamped snapshots under `/srv/fundamentracker/backups`.
+It retains 14 recent snapshots there; older snapshots move into `archive/`
+without deletion. `SQLITE_BACKUP_DIR` and `SQLITE_BACKUP_KEEP_RECENT` in the
+service environment can override these defaults. The archive grows over time
+and requires an explicit operator retention decision.
+
+```bash
+sudo systemctl start fundamentracker-sqlite-backup.service
+systemctl list-timers fundamentracker-sqlite-backup.timer
+journalctl -u fundamentracker-sqlite-backup.service
+```
+
+To restore, first stop the API and backup timer. Select and verify the intended
+snapshot with SQLite `PRAGMA integrity_check` and `PRAGMA foreign_key_check`.
+Preserve the existing database **and any matching -wal/-shm files** together
+in a timestamped recovery directory while the API is stopped. Install the
+snapshot to a new temporary file in `/srv/fundamentracker`, owned by
+`fundamentracker:fundamentracker`, mode 0600, and atomically rename it to the
+configured database path. Restart the API, validate locally, then restart the
+timer. Never overwrite a running WAL database or mix sidecars from different
+database instances.
+
+After a cutover accepts SQLite writes, the old PostgreSQL copy is stale.
+Switching back without reconciling newer SQLite changes would lose data.
+
+For an explicitly authorized fresh-data deployment, skip PostgreSQL export
+and initialize a new SQLite file only at a path that does not already exist.
+The initial watchlist is empty and automatic scans are disabled (interval 0).
+Validate market-data and mutation behavior on a separate disposable database;
+do not insert demonstration tickers into production merely to test scans.

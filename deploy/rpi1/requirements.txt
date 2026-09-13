@@ -1,0 +1,35 @@
+# Raspbian Trixie ARMv6 profile. Install distro packages first; see deployment docs.
+# Keep the generic Docker/x86 requirements unchanged.
+numpy==2.2.4
+pandas==2.2.3
+lxml==5.4.0
+pydantic==2.10.6
+pydantic-core==2.27.2
+cryptography==43.0.0
+beautifulsoup4==4.14.3
+certifi==2026.2.25
+cffi==2.0.0
+charset-normalizer==3.4.7
+curl_cffi==0.16.3
+frozendict==2.4.7
+idna==3.11
+multitasking==0.0.12
+peewee==4.0.4
+platformdirs==4.9.6
+protobuf==7.34.1
+pycparser==3.0
+python-dateutil==2.9.0.post0
+pytz==2026.1.post1
+requests==2.33.1
+rich==14.3.4
+six==1.17.0
+soupsieve==2.8.3
+typing_extensions==4.15.0
+urllib3==2.6.3
+websockets==16.0
+yfinance==1.5.2
+python-dotenv==1.2.2
+fastapi==0.136.1
+uvicorn==0.46.0
+httpx==0.28.1
+google-genai==2.0.0

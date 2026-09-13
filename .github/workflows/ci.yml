@@ -57,6 +57,20 @@ jobs:
       # Frontend lint is intentionally not enforced yet because `npm run lint`
       # currently fails on existing React hooks and TypeScript lint issues.
 
+  rpi1-runtime:
+    name: Raspberry Pi dependency compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install Raspbian-compatible versions on x86 for regression tests
+        run: pip install -r deploy/rpi1/requirements.txt pytest 'psycopg[binary]>=3.1,<4'
+      - run: pytest
+      - name: Verify native import path
+        run: PYTHONPATH="$PWD/api" python -c 'import fastapi, uvicorn, pandas, yfinance; import api.api'
+
   docker-compose:
     name: Docker Compose
     runs-on: ubuntu-latest
