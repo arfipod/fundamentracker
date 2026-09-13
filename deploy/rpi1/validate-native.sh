@@ -36,6 +36,9 @@ cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf "%.1f C\n",
 section "Service"
 systemctl is-enabled "${SERVICE_NAME}" || true
 systemctl is-active "${SERVICE_NAME}"
+# Type=simple becomes active before Python has finished importing the app.
+curl -fsS --retry 90 --retry-connrefused --retry-delay 2 --retry-max-time 180 \
+  --max-time 5 "${BASE_URL}/health/live" >/dev/null
 systemctl --no-pager --full status "${SERVICE_NAME}" | sed -n '1,25p'
 
 pid="$(systemctl show -p MainPID --value "${SERVICE_NAME}")"

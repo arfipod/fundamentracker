@@ -15,7 +15,8 @@ ExecStartPre=/opt/fundamentracker/.venv/bin/python -c "import fastapi, uvicorn, 
 ExecStart=/opt/fundamentracker/.venv/bin/python -m uvicorn api.api:app --host 127.0.0.1 --port 8000 --workers 1
 Restart=on-failure
 RestartSec=5s
-TimeoutStartSec=90s
+# ARMv6 cold imports may take over a minute, especially alongside boot work.
+TimeoutStartSec=300s
 TimeoutStopSec=20s
 KillSignal=SIGTERM
 
