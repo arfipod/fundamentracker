@@ -1,0 +1,17 @@
+[Unit]
+Description=Verified FundamenTracker SQLite backup
+
+[Service]
+Type=oneshot
+User=fundamentracker
+Group=fundamentracker
+EnvironmentFile=/etc/fundamentracker/fundamentracker.env
+ExecStart=/usr/bin/python3 /opt/fundamentracker/scripts/backup-sqlite.py
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+ProtectSystem=strict
+ReadWritePaths=/srv/fundamentracker
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
